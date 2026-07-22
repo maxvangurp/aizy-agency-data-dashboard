@@ -9,6 +9,9 @@
  * geen vaste kleurwaarden.
  */
 
+import { metriekMeta, Formaat, DeltaStatus } from '../data/metrics.js';
+import { PacingStatus, PACING_LABELS } from '../data/selectors.js';
+
 const nf = new Intl.NumberFormat('nl-NL');
 const cf0 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const cf2 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -41,26 +44,39 @@ export function esc(v) {
 }
 
 /**
- * KPI's waarbij een lagere waarde beter is. Wordt gebruikt om de richting van
- * een verandering te bepalen, zodat een dalende CPL groen is en niet rood.
+ * Maakt een waarde op volgens het formaat uit de metriekmetadata.
+ * Zo staat de opmaak van een metriek op één plek, naast de betekenis ervan.
  */
-export const LAGER_IS_BETER = new Set([
-  'cpa', 'cpl', 'cpql', 'cpc', 'cpm', 'kostenPerLead',
-  'kostenPerGekwalificeerdeLead', 'frequentie', 'gemPositie',
-]);
-
-/** Verschil tussen twee waarden, met richting. */
-export function delta(actueel, vorig, lagerIsBeter = false) {
-  if (actueel == null || vorig == null || vorig === 0) {
-    return { tekst: 'Niet beschikbaar', richting: 'neutraal', pct: null };
+export function formatteerMetriek(waarde, formaat) {
+  switch (formaat) {
+    case Formaat.EURO: return fmt.euro(waarde);
+    case Formaat.EURO2: return fmt.euro2(waarde);
+    case Formaat.PROCENT: return fmt.procent(waarde);
+    case Formaat.RATIO: return fmt.ratio(waarde);
+    default: return fmt.getal(waarde);
   }
-  const pct = ((actueel - vorig) / vorig) * 100;
-  const positief = lagerIsBeter ? pct < 0 : pct > 0;
-  return {
-    tekst: `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`,
-    richting: Math.abs(pct) < 0.5 ? 'neutraal' : positief ? 'positief' : 'negatief',
-    pct,
-  };
+}
+
+/** Waarde van een metriek uit een totalenobject, al opgemaakt. */
+export function toonMetriek(totalen, key, leegTekst = 'Onvoldoende data') {
+  const waarde = totalen?.[key];
+  if (waarde == null) return leegTekst;
+  return formatteerMetriek(waarde, metriekMeta(key).formaat);
+}
+
+/**
+ * Beschrijft een verandering in woorden.
+ * De vijf statussen uit metrics.js worden hier vertaald naar tekst die naast
+ * een KPI past, zonder dat de view zelf hoeft te weten of dalen goed is.
+ */
+export function deltaTekst(delta, vergelijkingLabel = 'de vorige periode') {
+  if (!delta) return '';
+  switch (delta.status) {
+    case DeltaStatus.ONVOLDOENDE_DATA: return 'Onvoldoende data';
+    case DeltaStatus.NIET_VERGELIJKBAAR: return delta.tekst;
+    case DeltaStatus.GELIJK: return `Gelijk aan ${vergelijkingLabel}`;
+    default: return `${delta.tekst} t.o.v. ${vergelijkingLabel}`;
+  }
 }
 
 /** KPI-kaart. */
@@ -70,6 +86,44 @@ export function kpi(label, waarde, sub = '', richting = 'neutraal') {
     <span class="kpi-value">${esc(waarde)}</span>
     <span class="kpi-sub trend-${esc(richting)}">${esc(sub)}</span>
   </article>`;
+}
+
+/**
+ * KPI-kaart die zijn waarde, opmaak en richting uit de metriekmetadata haalt.
+ *
+ * @param {object} totalen     berekende totalen
+ * @param {string} key         metrieksleutel
+ * @param {object} deltas      berekende delta's
+ * @param {object} opties      label, leegTekst en vergelijkingLabel
+ */
+export function kpiMetriek(totalen, key, deltas, {
+  label = null, leegTekst = 'Onvoldoende data', leegSub = 'Niet gemeten in deze periode',
+  vergelijkingLabel = 'de vorige periode',
+} = {}) {
+  const meta = metriekMeta(key);
+  const waarde = totalen?.[key];
+  const delta = deltas?.[key];
+
+  if (waarde == null) {
+    return kpi(label ?? meta.label, leegTekst, leegSub, 'neutraal');
+  }
+  return kpi(
+    label ?? meta.label,
+    formatteerMetriek(waarde, meta.formaat),
+    deltaTekst(delta, vergelijkingLabel),
+    delta?.richting ?? 'neutraal'
+  );
+}
+
+/** Tabelcel met een verandering, inclusief statuswoord voor wie geen kleur ziet. */
+export function deltaCel(delta) {
+  if (!delta || delta.status === DeltaStatus.ONVOLDOENDE_DATA) {
+    return '<span class="muted">Onvoldoende data</span>';
+  }
+  if (delta.status === DeltaStatus.NIET_VERGELIJKBAAR) {
+    return `<span class="muted">${esc(delta.tekst)}</span>`;
+  }
+  return `<span class="trend-${esc(delta.richting)}">${esc(delta.tekst)}</span>`;
 }
 
 /** Tabel uit kolomnamen en rijen. Cellen mogen HTML bevatten. */
@@ -114,6 +168,8 @@ export const DOEL_STATUS = {
   OP_SCHEMA: 'Op schema',
   LICHT_ONDER: 'Licht onder doelstelling',
   ONDER: 'Duidelijk onder doelstelling',
+  BINNEN: 'Binnen budget',
+  OVERSCHREDEN: 'Boven budget',
   ONVOLDOENDE: 'Onvoldoende data',
   NIET_INGESTELD: 'Niet ingesteld',
 };
@@ -121,13 +177,20 @@ export const DOEL_STATUS = {
 /**
  * Berekent de voortgang van een doel.
  *
- * Bij een KPI waar lager beter is, zoals de kosten per lead, betekent
- * "100 procent behaald" dat de werkelijke waarde precies op het maximum zit.
- * De verhouding wordt daarom omgekeerd, anders zou een dure lead als
- * overprestatie worden gelezen.
+ * De richting komt uit het doel zelf en niet uit een lijst met KPI-namen in
+ * deze module. Er zijn drie richtingen:
+ *
+ *   hoger   meer is beter, zoals leads of omzet
+ *   lager   minder is beter per eenheid, zoals de kosten per lead. "100 procent
+ *           behaald" betekent dat de werkelijke waarde precies op het maximum
+ *           zit; de verhouding wordt omgekeerd, anders zou een dure lead als
+ *           overprestatie worden gelezen.
+ *   binnen  de waarde hoort onder het doel te blijven, zoals een budget. Hier
+ *           is het percentage juist het bestede deel, want dat is wat je wilt
+ *           aflezen.
  */
 export function doelVoortgang(doel) {
-  const { target, actueel, kpi: kpiNaam } = doel;
+  const { target, actueel, richting = 'hoger' } = doel;
 
   if (target == null) {
     return { status: DOEL_STATUS.NIET_INGESTELD, behaald: null, opSchema: false };
@@ -136,8 +199,24 @@ export function doelVoortgang(doel) {
     return { status: DOEL_STATUS.ONVOLDOENDE, behaald: null, opSchema: false };
   }
 
-  const lagerIsBeter = LAGER_IS_BETER.has(kpiNaam);
-  const behaald = lagerIsBeter ? (target / actueel) * 100 : (actueel / target) * 100;
+  if (richting === 'binnen') {
+    const besteed = target === 0 ? null : (actueel / target) * 100;
+    if (besteed == null) return { status: DOEL_STATUS.ONVOLDOENDE, behaald: null, opSchema: false };
+    return {
+      status: besteed <= 100 ? DOEL_STATUS.BINNEN : DOEL_STATUS.OVERSCHREDEN,
+      behaald: besteed,
+      opSchema: besteed <= 100,
+      richting,
+    };
+  }
+
+  const behaald = richting === 'lager'
+    ? (actueel === 0 ? null : (target / actueel) * 100)
+    : (target === 0 ? null : (actueel / target) * 100);
+
+  if (behaald == null) {
+    return { status: DOEL_STATUS.ONVOLDOENDE, behaald: null, opSchema: false };
+  }
 
   let status;
   if (behaald >= 105) status = DOEL_STATUS.BOVEN;
@@ -145,45 +224,42 @@ export function doelVoortgang(doel) {
   else if (behaald >= 90) status = DOEL_STATUS.LICHT_ONDER;
   else status = DOEL_STATUS.ONDER;
 
-  return { status, behaald, opSchema: behaald >= 100, lagerIsBeter };
-}
-
-/**
- * Prognose voor het einde van de maand op basis van het tot nu toe behaalde
- * tempo. Alleen zinvol voor doelen die gedurende de maand oplopen.
- */
-export function maandPrognose(actueel, dagVanMaand, dagenInMaand) {
-  if (actueel == null || !dagVanMaand) return null;
-  return (actueel / dagVanMaand) * dagenInMaand;
+  return { status, behaald, opSchema: behaald >= 100, richting };
 }
 
 /**
  * Doelbalk met target, werkelijke waarde, percentage en status.
- * Bewust een voortgangsbalk en geen meter: een balk is exact af te lezen
- * en werkt ook naast elkaar in een lijst.
+ *
+ * Bewust een voortgangsbalk en geen meter: een balk is exact af te lezen en
+ * werkt ook naast elkaar in een lijst. De status staat er altijd als woord bij,
+ * zodat hij niet alleen aan de kleur is af te lezen.
  */
-export function doelRij(doel, { label, format = fmt.getal, prognose = null, vorigePeriode = null } = {}) {
+export function doelRij(doel, { label, format = fmt.getal } = {}) {
   const { status, behaald, opSchema } = doelVoortgang(doel);
+  const naam = label ?? doel.kpi;
 
   if (behaald == null) {
     return `<li class="goal">
       <div class="goal-head">
-        <strong>${esc(label ?? doel.kpi)}</strong>
+        <strong>${esc(naam)}</strong>
         <span class="muted">${esc(status)}</span>
       </div>
       <div class="progress"><span style="width:0%" class="is-behind"></span></div>
-      <span class="muted">${esc(status)}</span>
+      <span class="muted">${esc(status)}${doel.actueel == null ? ' · Deze waarde wordt niet gemeten' : ''}</span>
     </li>`;
   }
 
   const verschil = doel.actueel - doel.target;
   const verschilTekst = `${verschil > 0 ? '+' : ''}${format(Math.abs(verschil) === 0 ? 0 : verschil)}`;
-  const prognoseTekst = prognose != null ? ` · Prognose einde maand: ${format(prognose)}` : '';
-  const vorigeTekst = vorigePeriode != null ? ` · Vorige periode: ${format(vorigePeriode)}` : '';
+  const prognoseTekst = doel.prognose != null ? ` · Prognose einde periode: ${format(doel.prognose)}` : '';
+  const vorigeTekst = doel.vorigePeriode != null ? ` · Vorige periode: ${format(doel.vorigePeriode)}` : '';
+  const geschaaldTekst = doel.geschaald
+    ? ` · Maanddoel ${format(doel.maandTarget)}, omgerekend naar deze periode`
+    : '';
 
   return `<li class="goal">
     <div class="goal-head">
-      <strong>${esc(label ?? doel.kpi)}</strong>
+      <strong>${esc(naam)}</strong>
       <span class="${opSchema ? 'trend-positief' : 'trend-negatief'}">
         ${esc(format(doel.actueel))} van ${esc(format(doel.target))}
       </span>
@@ -192,9 +268,44 @@ export function doelRij(doel, { label, format = fmt.getal, prognose = null, vori
       <span style="width:${Math.min(behaald, 100).toFixed(1)}%" class="${opSchema ? 'is-ok' : 'is-behind'}"></span>
     </div>
     <span class="muted">
-      ${behaald.toFixed(0)} procent behaald · ${esc(status)} · Verschil: ${esc(verschilTekst)}${esc(vorigeTekst)}${esc(prognoseTekst)}${doel.eigenaar ? ` · ${esc(doel.eigenaar)}` : ''}
+      ${behaald.toFixed(0)} procent behaald · ${esc(status)} · Verschil: ${esc(verschilTekst)}${esc(vorigeTekst)}${esc(prognoseTekst)}${esc(geschaaldTekst)}${doel.eigenaar ? ` · ${esc(doel.eigenaar)}` : ''}
     </span>
   </li>`;
+}
+
+/* ---------------------------------------------------------------
+   Budget
+   --------------------------------------------------------------- */
+
+/**
+ * Budgetstatus en prognose voor de geselecteerde periode.
+ *
+ * Het aantal verstreken dagen komt uit de periode zelf. Er wordt nergens meer
+ * van een vast aantal verstreken dagen uitgegaan, en er verschijnt geen
+ * prognose wanneer die niets zou toevoegen: bij een afgeronde periode, zonder
+ * budget, of met te weinig verstreken dagen.
+ */
+export function renderBudget(dashboard) {
+  const b = dashboard.budget;
+  const variant = {
+    [PacingStatus.BOVEN_BUDGET]: 'negatief',
+    [PacingStatus.ONDER_BUDGET]: 'negatief',
+    [PacingStatus.OP_SCHEMA]: 'positief',
+  }[b.status] ?? 'neutraal';
+
+  return `<section class="card budget-blok">
+    <h2>Budget en pacing</h2>
+    <div class="kpi-row">
+      ${kpi('Budget voor deze periode', b.budget == null ? 'Niet ingesteld' : fmt.euro(b.budget),
+        b.maandbudget == null ? 'Geen budget vastgelegd' : `Maandbudget ${fmt.euro(b.maandbudget)} naar rato`)}
+      ${kpi('Uitgaven', fmt.euro(b.uitgaven), `${b.verstrekenDagen} van ${b.totaalDagen} dagen verstreken`)}
+      ${kpi('Verwacht eindbedrag', b.prognose == null ? 'Geen prognose' : fmt.euro(b.prognose),
+        b.prognose == null ? b.reden : `Gemiddeld ${fmt.euro(b.gemiddeldPerDag)} per dag`, variant)}
+      ${kpi('Verschil met budget', b.verschil == null ? 'Niet beschikbaar' : fmt.euro(b.verschil),
+        PACING_LABELS[b.status] ?? '', variant)}
+    </div>
+    <p class="muted note">${esc(b.reden)}</p>
+  </section>`;
 }
 
 /** Badge met een statuslabel. */

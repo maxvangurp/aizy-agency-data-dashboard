@@ -2,24 +2,27 @@
  * Klantdetail binnen de agencyomgeving.
  *
  * Dit is de werkweergave voor een medewerker: het volledige dashboard van de
- * klant, met daarboven de interne context die de klant zelf niet ziet, zoals
- * de statusonderbouwing en de openstaande signalen.
+ * klant, met daarboven de interne context die de klant zelf niet ziet, zoals de
+ * statusonderbouwing en de openstaande signalen.
+ *
+ * De filterselectie blijft behouden wanneer een medewerker vanuit het
+ * agencyoverzicht een klant opent. Kanalen die deze klant niet heeft, worden
+ * automatisch uit de selectie gehaald; dat wordt zichtbaar gemeld in plaats van
+ * stil doorgevoerd.
  */
 
-import { getClientDashboardData, getAccessibleSignals, klantStatus, BusinessModel, BUSINESS_MODEL_LABELS } from '../data/repository.js';
+import { BusinessModel, BUSINESS_MODEL_LABELS } from '../data/repository.js';
 import { renderLeadgenClient, drawLeadgenCharts } from './leadgen.js';
 import { renderEcommerceClient, drawEcommerceCharts } from './ecommerce.js';
 import { esc, badge, trackingBadge } from './components.js';
+import { kanaalLabel } from '../filters/channels.js';
 
-export function renderAgencyClientDetail(user, clientId) {
-  const bundel = getClientDashboardData(user, clientId);
+export function renderAgencyClientDetail({ dashboard, verhaal, signalen = [], filterbalk = '', kanaalWaarschuwing = null }) {
   // null betekent: bestaat niet, of geen toegang. Beide leveren hetzelfde
   // antwoord op, zodat het bestaan van een klant niet wordt verklapt.
-  if (!bundel) return null;
+  if (!dashboard) return null;
 
-  const { client, type, data } = bundel;
-  const status = klantStatus(client);
-  const signalen = getAccessibleSignals(user).filter((s) => s.klantId === clientId);
+  const { client, status } = dashboard;
 
   const statusVariant = {
     'op-koers': 'ok', aandacht: 'middel', tracking: 'hoog',
@@ -49,16 +52,23 @@ export function renderAgencyClientDetail(user, clientId) {
            <ul class="alert-list">${signalen.map((s) => `<li class="alert alert-${esc(s.ernst)}">
              <div class="alert-head">
                ${badge(s.ernst === 'hoog' ? 'Hoge ernst' : 'Middelmatige ernst', s.ernst === 'hoog' ? 'hoog' : 'middel')}
-               <span class="muted">${esc(s.kanaal)}</span>
+               <span class="muted">${esc(s.kanaalLabel ?? kanaalLabel(s.kanaal))}</span>
              </div>
              <p class="alert-problem">${esc(s.probleem)}</p>
              <p class="alert-meta"><span class="muted">Aanbevolen actie:</span> ${esc(s.aanbeveling)}</p>
            </li>`).join('')}</ul>`
-        : '<p class="muted">Geen openstaande signalen voor deze klant.</p>'}
+        : '<p class="muted">Geen signalen voor deze klant binnen de geselecteerde periode en kanalen.</p>'}
     </section>`;
 
-  if (!data) {
-    return intern + `<section class="card leeg-blok">
+  const waarschuwing = kanaalWaarschuwing
+    ? `<div class="banner banner-warning" role="status" id="kanaalWaarschuwing">
+        <strong>Kanaalselectie aangepast</strong>
+        <span>${esc(kanaalWaarschuwing)}</span>
+      </div>`
+    : '';
+
+  if (![BusinessModel.LEADGEN, BusinessModel.ECOMMERCE].includes(dashboard.type)) {
+    return intern + filterbalk + waarschuwing + `<section class="card leeg-blok">
       <h2>Nog geen dashboard beschikbaar</h2>
       <p class="muted">
         Voor het bedrijfsmodel ${esc(BUSINESS_MODEL_LABELS[client.businessModel] ?? client.businessModel)}
@@ -67,20 +77,15 @@ export function renderAgencyClientDetail(user, clientId) {
     </section>`;
   }
 
-  const dashboard = type === BusinessModel.LEADGEN
-    ? renderLeadgenClient(client)
-    : renderEcommerceClient(client);
+  const inhoud = dashboard.type === BusinessModel.LEADGEN
+    ? renderLeadgenClient(dashboard, verhaal)
+    : renderEcommerceClient(dashboard, verhaal);
 
-  return intern + dashboard;
+  return intern + filterbalk + waarschuwing + inhoud;
 }
 
-export function drawAgencyClientCharts(user, clientId) {
-  const bundel = getClientDashboardData(user, clientId);
-  if (!bundel?.data) return;
-
-  if (bundel.type === BusinessModel.LEADGEN) {
-    drawLeadgenCharts(bundel.client, { klantview: false });
-  } else if (bundel.type === BusinessModel.ECOMMERCE) {
-    drawEcommerceCharts(bundel.client);
-  }
+export function drawAgencyClientCharts(dashboard) {
+  if (!dashboard) return;
+  if (dashboard.type === BusinessModel.LEADGEN) drawLeadgenCharts(dashboard, { klantview: false });
+  else if (dashboard.type === BusinessModel.ECOMMERCE) drawEcommerceCharts(dashboard);
 }

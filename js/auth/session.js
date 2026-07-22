@@ -15,6 +15,8 @@
  * iedere API-aanroep opnieuw wordt gevalideerd.
  */
 
+import { wisAlleFiltervoorkeuren } from '../filters/filter-store.js';
+
 const SESSIE_SLEUTEL = 'aizy.session';
 const SESSIE_VERSIE = 1;
 
@@ -102,4 +104,8 @@ export function wisSessie() {
       // Niets te doen wanneer opslag niet beschikbaar is.
     }
   }
+  // De filtervoorkeuren staan per gebruiker onder een eigen sleutel. Ze worden
+  // bij het uitloggen allemaal verwijderd, zodat een volgende gebruiker op
+  // hetzelfde apparaat nooit met de selectie van zijn voorganger begint.
+  wisAlleFiltervoorkeuren();
 }

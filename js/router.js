@@ -44,11 +44,29 @@ export const ROUTES = [
   { pad: '/unauthorized', naam: 'unauthorized', publiek: true, titel: 'Geen toegang' },
 ];
 
-/** Zet een hash om in pad en parameters. */
+/** Zet een hash om in het pad, zonder queryparameters. */
 export function parseHash(hash = window.location.hash) {
   const schoon = String(hash ?? '').replace(/^#/, '') || '/';
   const [pad] = schoon.split('?');
   return pad.startsWith('/') ? pad : `/${pad}`;
+}
+
+/**
+ * De queryparameters achter de route.
+ *
+ * De filterstate leeft hier: `#/agency/overview?period=last_7_days`. De router
+ * kent de betekenis van die parameters niet en geeft ze ongewijzigd door; het
+ * normaliseren gebeurt in de filterlaag, tegen wat de gebruiker mag zien.
+ */
+export function parseQuery(hash = window.location.hash) {
+  const schoon = String(hash ?? '').replace(/^#/, '');
+  const index = schoon.indexOf('?');
+  return index === -1 ? '' : schoon.slice(index + 1);
+}
+
+/** Stelt een hash samen uit een pad en een queryreeks. */
+export function bouwHash(pad, query) {
+  return query ? `#${pad}?${query}` : `#${pad}`;
 }
 
 /**

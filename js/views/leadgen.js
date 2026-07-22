@@ -1,33 +1,23 @@
 /**
- * Leadgeneratie klantdashboard.
+ * Leadgeneratiedashboard.
  *
- * Waar het e-commerce dashboard draait om omzet en ROAS, draait dit om
- * leadvolume tegenover leadkwaliteit. Veel leads zeggen weinig als er niets
- * uit voortkomt, dus staan het aantal gekwalificeerde leads en de kosten
- * daarvan overal naast het ruwe volume.
+ * Waar het e-commercedashboard draait om omzet en ROAS, draait dit om
+ * leadvolume tegenover leadkwaliteit. Veel leads zeggen weinig als er niets uit
+ * voortkomt, dus staan het aantal gekwalificeerde leads en de kosten daarvan
+ * overal naast het ruwe volume.
  *
- * Ontbrekende data wordt expliciet als ontbrekend getoond. Bij een klant
- * zonder CRM-koppeling is de kwalificatie niet nul maar onbekend, en dat
- * verschil moet zichtbaar blijven.
+ * Deze module rekent niets uit. Alles komt uit het viewmodel dat de repository
+ * bouwt op basis van de filtercontext; hier wordt alleen bepaald hoe dat op het
+ * scherm komt. Ontbrekende data wordt expliciet als ontbrekend getoond: bij een
+ * klant zonder CRM-koppeling is de kwalificatie niet nul maar onbekend.
  */
 
+import { lineChart, barChart, funnelChart } from '../charts.js';
 import {
-  getLeadsData,
-  buildLeadFunnel,
-  leadToCustomer,
-  splitsConversies,
-  CONVERSIE_LABELS,
-} from '../sample-data/leads.js';
-import { lineChart, barChart, funnelChart, donutChart } from '../charts.js';
-import {
-  fmt, esc, delta, kpi, tabel, figure,
-  doelRij, doelVoortgang, maandPrognose, trackingBadge, badge,
+  fmt, esc, kpi, kpiMetriek, tabel, figure, renderBudget,
+  doelRij, doelVoortgang, trackingBadge, badge,
 } from './components.js';
-
-const MAAND_LABELS = {
-  '2026-01': 'jan', '2026-02': 'feb', '2026-03': 'mrt', '2026-04': 'apr',
-  '2026-05': 'mei', '2026-06': 'jun', '2026-07': 'jul',
-};
+import { toonKorteDatum, toonBereik } from '../filters/period.js';
 
 const cf0 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const nf = new Intl.NumberFormat('nl-NL');
@@ -44,79 +34,88 @@ const DOEL_META = {
   websitegebruikers: { label: 'Websitegebruikers', format: fmt.getal },
   telefoongesprekken: { label: 'Telefoongesprekken', format: fmt.getal },
   emailacties: { label: 'E-mailacties', format: fmt.getal },
+  maandbudget: { label: 'Budgetbesteding', format: fmt.euro },
 };
+
+const vgl = (d) => (d.vergelijkingActief ? d.vergelijking.label.toLowerCase() : 'de vorige periode');
 
 /* ---------------------------------------------------------------
    Hoofdweergave, agencyversie
    --------------------------------------------------------------- */
 
-export function renderLeadgenClient(client) {
-  const data = getLeadsData(client.id);
-  if (!data) {
-    return `<p class="empty">Voor ${esc(client.name)} is nog geen leadgeneratiedata beschikbaar.</p>`;
+export function renderLeadgenClient(dashboard, verhaal) {
+  if (!dashboard.heeftData) {
+    return renderKop(dashboard) + renderGeenData(dashboard);
   }
 
   return `
-    ${renderKop(client, data)}
-    ${renderKerncijfers(client, data)}
-    ${renderDoelen(data)}
-    ${renderFunnel(data)}
-    ${renderConversies(data)}
-    ${renderKanalen(data)}
-    ${renderGoogleAds(data)}
-    ${renderWebsitegedrag(data)}
-    ${renderGoogleBusinessProfile(data)}
+    ${renderKop(dashboard)}
+    ${renderMeldingen(dashboard)}
+    ${renderKerncijfers(dashboard)}
+    ${renderBudget(dashboard)}
+    ${renderDoelen(dashboard)}
+    ${renderFunnel(dashboard)}
+    ${renderOntwikkeling(dashboard)}
+    ${renderConversies(dashboard)}
+    ${renderKanalen(dashboard)}
+    ${renderGoogleAds(dashboard)}
+    ${renderWebsitegedrag(dashboard)}
+    ${renderGoogleBusinessProfile(dashboard)}
   `;
 }
 
-function renderKop(client, data) {
+function renderKop(dashboard) {
+  const { client, periode, profiel } = dashboard;
   return `<header class="page-head">
     <h1>${esc(client.name)}</h1>
     <p>
       Leadgeneratie · ${esc(client.accountmanager)} · ${esc(client.land)} ·
-      Laatste synchronisatie ${new Date(data.laatsteSync).toLocaleString('nl-NL')}
+      ${esc(toonBereik(periode.startDate, periode.endDate))}
     </p>
     <div class="head-badges">
-      ${trackingBadge(data.trackingStatus)}
-      ${badge(`Data health ${data.dataHealth} procent`, data.dataHealth >= 80 ? 'ok' : data.dataHealth >= 65 ? 'middel' : 'hoog')}
+      ${trackingBadge(client.trackingStatus)}
+      ${badge(`Data health ${client.dataHealth} procent`, client.dataHealth >= 80 ? 'ok' : client.dataHealth >= 65 ? 'middel' : 'hoog')}
+      ${profiel?.laatsteSync ? badge(`Laatste synchronisatie ${new Date(profiel.laatsteSync).toLocaleDateString('nl-NL')}`, 'muted') : ''}
     </div>
   </header>`;
 }
 
-function renderKerncijfers(client, data) {
-  const k = data.kerncijfers;
-  const v = k.vorigePeriode ?? {};
-  const pacing = (client.spend / client.maandbudget) * 100;
-  const l2c = leadToCustomer(data.funnelStappen);
+/** Getoond wanneer de filterselectie geen enkele rij oplevert. */
+function renderGeenData(dashboard) {
+  return `<section class="card leeg-blok" id="geenDataBlok">
+    <h2>Geen data voor deze selectie</h2>
+    <p class="muted">
+      Er zijn geen gegevens voor ${esc(toonBereik(dashboard.periode.startDate, dashboard.periode.endDate))}
+      met de gekozen kanalen. Kies een langere periode of voeg een kanaal toe.
+    </p>
+  </section>`;
+}
 
-  const d = (huidig, vorig, lagerIsBeter = false) => {
-    const r = delta(huidig, vorig, lagerIsBeter);
-    return r.tekst === 'Niet beschikbaar' ? 'Geen vergelijking' : `${r.tekst} t.o.v. vorige periode`;
-  };
-  const richting = (huidig, vorig, lagerIsBeter = false) => delta(huidig, vorig, lagerIsBeter).richting;
+/** Meetbeperkingen worden getoond, niet weggefilterd. */
+function renderMeldingen(dashboard) {
+  if (!dashboard.meldingen.length) return '';
+  return `<div class="banner banner-info datakwaliteit" role="status">
+    <strong>Datakwaliteit</strong>
+    <ul>${dashboard.meldingen.map((m) => `<li>${esc(m.tekst)}</li>`).join('')}</ul>
+  </div>`;
+}
+
+function renderKerncijfers(dashboard) {
+  const { totalen, deltas } = dashboard;
+  const label = vgl(dashboard);
+  const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, ...opties });
 
   return `<div class="kpi-row">
-    ${kpi('Spend', fmt.euro(client.spend), `${fmt.procent(pacing)} van ${fmt.euro(client.maandbudget)}`, pacing > 100 ? 'negatief' : 'positief')}
-    ${kpi('Totaal aantal leads', fmt.getal(k.leads), d(k.leads, v.leads), richting(k.leads, v.leads))}
-    ${kpi('Gekwalificeerde leads', k.gekwalificeerdeLeads == null ? 'Onvoldoende data' : fmt.getal(k.gekwalificeerdeLeads),
-      k.gekwalificeerdeLeads == null ? 'Geen CRM-koppeling' : d(k.gekwalificeerdeLeads, v.gekwalificeerdeLeads),
-      k.gekwalificeerdeLeads == null ? 'neutraal' : richting(k.gekwalificeerdeLeads, v.gekwalificeerdeLeads))}
-    ${kpi('Kosten per lead', fmt.euro2(k.cpl), d(k.cpl, v.cpl, true), richting(k.cpl, v.cpl, true))}
-    ${kpi('Kosten per gekwalificeerde lead', k.cpql == null ? 'Onvoldoende data' : fmt.euro2(k.cpql),
-      k.cpql == null ? 'Geen CRM-koppeling' : d(k.cpql, v.cpql, true),
-      k.cpql == null ? 'neutraal' : richting(k.cpql, v.cpql, true))}
-    ${kpi('Afspraken', fmt.getal(k.afspraken), d(k.afspraken, v.afspraken), richting(k.afspraken, v.afspraken))}
-    ${kpi('Offertes', k.offertes == null ? 'Onvoldoende data' : fmt.getal(k.offertes),
-      k.offertes == null ? 'Niet gemeten' : d(k.offertes, v.offertes),
-      k.offertes == null ? 'neutraal' : richting(k.offertes, v.offertes))}
-    ${kpi('Klanten', k.klanten == null ? 'Onvoldoende data' : fmt.getal(k.klanten),
-      k.klanten == null ? 'Geen CRM-koppeling' : d(k.klanten, v.klanten),
-      k.klanten == null ? 'neutraal' : richting(k.klanten, v.klanten))}
-    ${kpi('Lead naar klant', l2c == null ? 'Onvoldoende data' : fmt.procent(l2c),
-      l2c == null ? 'Geen CRM-koppeling' : 'van lead tot betalende klant')}
-    ${kpi('Pipelinewaarde', k.pipelinewaarde == null ? 'Onvoldoende data' : fmt.euro(k.pipelinewaarde),
-      k.pipelinewaarde == null ? 'Geen CRM-koppeling' : d(k.pipelinewaarde, v.pipelinewaarde),
-      k.pipelinewaarde == null ? 'neutraal' : richting(k.pipelinewaarde, v.pipelinewaarde))}
+    ${m('spend', { label: 'Spend' })}
+    ${m('leads', { label: 'Totaal aantal leads' })}
+    ${m('qualifiedLeads', { label: 'Gekwalificeerde leads', leegSub: 'Geen CRM-koppeling' })}
+    ${m('cpl', { label: 'Kosten per lead' })}
+    ${m('cpql', { label: 'Kosten per gekwalificeerde lead', leegSub: 'Geen CRM-koppeling' })}
+    ${m('appointments', { label: 'Afspraken' })}
+    ${m('quotes', { label: 'Offertes', leegSub: 'Niet gemeten' })}
+    ${m('customers', { label: 'Klanten', leegSub: 'Geen CRM-koppeling' })}
+    ${m('leadNaarKlant', { label: 'Lead naar klant', leegSub: 'Geen CRM-koppeling' })}
+    ${m('pipelineValue', { label: 'Pipelinewaarde', leegSub: 'Geen CRM-koppeling' })}
   </div>`;
 }
 
@@ -124,34 +123,23 @@ function renderKerncijfers(client, data) {
    Doelen
    --------------------------------------------------------------- */
 
-function renderDoelen(data) {
-  // Prognose op basis van het aantal verstreken dagen in de maand.
-  const DAG_VAN_MAAND = 21;
-  const DAGEN_IN_MAAND = 31;
-
-  const rijen = data.doelen.map((doel) => {
+function renderDoelen(dashboard) {
+  const rijen = dashboard.doelen.map((doel) => {
     const meta = DOEL_META[doel.kpi] ?? { label: doel.kpi, format: fmt.getal };
-    // Een prognose is alleen zinvol voor doelen die gedurende de maand oplopen.
-    const oplopend = !['cpl', 'cpql'].includes(doel.kpi);
-    const prognose = oplopend ? maandPrognose(doel.actueel, DAG_VAN_MAAND, DAGEN_IN_MAAND) : null;
-    return doelRij(doel, {
-      label: meta.label,
-      format: meta.format,
-      prognose,
-      vorigePeriode: doel.vorigePeriode,
-    });
+    return doelRij(doel, { label: meta.label, format: meta.format });
   });
 
-  const behaald = data.doelen.filter((d) => doelVoortgang(d).opSchema).length;
-  const meetbaar = data.doelen.filter((d) => doelVoortgang(d).behaald != null).length;
+  const behaald = dashboard.doelen.filter((d) => doelVoortgang(d).opSchema).length;
+  const meetbaar = dashboard.doelen.filter((d) => doelVoortgang(d).behaald != null).length;
 
   return `<section class="card">
     <h2>Doelen tegenover werkelijkheid</h2>
-    <p class="muted">${behaald} van ${meetbaar} meetbare maanddoelen op schema of hoger.</p>
+    <p class="muted">${behaald} van ${meetbaar} meetbare doelen op schema of hoger.</p>
     <ul class="goal-list">${rijen.join('')}</ul>
     <p class="muted note">
-      De prognose is een schatting op basis van het tempo tot nu toe, uitgaande van
-      ${DAG_VAN_MAAND} verstreken dagen. Bron: Google Ads, Google Analytics 4 en CRM.
+      Maanddoelen worden naar rato van de geselecteerde periode omgerekend.
+      Verhoudingen zoals de kosten per lead schalen niet mee.
+      Bron: advertentiekanalen, Google Analytics 4 en CRM.
     </p>
   </section>`;
 }
@@ -160,8 +148,8 @@ function renderDoelen(data) {
    Funnel
    --------------------------------------------------------------- */
 
-function renderFunnel(data) {
-  const { rijen, knelpunt } = buildLeadFunnel(data.funnelStappen, data.funnelVorigePeriode);
+function renderFunnel(dashboard) {
+  const { rijen, knelpunt, onvoldoendeVolume, minimumVolume } = dashboard.funnel;
 
   const tabelHtml = tabel(
     ['Stap', 'Volume', 'Vorige periode', 'Verschil', 'Doorstroom', 'Uitval', 'Bron'],
@@ -180,7 +168,9 @@ function renderFunnel(data) {
 
   const knelpuntTekst = knelpunt
     ? `Het grootste verlies zit bij de stap ${knelpunt.label}: daar valt ${fmt.procent(100 - knelpunt.doorstroom)} van de voorgaande stap af.`
-    : 'Er is onvoldoende data om een knelpunt te bepalen.';
+    : onvoldoendeVolume
+      ? `Onvoldoende data. Met minder dan ${minimumVolume} landingspaginaweergaven in deze selectie is het verschil tussen stappen ruis; daar wordt geen conclusie aan verbonden.`
+      : 'Er is onvoldoende data om een knelpunt te bepalen.';
 
   return `<section class="leadfunnel">
     ${figure(
@@ -189,10 +179,9 @@ function renderFunnel(data) {
       // De absolute aantallen lopen van honderdduizenden impressies naar
       // tientallen klanten. In een gewone staafgrafiek zijn de laatste stappen
       // dan onzichtbaar, dus toont de grafiek het doorstroompercentage.
-      // De volledige aantallen staan in de tabelweergave.
       'Percentage dat doorstroomt naar de volgende stap. De absolute aantallen staan in de tabelweergave.',
       tabelHtml,
-      'Google Ads, Google Analytics 4 en CRM',
+      'Advertentiekanalen, Google Analytics 4 en CRM',
       340
     )}
     <div class="banner banner-warning" role="note">
@@ -203,21 +192,53 @@ function renderFunnel(data) {
 }
 
 /* ---------------------------------------------------------------
+   Ontwikkeling binnen de periode
+   --------------------------------------------------------------- */
+
+function renderOntwikkeling(dashboard) {
+  const { punten, stap } = dashboard.reeks;
+
+  const tabelHtml = tabel(
+    ['Datum', 'Uitgaven', 'Leads', 'Gekwalificeerd', 'Kosten per lead'],
+    punten.map((p) => [
+      esc(punteLabel(p)),
+      p.spend == null ? '<span class="muted">Geen data</span>' : fmt.euro(p.spend),
+      p.leads == null ? '<span class="muted">Geen data</span>' : fmt.getal(p.leads),
+      p.qualifiedLeads == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(p.qualifiedLeads),
+      p.spend != null && p.leads ? fmt.euro2(p.spend / p.leads) : '<span class="muted">Niet te berekenen</span>',
+    ])
+  );
+
+  return figure(
+    'chart-lead-cpl',
+    'Kosten per lead en per gekwalificeerde lead',
+    dashboard.totalen.qualifiedLeads == null
+      ? `Alleen de kosten per lead zijn beschikbaar, er is geen CRM-koppeling. Weergave per ${stap}.`
+      : `Het verschil tussen beide lijnen laat zien hoeveel leads afvallen bij kwalificatie. Weergave per ${stap}.`,
+    tabelHtml,
+    'Advertentiekanalen en CRM'
+  );
+}
+
+function punteLabel(punt) {
+  return punt.tot && punt.tot !== punt.date
+    ? `${toonKorteDatum(punt.date)} – ${toonKorteDatum(punt.tot)}`
+    : toonKorteDatum(punt.date);
+}
+
+/* ---------------------------------------------------------------
    Conversies
    --------------------------------------------------------------- */
 
-function renderConversies(data) {
-  const { primair, secundair } = splitsConversies(data);
+function renderConversies(dashboard) {
+  const { primair, secundair, uitgeslotenVanTotaal } = dashboard.conversies;
 
-  const rij = (c) => {
-    const d = delta(c.aantal, c.vorigePeriode);
-    return [
-      esc(CONVERSIE_LABELS[c.type] ?? c.type),
-      fmt.getal(c.aantal),
-      fmt.getal(c.vorigePeriode),
-      `<span class="trend-${d.richting}">${esc(d.tekst)}</span>`,
-    ];
-  };
+  const rij = (c) => [
+    esc(c.label),
+    fmt.getal(c.aantal),
+    c.vorigePeriode == null ? '<span class="muted">Geen vergelijking</span>' : fmt.getal(c.vorigePeriode),
+    verschilCel(c),
+  ];
 
   return `<section class="card">
     <h2>Conversies</h2>
@@ -241,34 +262,50 @@ function renderConversies(data) {
         </div>
       </div>
     </div>
+    ${uitgeslotenVanTotaal?.length ? `<p class="muted note">
+      ${esc(uitgeslotenVanTotaal.map((t) => dashboard.conversies.labels[t] ?? t).join(', '))}
+      telt niet mee in het totaal van alle conversies: die stap gaat aan dezelfde lead vooraf
+      en zou anders dubbel worden geteld.
+    </p>` : ''}
     <p class="muted note">Bron: Google Analytics 4.</p>
   </section>`;
+}
+
+function verschilCel(c) {
+  if (c.aantal == null || c.vorigePeriode == null || c.vorigePeriode === 0) {
+    return '<span class="muted">Niet vergelijkbaar</span>';
+  }
+  const pct = ((c.aantal - c.vorigePeriode) / c.vorigePeriode) * 100;
+  const richting = Math.abs(pct) < 0.5 ? 'neutraal' : pct > 0 ? 'positief' : 'negatief';
+  return `<span class="trend-${richting}">${pct > 0 ? '+' : ''}${pct.toFixed(1)}%</span>`;
 }
 
 /* ---------------------------------------------------------------
    Kanalen
    --------------------------------------------------------------- */
 
-function renderKanalen(data) {
+function renderKanalen(dashboard) {
   const tabelHtml = tabel(
-    ['Kanaal', 'Gebruikers', 'Sessies', 'Leads', 'Gekwalificeerd', 'CPL', 'Engagement'],
-    data.acquisitie.map((a) => [
-      esc(a.kanaal),
-      fmt.getal(a.gebruikers),
-      fmt.getal(a.sessies),
-      fmt.getal(a.leads),
-      a.gekwalificeerd == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(a.gekwalificeerd),
-      a.cpl == null ? '<span class="muted">Niet van toepassing</span>' : fmt.euro2(a.cpl),
-      fmt.procent(a.engagementRate),
+    ['Kanaal', 'Uitgaven', 'Impressies', 'Klikken', 'CTR', 'Leads', 'CPL', 'Gekwalificeerd', 'CPQL'],
+    dashboard.kanaalRijen.map((k) => [
+      esc(k.label),
+      fmt.euro(k.spend),
+      fmt.getal(k.impressions),
+      fmt.getal(k.clicks),
+      fmt.procent(k.ctr),
+      fmt.getal(k.leads),
+      k.cpl == null ? '<span class="muted">Niet te berekenen</span>' : fmt.euro2(k.cpl),
+      k.qualifiedLeads == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(k.qualifiedLeads),
+      k.cpql == null ? '<span class="muted">Onvoldoende data</span>' : fmt.euro2(k.cpql),
     ])
   );
 
   return figure(
     'chart-lead-kanaal',
     'Leads per kanaal',
-    'Welke kanaalgroepen leads opleveren.',
+    'Welke advertentiekanalen leads opleveren binnen de geselecteerde periode.',
     tabelHtml,
-    'Google Analytics 4'
+    'Advertentiekanalen en Google Analytics 4'
   );
 }
 
@@ -276,9 +313,18 @@ function renderKanalen(data) {
    Google Ads
    --------------------------------------------------------------- */
 
-function renderGoogleAds(data) {
-  const ads = data.googleAds;
-  const heeftKwalificatie = ads.totalen.gekwalificeerdeLeads != null;
+function renderGoogleAds(dashboard) {
+  const ads = dashboard.profiel?.googleAds;
+  const beschikbaar = dashboard.profiel?.googleAdsBeschikbaar;
+
+  if (!beschikbaar || !ads?.campagnes.length) {
+    return `<section class="card">
+      <h2>Google Ads campagnes</h2>
+      <p class="empty">Google Ads staat niet in de huidige kanaalselectie, dus er zijn geen campagnegegevens.</p>
+    </section>`;
+  }
+
+  const heeftKwalificatie = ads.campagnes.some((c) => c.gekwalificeerdeLeads != null);
 
   const campagneTabel = tabel(
     ['Campagne', 'Type', 'Kosten', 'Klikken', 'CTR', 'CPC', 'Leads', 'CPA', 'Conv.ratio', 'Gekwalificeerd', 'CPQL'],
@@ -327,30 +373,7 @@ function renderGoogleAds(data) {
     ])
   );
 
-  const maandTabel = tabel(
-    ['Maand', 'Kosten', 'Klikken', 'Leads', 'CPA', 'Gekwalificeerd', 'CPQL'],
-    ads.maanden.map((m) => [
-      MAAND_LABELS[m.maand] ?? m.maand,
-      fmt.euro(m.kosten),
-      fmt.getal(m.klikken),
-      fmt.getal(m.leads),
-      fmt.euro2(m.cpa),
-      m.gekwalificeerdeLeads == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(m.gekwalificeerdeLeads),
-      m.cpql == null ? '<span class="muted">Onvoldoende data</span>' : fmt.euro2(m.cpql),
-    ])
-  );
-
   return `
-    ${figure(
-      'chart-lead-cpl',
-      'Kosten per lead en per gekwalificeerde lead',
-      heeftKwalificatie
-        ? 'Het verschil tussen beide lijnen laat zien hoeveel leads afvallen bij kwalificatie.'
-        : 'Alleen de kosten per lead zijn beschikbaar, er is geen CRM-koppeling.',
-      maandTabel,
-      'Google Ads en CRM'
-    )}
-
     <section class="card">
       <h2>Google Ads campagnes</h2>
       <p class="muted">
@@ -363,9 +386,12 @@ function renderGoogleAds(data) {
       <div class="table-scroll">${groepTabel}</div>
       <h3 style="margin-top:20px">Zoekwoorden</h3>
       <div class="table-scroll">${zoekwoordTabel}</div>
-      <p class="muted note">Bron: Google Ads. Gekwalificeerde leads komen uit het CRM.</p>
-    </section>
-  `;
+      <p class="muted note">
+        Bron: Google Ads. Gekwalificeerde leads komen uit het CRM. De verdeling over campagnes,
+        advertentiegroepen en zoekwoorden is in deze demo een vaste verhouding die met de
+        geselecteerde periode meeschaalt.
+      </p>
+    </section>`;
 }
 
 /**
@@ -381,18 +407,20 @@ function kwaliteitCel(cpql) {
    Websitegedrag
    --------------------------------------------------------------- */
 
-function renderWebsitegedrag(data) {
-  const g = data.ga4;
-  const v = g.vorigePeriode ?? {};
+function renderWebsitegedrag(dashboard) {
+  const { totalen, deltas } = dashboard;
+  const v = dashboard.profiel?.verdelingen;
+  const label = vgl(dashboard);
+  const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, ...opties });
 
   return `<section class="card">
     <h2>Website en gebruikersgedrag</h2>
     <div class="kpi-row">
-      ${kpi('Gebruikers', fmt.getal(g.gebruikers), `${delta(g.gebruikers, v.gebruikers).tekst} t.o.v. vorige periode`, delta(g.gebruikers, v.gebruikers).richting)}
-      ${kpi('Nieuwe gebruikers', fmt.getal(g.nieuweGebruikers), `${delta(g.nieuweGebruikers, v.nieuweGebruikers).tekst} t.o.v. vorige periode`, delta(g.nieuweGebruikers, v.nieuweGebruikers).richting)}
-      ${kpi('Sessies', fmt.getal(g.sessies), `${delta(g.sessies, v.sessies).tekst} t.o.v. vorige periode`, delta(g.sessies, v.sessies).richting)}
-      ${kpi('Engagement rate', fmt.procent(g.engagementRate), `${delta(g.engagementRate, v.engagementRate).tekst} t.o.v. vorige periode`, delta(g.engagementRate, v.engagementRate).richting)}
-      ${kpi('Gemiddelde sessieduur', fmt.duur(g.gemSessieduur), 'minuten en seconden')}
+      ${m('users', { label: 'Gebruikers' })}
+      ${kpi('Nieuwe gebruikers', fmt.getal(totalen.newUsers), 'binnen de geselecteerde periode')}
+      ${m('sessions', { label: 'Sessies' })}
+      ${kpi('Engagement rate', fmt.procent(totalen.engagementRate), 'aandeel sessies met interactie')}
+      ${kpi('Gemiddelde sessieduur', fmt.duur(totalen.gemSessieduur), 'minuten en seconden')}
     </div>
 
     <div class="grid-2-col" style="margin-top:20px">
@@ -400,62 +428,66 @@ function renderWebsitegedrag(data) {
         <h3>Landingspagina's</h3>
         <div class="table-scroll">
           ${tabel(['Pagina', 'Gebruikers', 'Leads', 'Conversieratio'],
-            data.landingspaginas.map((p) => [esc(p.pagina), fmt.getal(p.gebruikers), fmt.getal(p.leads), fmt.procent(p.conversieratio)]))}
+            (v?.landingspaginas ?? []).map((p) => [esc(p.pagina), fmt.getal(p.gebruikers), fmt.getal(p.leads), fmt.procent(veiligRatio(p.leads, p.gebruikers))]))}
         </div>
       </div>
       <div>
         <h3>Bron en medium</h3>
         <div class="table-scroll">
           ${tabel(['Bron / medium', 'Gebruikers', 'Leads'],
-            data.sourceMedium.map((s) => [esc(s.bron), fmt.getal(s.gebruikers), fmt.getal(s.leads)]))}
+            (v?.sourceMedium ?? []).map((s) => [esc(s.bron), fmt.getal(s.gebruikers), fmt.getal(s.leads)]))}
         </div>
       </div>
       <div>
         <h3>Apparaten</h3>
         <div class="table-scroll">
           ${tabel(['Apparaat', 'Gebruikers', 'Leads', 'Conversieratio'],
-            data.apparaten.map((a) => [esc(a.apparaat), fmt.getal(a.gebruikers), fmt.getal(a.leads), fmt.procent(a.conversieratio)]))}
+            (v?.apparaten ?? []).map((a) => [esc(a.apparaat), fmt.getal(a.gebruikers), fmt.getal(a.leads), fmt.procent(veiligRatio(a.leads, a.gebruikers))]))}
         </div>
       </div>
       <div>
         <h3>Regio's</h3>
         <div class="table-scroll">
           ${tabel(['Regio', 'Gebruikers', 'Leads'],
-            data.regios.map((r) => [esc(r.regio), fmt.getal(r.gebruikers), fmt.getal(r.leads)]))}
+            (v?.regios ?? []).map((r) => [esc(r.regio), fmt.getal(r.gebruikers), fmt.getal(r.leads)]))}
         </div>
       </div>
     </div>
 
     <h3 style="margin-top:20px">Landen</h3>
     <div class="table-scroll">
-      ${tabel(['Land', 'Gebruikers', 'Leads'], data.landen.map((l) => [esc(l.land), fmt.getal(l.gebruikers), fmt.getal(l.leads)]))}
+      ${tabel(['Land', 'Gebruikers', 'Leads'], (v?.landen ?? []).map((l) => [esc(l.land), fmt.getal(l.gebruikers), fmt.getal(l.leads)]))}
     </div>
-    <p class="muted note">Bron: Google Analytics 4.</p>
+    <p class="muted note">Bron: Google Analytics 4. De verdelingen schalen mee met de geselecteerde periode.</p>
   </section>`;
+}
+
+function veiligRatio(teller, noemer) {
+  if (teller == null || !noemer) return null;
+  return (teller / noemer) * 100;
 }
 
 /* ---------------------------------------------------------------
    Google Business Profile
    --------------------------------------------------------------- */
 
-function renderGoogleBusinessProfile(data) {
-  const gbp = data.googleBusinessProfile;
-  const v = gbp.vorigePeriode ?? {};
-  const d = (a, b) => delta(a, b);
+function renderGoogleBusinessProfile(dashboard) {
+  const gbp = dashboard.profiel?.googleBusinessProfile;
+  if (!gbp) return '';
 
   return `<section class="card">
     <h2>Lokale zichtbaarheid</h2>
     ${!gbp.koppelingBeschikbaar
       ? `<div class="banner banner-info" role="note">
           <strong>Toekomstige koppeling</strong>
-          <span>Een live koppeling met Google Business Profile is nog niet gebouwd. Onderstaande cijfers zijn demodata.</span>
+          <span>Een live koppeling met Google Business Profile is nog niet gebouwd. Onderstaande cijfers zijn demodata, naar rato van de geselecteerde periode.</span>
         </div>`
       : ''}
     <div class="kpi-row" style="margin-top:14px">
-      ${kpi('Profielinteracties', fmt.getal(gbp.profielinteracties), `${d(gbp.profielinteracties, v.profielinteracties).tekst} t.o.v. vorige periode`, d(gbp.profielinteracties, v.profielinteracties).richting)}
-      ${kpi('Telefoongesprekken', fmt.getal(gbp.telefoongesprekken), `${d(gbp.telefoongesprekken, v.telefoongesprekken).tekst} t.o.v. vorige periode`, d(gbp.telefoongesprekken, v.telefoongesprekken).richting)}
-      ${kpi('Routeaanvragen', fmt.getal(gbp.routeaanvragen), `${d(gbp.routeaanvragen, v.routeaanvragen).tekst} t.o.v. vorige periode`, d(gbp.routeaanvragen, v.routeaanvragen).richting)}
-      ${kpi('Websiteklikken', fmt.getal(gbp.websiteklikken), `${d(gbp.websiteklikken, v.websiteklikken).tekst} t.o.v. vorige periode`, d(gbp.websiteklikken, v.websiteklikken).richting)}
+      ${kpi('Profielinteracties', fmt.getal(gbp.profielinteracties), 'in de geselecteerde periode')}
+      ${kpi('Telefoongesprekken', fmt.getal(gbp.telefoongesprekken), 'in de geselecteerde periode')}
+      ${kpi('Routeaanvragen', fmt.getal(gbp.routeaanvragen), 'in de geselecteerde periode')}
+      ${kpi('Websiteklikken', fmt.getal(gbp.websiteklikken), 'in de geselecteerde periode')}
     </div>
     <p class="muted note">Bron: Google Business Profile, demodata.</p>
   </section>`;
@@ -465,78 +497,88 @@ function renderGoogleBusinessProfile(data) {
    Klantview: rustige, klantgerichte weergave
    --------------------------------------------------------------- */
 
-export function renderLeadgenKlantview(client) {
-  const data = getLeadsData(client.id);
-  if (!data) return `<p class="empty">Voor ${esc(client.name)} is nog geen data beschikbaar.</p>`;
+export function renderLeadgenKlantview(dashboard, verhaal) {
+  const { client, totalen, deltas, periode } = dashboard;
+  const label = vgl(dashboard);
 
-  const k = data.kerncijfers;
-  const v = k.vorigePeriode ?? {};
-  const verhaal = data.klantverhaal ?? {};
-  const { rijen } = buildLeadFunnel(data.funnelStappen, data.funnelVorigePeriode);
+  if (!dashboard.heeftData) {
+    return `<header class="page-head">
+      <h1>${esc(client.name)}</h1>
+      <p>${esc(toonBereik(periode.startDate, periode.endDate))}</p>
+    </header>${renderGeenData(dashboard)}`;
+  }
 
   const lijst = (titel, items) => `
     <section class="card">
       <h2>${esc(titel)}</h2>
       ${!items || !items.length
-        ? '<p class="empty">Nog niets vastgelegd.</p>'
+        ? '<p class="empty">Niets te melden voor deze periode.</p>'
         : `<ul class="verhaal-lijst">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`}
     </section>`;
+
+  const kernDoelen = dashboard.doelen.filter((d) =>
+    ['leads', 'gekwalificeerdeLeads', 'afspraken', 'cpl'].includes(d.kpi));
 
   return `
     <header class="page-head">
       <h1>${esc(client.name)}</h1>
-      <p>Resultaten van deze periode</p>
+      <p>Resultaten van ${esc(toonBereik(periode.startDate, periode.endDate))}</p>
     </header>
 
+    ${renderMeldingen(dashboard)}
+
     <div class="kpi-row">
-      ${kpi('Investering', fmt.euro(client.spend), 'advertentiebudget deze periode')}
-      ${kpi('Leads', fmt.getal(k.leads), `${delta(k.leads, v.leads).tekst} t.o.v. vorige periode`, delta(k.leads, v.leads).richting)}
-      ${kpi('Kosten per lead', fmt.euro2(k.cpl), `${delta(k.cpl, v.cpl, true).tekst} t.o.v. vorige periode`, delta(k.cpl, v.cpl, true).richting)}
-      ${kpi('Leadkwaliteit', k.gekwalificeerdeLeads == null ? 'Onvoldoende data' : `${fmt.getal(k.gekwalificeerdeLeads)} gekwalificeerd`,
-        k.gekwalificeerdeLeads == null ? 'Geen CRM-koppeling' : `van ${fmt.getal(k.leads)} leads`,
-        k.gekwalificeerdeLeads == null ? 'neutraal' : delta(k.gekwalificeerdeLeads, v.gekwalificeerdeLeads).richting)}
+      ${kpi('Investering', fmt.euro(totalen.spend), 'advertentiebudget deze periode')}
+      ${kpiMetriek(totalen, 'leads', deltas, { label: 'Leads', vergelijkingLabel: label })}
+      ${kpiMetriek(totalen, 'cpl', deltas, { label: 'Kosten per lead', vergelijkingLabel: label })}
+      ${kpi('Leadkwaliteit',
+        totalen.qualifiedLeads == null ? 'Onvoldoende data' : `${fmt.getal(totalen.qualifiedLeads)} gekwalificeerd`,
+        totalen.qualifiedLeads == null ? 'Geen CRM-koppeling' : `van ${fmt.getal(totalen.leads)} leads`,
+        totalen.qualifiedLeads == null ? 'neutraal' : deltas.qualifiedLeads?.richting ?? 'neutraal')}
     </div>
+
+    ${renderBudget(dashboard)}
 
     <section class="card">
       <h2>Doelen</h2>
-      <ul class="goal-list">${data.doelen
-        .filter((d) => ['leads', 'gekwalificeerdeLeads', 'afspraken', 'cpl'].includes(d.kpi))
-        .map((d) => {
-          const meta = DOEL_META[d.kpi] ?? { label: d.kpi, format: fmt.getal };
-          return doelRij(d, { label: meta.label, format: meta.format });
-        })
-        .join('')}</ul>
+      <ul class="goal-list">${kernDoelen.map((d) => {
+        const meta = DOEL_META[d.kpi] ?? { label: d.kpi, format: fmt.getal };
+        return doelRij(d, { label: meta.label, format: meta.format });
+      }).join('')}</ul>
     </section>
 
     ${figure(
       'chart-klant-funnel',
       'Van bezoeker tot klant',
-      'Hoeveel mensen elke stap zetten.',
+      'Hoeveel mensen elke stap zetten binnen de geselecteerde periode.',
       tabel(
         ['Stap', 'Aantal', 'Doorstroom'],
-        rijen.map((r) => [
+        dashboard.funnel.rijen.map((r) => [
           esc(r.label),
           r.volume == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(r.volume),
-          r.volume == null ? '<span class="muted">n.v.t.</span>' : fmt.procent(r.doorstroom),
+          r.doorstroom == null ? '<span class="muted">n.v.t.</span>' : fmt.procent(r.doorstroom),
         ])
       ),
-      'Google Ads, Google Analytics 4 en CRM',
+      'Advertentiekanalen, Google Analytics 4 en CRM',
       320
     )}
 
     ${figure(
       'chart-klant-kanaal',
       'Waar de leads vandaan komen',
-      'Verdeling van leads over de kanalen.',
-      tabel(['Kanaal', 'Leads'], data.acquisitie.map((a) => [esc(a.kanaal), fmt.getal(a.leads)])),
-      'Google Analytics 4'
+      'Verdeling van leads over de geselecteerde kanalen.',
+      tabel(['Kanaal', 'Leads', 'Kosten per lead'], dashboard.kanaalRijen.map((k) => [
+        esc(k.label), fmt.getal(k.leads), k.cpl == null ? '<span class="muted">Niet te berekenen</span>' : fmt.euro2(k.cpl),
+      ])),
+      'Advertentiekanalen en Google Analytics 4'
     )}
 
-    ${lijst('Wat ging goed', verhaal.goed)}
-    ${lijst('Wat aandacht nodig heeft', verhaal.aandacht)}
-    ${lijst('Wat ik deze periode deed', verhaal.gedaan)}
-    ${lijst('Wat ik hierna ga doen', verhaal.volgende)}
-    ${lijst('Wat ik van je nodig heb', verhaal.vanKlant)}
+    ${lijst('Wat ging goed', verhaal?.goed)}
+    ${lijst('Wat aandacht nodig heeft', verhaal?.aandacht)}
+    ${verhaal?.meetbeperkingen?.length ? lijst('Wat we niet kunnen meten', verhaal.meetbeperkingen) : ''}
+    ${lijst('Wat ik deze periode deed', verhaal?.gedaan)}
+    ${lijst('Wat ik hierna ga doen', verhaal?.volgende)}
+    ${lijst('Wat ik van je nodig heb', verhaal?.vanKlant)}
   `;
 }
 
@@ -544,31 +586,28 @@ export function renderLeadgenKlantview(client) {
    Grafieken
    --------------------------------------------------------------- */
 
-export function drawLeadgenCharts(client, { klantview = false } = {}) {
-  const data = getLeadsData(client.id);
-  if (!data) return;
-
-  const { rijen } = buildLeadFunnel(data.funnelStappen, data.funnelVorigePeriode);
+export function drawLeadgenCharts(dashboard, { klantview = false } = {}) {
+  if (!dashboard?.heeftData) return;
 
   // Stappen zonder data horen niet in een grafiek: een ontbrekende waarde als
-  // nul tekenen zou suggereren dat er niets gebeurt.
-  // De grafiek toont doorstroompercentages in plaats van absolute aantallen.
-  // Van 218.400 impressies naar 19 klanten is een verhouding van meer dan
-  // 10.000 op 1; in een lineaire schaal zijn de laatste stappen onzichtbaar.
-  const doorstroomStappen = rijen
+  // nul tekenen zou suggereren dat er niets gebeurt. De grafiek toont bovendien
+  // doorstroompercentages in plaats van absolute aantallen, omdat de verhouding
+  // tussen impressies en klanten meer dan 10.000 op 1 is.
+  const doorstroomStappen = dashboard.funnel.rijen
     .filter((r) => r.doorstroom != null)
     .map((r) => ({ ...r, volume: r.doorstroom, absoluutVolume: r.volume }));
+
+  const kanalen = [...dashboard.kanaalRijen].sort((a, b) => (b.leads ?? 0) - (a.leads ?? 0));
 
   if (klantview) {
     funnelChart('chart-klant-funnel', {
       stappen: doorstroomStappen,
       valueFormatter: (v) => `${Number(v).toFixed(0)}%`,
     });
-    const kanalen = [...data.acquisitie].sort((a, b) => b.leads - a.leads);
     barChart('chart-klant-kanaal', {
-      labels: kanalen.map((a) => a.kanaal),
+      labels: kanalen.map((k) => k.label),
       horizontal: true,
-      series: [{ label: 'Leads', data: kanalen.map((a) => a.leads) }],
+      series: [{ label: 'Leads', data: kanalen.map((k) => k.leads ?? 0) }],
       valueFormatter: (v) => nf.format(Math.round(v)),
     });
     return;
@@ -579,22 +618,27 @@ export function drawLeadgenCharts(client, { klantview = false } = {}) {
     valueFormatter: (v) => `${Number(v).toFixed(0)}%`,
   });
 
-  const maanden = data.googleAds.maanden;
-  const series = [{ label: 'Kosten per lead', data: maanden.map((m) => m.cpa) }];
-  if (maanden.some((m) => m.cpql != null)) {
-    series.push({ label: 'Kosten per gekwalificeerde lead', data: maanden.map((m) => m.cpql) });
+  const punten = dashboard.reeks.punten;
+  const series = [{
+    label: 'Kosten per lead',
+    data: punten.map((p) => (p.spend != null && p.leads ? p.spend / p.leads : null)),
+  }];
+  if (dashboard.totalen.qualifiedLeads != null) {
+    series.push({
+      label: 'Kosten per gekwalificeerde lead',
+      data: punten.map((p) => (p.spend != null && p.qualifiedLeads ? p.spend / p.qualifiedLeads : null)),
+    });
   }
   lineChart('chart-lead-cpl', {
-    labels: maanden.map((m) => MAAND_LABELS[m.maand] ?? m.maand),
+    labels: punten.map(punteLabel),
     series,
     valueFormatter: (v) => cf0.format(v),
   });
 
-  const kanalen = [...data.acquisitie].sort((a, b) => b.leads - a.leads);
   barChart('chart-lead-kanaal', {
-    labels: kanalen.map((a) => a.kanaal),
+    labels: kanalen.map((k) => k.label),
     horizontal: true,
-    series: [{ label: 'Leads', data: kanalen.map((a) => a.leads) }],
+    series: [{ label: 'Leads', data: kanalen.map((k) => k.leads ?? 0) }],
     valueFormatter: (v) => nf.format(Math.round(v)),
   });
 }

@@ -1,17 +1,25 @@
 /**
  * Applicatieshell.
  *
- * Verantwoordelijk voor het opstarten, de navigatie, het accountmenu en de
- * klantcontextwisselaar. De shell kent geen klantdata: alles komt via de
- * repository, die de gebruiker als eerste argument krijgt.
+ * Verantwoordelijk voor het opstarten, de navigatie, het accountmenu, de
+ * klantcontextwisselaar en de filterbalk. De shell kent geen klantdata: alles
+ * komt via de repository, die de gebruiker als eerste argument en de
+ * filtercontext als laatste argument krijgt.
  *
- * Opstartvolgorde. Er wordt bewust niets gerenderd voordat stap 1 tot en met
- * 4 klaar zijn, zodat er geen moment is waarop onbevoegde data zichtbaar is.
+ * Opstartvolgorde. Er wordt bewust niets gerenderd voordat stap 1 tot en met 5
+ * klaar zijn, zodat er geen moment is waarop onbevoegde data zichtbaar is.
  *   1. sessie herstellen
  *   2. huidige gebruiker ophalen
  *   3. organisatiecontext bepalen
  *   4. route controleren
- *   5. renderen
+ *   5. filtercontext bepalen en normaliseren tegen wat deze gebruiker mag zien
+ *   6. renderen
+ *
+ * FILTERS EN DE URL
+ * De URL is leidend. Elke render normaliseert de filterselectie en schrijft die
+ * met replaceState terug in de hash, zodat iedere geschiedenisstap zijn eigen
+ * filters draagt. Een wijziging van een filter voegt een nieuwe geschiedenisstap
+ * toe; terug en vooruit werken daardoor zoals een gebruiker verwacht.
  */
 
 import { applyTheme, state, setState, subscribe } from './state.js';
@@ -20,16 +28,25 @@ import {
   restoreSession, login, logout, getCurrentUser, acceptInvite,
   requestPasswordReset, getActieveKlantId, setActieveKlantId, onAuthChange,
 } from './auth/auth-service.js';
-import {
-  can, Permission, standaardRoute,
-} from './auth/permissions.js';
+import { can, Permission, standaardRoute } from './auth/permissions.js';
 import {
   isAgencyGebruiker, primaireRol, primaireOrganisatieId, ROL_LABELS, getOrganisatie,
 } from './auth/domain.js';
 import {
-  parseHash, controleerRoute, Uitkomst, navigeer, navigeerNaarStartpagina, startRouter,
+  parseHash, parseQuery, bouwHash, controleerRoute, Uitkomst, navigeer,
+  navigeerNaarStartpagina, startRouter,
 } from './router.js';
-import { getAccessibleClients, getClientById } from './data/repository.js';
+import {
+  getAccessibleClients, getClientById, getFilterOpties, getAgencyOverview,
+  getAccessibleClientSummaries, getAccessibleSignals, getPortfolioInzichten,
+  getClientDashboard, getPeriodNarrative,
+} from './data/repository.js';
+import {
+  bepaalFilters, getActieveFilters, pasFiltersAan, standaardVoorContext,
+  queryVoor, AGENCY_SCOPE, klantScope,
+} from './filters/filter-store.js';
+import { renderFilterbalk } from './views/filterbar.js';
+import { kanaalLabel } from './filters/channels.js';
 import {
   renderLogin, renderForgotPassword, renderAcceptInvite,
   renderGeenToegang, renderNietGevonden,
@@ -52,11 +69,16 @@ const klantFilters = { zoek: '', medewerker: '', type: '', status: '', sorteer: 
 /** Melding die eenmalig boven een scherm wordt getoond. */
 let vluchtigeMelding = null;
 
+/** Of het kanaalmenu open stond. Wordt na een render hersteld, zodat het
+ *  aanvinken van meerdere kanalen niet telkens het menu dichtklapt. Bij een
+ *  routewisseling gaat het weer dicht: dan kijk je naar iets anders. */
+let kanaalPaneelOpen = false;
+let laatstePad = null;
+
 /* ---------------------------------------------------------------
    Navigatie-items
    --------------------------------------------------------------- */
 
-/** Navigatie voor de agencyomgeving, gefilterd op rechten. */
 function agencyNavigatie(user) {
   return [
     { hash: '#/agency/overview', label: 'Overzicht', permission: Permission.VIEW_AGENCY_DASHBOARD },
@@ -72,7 +94,6 @@ function agencyNavigatie(user) {
   ].filter((item) => can(user, item.permission));
 }
 
-/** Navigatie voor de klantomgeving. */
 function clientNavigatie(user) {
   return [
     { hash: '#/client/overview', label: 'Overzicht', permission: Permission.VIEW_CLIENT_DASHBOARD },
@@ -199,45 +220,151 @@ function renderTopbar(user) {
 }
 
 /* ---------------------------------------------------------------
+   Filtercontext bepalen
+   --------------------------------------------------------------- */
+
+/** Welke routes een filterbalk tonen, en in welke variant. */
+const FILTER_ROUTES = {
+  'agency-overview': 'agency',
+  'agency-clients': 'agency',
+  'agency-client-detail': 'agency',
+  'agency-signals': 'agency',
+  'agency-actions': 'agency',
+  'client-overview': 'client',
+  'client-performance': 'client',
+  'client-conversions': 'client',
+  'client-report': 'client',
+};
+
+/**
+ * De contextsleutel waaronder de filterselectie wordt bewaard.
+ * Het agencyoverzicht en iedere klant hebben een eigen selectie, zodat een
+ * periode die bij de ene klant zinvol is de andere niet overneemt.
+ */
+function bepaalScope(user, route, params) {
+  if (route.naam === 'agency-client-detail') {
+    return { key: klantScope(params.clientId), clientId: params.clientId };
+  }
+  if (route.pad.startsWith('/client')) {
+    const clientId = getActieveKlantId() ?? primaireOrganisatieId(user);
+    return { key: klantScope(clientId), clientId };
+  }
+  return { key: AGENCY_SCOPE, clientId: null };
+}
+
+/* ---------------------------------------------------------------
    Schermen kiezen
    --------------------------------------------------------------- */
 
 /**
- * Kiest het scherm bij een route.
- * Geeft null terug wanneer de repository geen data vrijgeeft; de aanroeper
- * toont dan de geen-toegangpagina.
+ * Bouwt het scherm bij een route.
+ *
+ * Geeft `{html, teken}` terug. `teken` tekent de grafieken die bij het zojuist
+ * gerenderde viewmodel horen; dat viewmodel wordt maar één keer opgehaald,
+ * zodat scherm en grafiek per definitie dezelfde cijfers tonen.
  */
-function rendersScherm(user, route, params) {
+function bouwScherm(user, route, params, ctx, opties) {
+  const filters = ctx.resolved;
+  const variant = FILTER_ROUTES[route.naam];
+  const filterbalk = variant
+    ? renderFilterbalk({
+      resolved: filters,
+      kanalen: opties.kanalen,
+      conversieOpties: opties.conversieOpties,
+      bronnen: opties.bronnen,
+      correcties: ctx.correcties,
+      variant,
+    })
+    : '';
+
   const klantId = getActieveKlantId() ?? primaireOrganisatieId(user);
 
   switch (route.naam) {
-    case 'agency-overview': return renderAgencyOverview(user);
-    case 'agency-clients': return renderAgencyClients(user, klantFilters);
-    case 'agency-client-detail': return renderAgencyClientDetail(user, params.clientId);
-    case 'agency-signals': return renderAgencySignals(user);
-    case 'agency-actions': return renderAgencyActions(user);
-    case 'agency-team': return renderAgencyTeam(user, { melding: vluchtigeMelding });
-    case 'agency-settings': return renderAgencySettings(user);
+    case 'agency-overview': {
+      const overview = getAgencyOverview(user, filters);
+      const inzichten = getPortfolioInzichten(user, filters);
+      return { html: renderAgencyOverview(user, { overview, inzichten, filterbalk }) };
+    }
 
-    case 'client-overview': return renderClientOverview(user, klantId);
-    case 'client-performance': return renderClientPerformance(user, klantId);
-    case 'client-conversions': return renderClientConversions(user, klantId);
-    case 'client-report': return renderClientReport(user, klantId);
-    case 'client-users': return renderClientUsers(user, klantId);
+    case 'agency-clients': {
+      const samenvattingen = getAccessibleClientSummaries(user, filters);
+      return { html: renderAgencyClients(user, { samenvattingen, filters, klantFilters, filterbalk }) };
+    }
 
-    default: return null;
+    case 'agency-signals': {
+      const signalen = getAccessibleSignals(user, filters);
+      const samenvattingen = getAccessibleClientSummaries(user, filters);
+      return { html: renderAgencySignals(user, { signalen, samenvattingen, filters, filterbalk }) };
+    }
+
+    case 'agency-actions': {
+      const signalen = getAccessibleSignals(user, filters);
+      const samenvattingen = getAccessibleClientSummaries(user, filters);
+      return { html: renderAgencyActions(user, { signalen, samenvattingen, filters, filterbalk }) };
+    }
+
+    case 'agency-client-detail': {
+      const dashboard = getClientDashboard(user, params.clientId, filters);
+      if (!dashboard) return { html: null };
+      const verhaal = getPeriodNarrative(user, params.clientId, filters);
+      const signalen = getAccessibleSignals(user, filters).filter((s) => s.klantId === params.clientId);
+      return {
+        html: renderAgencyClientDetail({
+          dashboard, verhaal, signalen, filterbalk,
+          kanaalWaarschuwing: kanaalWaarschuwing(filters, dashboard),
+        }),
+        teken: () => drawAgencyClientCharts(dashboard),
+      };
+    }
+
+    case 'agency-team': return { html: renderAgencyTeam(user, { melding: vluchtigeMelding }) };
+    case 'agency-settings': return { html: renderAgencySettings(user) };
+
+    case 'client-overview':
+    case 'client-performance': {
+      const dashboard = getClientDashboard(user, klantId, filters);
+      if (!dashboard) return { html: null };
+      const verhaal = getPeriodNarrative(user, klantId, filters);
+      const model = { dashboard, verhaal, filterbalk };
+      return {
+        html: route.naam === 'client-overview' ? renderClientOverview(model) : renderClientPerformance(model),
+        teken: () => drawClientCharts(dashboard),
+      };
+    }
+
+    case 'client-conversions': {
+      const dashboard = getClientDashboard(user, klantId, filters);
+      if (!dashboard) return { html: null };
+      return { html: renderClientConversions({ dashboard, filterbalk }) };
+    }
+
+    case 'client-report': {
+      const dashboard = getClientDashboard(user, klantId, filters);
+      if (!dashboard) return { html: null };
+      const verhaal = getPeriodNarrative(user, klantId, filters);
+      return { html: renderClientReport({ dashboard, verhaal, filterbalk }) };
+    }
+
+    case 'client-users': {
+      const dashboard = getClientDashboard(user, klantId, filters);
+      return { html: renderClientUsers(user, { dashboard }) };
+    }
+
+    default: return { html: null };
   }
 }
 
-/** Tekent de grafieken die bij het zojuist gerenderde scherm horen. */
-function tekenGrafieken(user, route, params) {
-  const klantId = getActieveKlantId() ?? primaireOrganisatieId(user);
-
-  if (route.naam === 'agency-client-detail') {
-    drawAgencyClientCharts(user, params.clientId);
-  } else if (route.pad.startsWith('/client') && route.naam !== 'client-users') {
-    drawClientCharts(user, klantId);
-  }
+/**
+ * Meldt wanneer de kanaalselectie voor deze klant is ingeperkt.
+ * Een selectie die bij het agencyoverzicht klopte, hoeft bij een klant met
+ * minder kanalen niet te kloppen; dat wordt zichtbaar gecorrigeerd.
+ */
+function kanaalWaarschuwing(filters, dashboard) {
+  const gevraagd = filters.channels ?? [];
+  const gebruikt = dashboard.filters.channels ?? [];
+  const verwijderd = gevraagd.filter((k) => !gebruikt.includes(k));
+  if (!verwijderd.length) return null;
+  return `${verwijderd.map(kanaalLabel).join(', ')} ${verwijderd.length === 1 ? 'is' : 'zijn'} niet beschikbaar voor deze klant en telt niet mee in de cijfers.`;
 }
 
 /* ---------------------------------------------------------------
@@ -256,6 +383,9 @@ function render() {
   destroyAllCharts();
 
   const pad = parseHash();
+  const query = parseQuery();
+  if (pad !== laatstePad) kanaalPaneelOpen = false;
+  laatstePad = pad;
   const controle = controleerRoute(pad);
 
   if (controle.uitkomst === Uitkomst.DOORSTUREN) {
@@ -289,9 +419,26 @@ function render() {
 
   // Vanaf hier is er een ingelogde gebruiker met toegang.
   const { route, params } = controle;
-  const inhoud = rendersScherm(user, route, params);
 
-  if (inhoud == null) {
+  // Stap 5: de filtercontext, genormaliseerd tegen wat deze gebruiker mag zien.
+  const scope = bepaalScope(user, route, params);
+  const opties = getFilterOpties(user, { clientId: scope.clientId });
+  const ctx = bepaalFilters({
+    user,
+    scope: scope.key,
+    toegestaneKanalen: opties.toegestaneKanalen,
+    conversieOpties: opties.conversieOpties,
+    query,
+  });
+
+  // De URL draagt altijd de genormaliseerde selectie. Zonder deze stap zou een
+  // stap terug in de geschiedenis op een adres zonder filters uitkomen en
+  // alsnog de laatst gebruikte selectie tonen.
+  synchroniseerUrl(pad, query, ctx);
+
+  const scherm = bouwScherm(user, route, params, ctx, opties);
+
+  if (scherm.html == null) {
     renderAuthScherm(
       renderGeenToegang({ reden: 'Deze gegevens zijn niet beschikbaar voor je account.', terugNaar: standaardRoute(user), terugLabel: 'Naar het dashboard' }),
       'Geen toegang'
@@ -308,13 +455,22 @@ function render() {
       <div class="main">
         <div class="topbar">${renderTopbar(user)}</div>
         ${renderContextbalk(user)}
-        <div id="pageRoot" class="page-root" tabindex="-1">${inhoud}</div>
+        <div id="pageRoot" class="page-root" tabindex="-1">${scherm.html}</div>
       </div>
     </div>
     <div class="sidebar-overlay" id="sidebarOverlay" hidden></div>`;
 
-  tekenGrafieken(user, route, params);
+  scherm.teken?.();
+  herstelKanaalPaneel();
   vluchtigeMelding = null;
+}
+
+/** Zet de genormaliseerde filterselectie in de hash zonder een render uit te lokken. */
+function synchroniseerUrl(pad, huidigeQuery, ctx) {
+  const gewenst = queryVoor(ctx.filters);
+  if (gewenst === huidigeQuery) return;
+  // replaceState vuurt geen hashchange af, dus dit veroorzaakt geen tweede render.
+  window.history.replaceState(null, '', bouwHash(pad, gewenst));
 }
 
 function renderPubliek(route) {
@@ -325,6 +481,69 @@ function renderPubliek(route) {
     case 'unauthorized': renderAuthScherm(renderGeenToegang({}), 'Geen toegang'); break;
     default: renderAuthScherm(renderNietGevonden({ pad: route.pad }), 'Niet gevonden');
   }
+}
+
+/* ---------------------------------------------------------------
+   Filterinteractie
+   --------------------------------------------------------------- */
+
+/**
+ * Voert een filterwijziging door.
+ *
+ * De wijziging gaat via de filterstore, die hem normaliseert, en komt daarna in
+ * de URL terecht. De render volgt uit de hashchange; er wordt nooit twee keer
+ * gerenderd voor één wijziging.
+ */
+function pasFilterToe(patch, { paneelOpen = kanaalPaneelOpen } = {}) {
+  const nieuw = pasFiltersAan(patch);
+  if (!nieuw) return;
+
+  kanaalPaneelOpen = paneelOpen;
+  const pad = parseHash();
+  const doel = bouwHash(pad, queryVoor(nieuw));
+
+  document.getElementById('pageRoot')?.setAttribute('aria-busy', 'true');
+
+  if (doel === `#${pad}?${parseQuery()}` || doel === window.location.hash) {
+    render();
+    return;
+  }
+  // Een nieuwe geschiedenisstap, zodat terug en vooruit door filterkeuzes lopen.
+  window.location.hash = doel;
+}
+
+/** De aangevinkte kanalen uit het kanaalmenu. */
+function gekozenKanalen() {
+  return [...document.querySelectorAll('input[name="filterKanaal"]:checked')].map((el) => el.value);
+}
+
+function toggleKanaalPaneel(open) {
+  const paneel = document.getElementById('filterKanalenPaneel');
+  const knop = document.getElementById('filterKanalenKnop');
+  if (!paneel || !knop) return;
+  const nieuw = open ?? paneel.hidden;
+  paneel.hidden = !nieuw;
+  knop.setAttribute('aria-expanded', String(nieuw));
+  kanaalPaneelOpen = nieuw;
+  if (nieuw) paneel.querySelector('input')?.focus();
+}
+
+function herstelKanaalPaneel() {
+  if (!kanaalPaneelOpen) return;
+  const paneel = document.getElementById('filterKanalenPaneel');
+  const knop = document.getElementById('filterKanalenKnop');
+  if (!paneel || !knop) { kanaalPaneelOpen = false; return; }
+  paneel.hidden = false;
+  knop.setAttribute('aria-expanded', 'true');
+}
+
+function sluitKanaalPaneel({ focusTerug = false } = {}) {
+  const paneel = document.getElementById('filterKanalenPaneel');
+  if (!paneel || paneel.hidden) { kanaalPaneelOpen = false; return; }
+  paneel.hidden = true;
+  document.getElementById('filterKanalenKnop')?.setAttribute('aria-expanded', 'false');
+  kanaalPaneelOpen = false;
+  if (focusTerug) document.getElementById('filterKanalenKnop')?.focus();
 }
 
 /* ---------------------------------------------------------------
@@ -379,6 +598,26 @@ function bindInteractie() {
       return;
     }
 
+    /* Filterbalk */
+    if (el.id === 'filterKanalenKnop') { toggleKanaalPaneel(); return; }
+    if (el.id === 'filterKanalenSluiten') { sluitKanaalPaneel({ focusTerug: true }); return; }
+    if (el.id === 'filterKanalenAlles') {
+      pasFilterToe({ channels: getActieveFilters()?.toegestaneKanalen ?? [] }, { paneelOpen: true });
+      return;
+    }
+    if (el.id === 'filterReset') {
+      kanaalPaneelOpen = false;
+      pasFilterToe(standaardVoorContext(), { paneelOpen: false });
+      return;
+    }
+    if (el.id === 'filterToggle') {
+      const velden = document.getElementById('filterbalkVelden');
+      const open = velden?.classList.toggle('open');
+      el.setAttribute('aria-expanded', String(!!open));
+      el.textContent = open ? 'Filters verbergen' : 'Filters tonen';
+      return;
+    }
+
     if (el.id === 'accountKnop') { toggleAccountmenu(); return; }
     if (el.id === 'menuUitloggen') { await logout(); navigeer('#/login', { vervang: true }); return; }
     if (el.id === 'menuThema') {
@@ -401,7 +640,45 @@ function bindInteractie() {
   });
 
   document.addEventListener('change', (e) => {
-    if (e.target.id === 'contextSelect') {
+    const id = e.target.id;
+
+    /* Filterbalk */
+    if (id === 'filterPeriode') {
+      const preset = e.target.value;
+      const huidig = getActieveFilters()?.resolved.periode;
+      // Bij een overstap naar een aangepast bereik wordt het huidige bereik
+      // overgenomen, zodat de gebruiker vanaf iets zinnigs verder kiest.
+      pasFilterToe({
+        period: preset === 'custom'
+          ? { preset, startDate: huidig?.startDate, endDate: huidig?.endDate }
+          : { preset, startDate: null, endDate: null },
+      });
+      return;
+    }
+    if (id === 'filterVan' || id === 'filterTot') {
+      pasFilterToe({
+        period: {
+          preset: 'custom',
+          startDate: document.getElementById('filterVan')?.value,
+          endDate: document.getElementById('filterTot')?.value,
+        },
+      });
+      return;
+    }
+    if (id === 'filterVergelijking') {
+      pasFilterToe({ comparison: { mode: e.target.value } });
+      return;
+    }
+    if (id === 'filterConversie') {
+      pasFilterToe({ conversionScope: e.target.value });
+      return;
+    }
+    if (e.target.name === 'filterKanaal') {
+      pasFilterToe({ channels: gekozenKanalen() }, { paneelOpen: true });
+      return;
+    }
+
+    if (id === 'contextSelect') {
       const waarde = e.target.value;
       if (!waarde) {
         setActieveKlantId(null);
@@ -411,8 +688,9 @@ function bindInteractie() {
       }
       return;
     }
+
     if (e.target.closest('.filterbalk')) {
-      const veld = { klantZoek: 'zoek', klantMedewerker: 'medewerker', klantType: 'type', klantStatus: 'status', klantSorteer: 'sorteer' }[e.target.id];
+      const veld = { klantZoek: 'zoek', klantMedewerker: 'medewerker', klantType: 'type', klantStatus: 'status', klantSorteer: 'sorteer' }[id];
       if (veld) { klantFilters[veld] = e.target.value; render(); }
     }
   });
@@ -427,14 +705,19 @@ function bindInteractie() {
     }
   });
 
-  // Escape sluit het accountmenu en de mobiele navigatie.
+  // Escape sluit het kanaalmenu, het accountmenu en de mobiele navigatie.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { sluitAccountmenu(); sluitSidebar(); }
+    if (e.key !== 'Escape') return;
+    const paneel = document.getElementById('filterKanalenPaneel');
+    if (paneel && !paneel.hidden) { sluitKanaalPaneel({ focusTerug: true }); return; }
+    sluitAccountmenu();
+    sluitSidebar();
   });
 
-  // Klik buiten het accountmenu sluit het.
+  // Klik buiten een menu sluit het.
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.accountmenu')) sluitAccountmenu();
+    if (!e.target.closest('.kanaalkiezer')) sluitKanaalPaneel();
     if (e.target.id === 'sidebarOverlay') sluitSidebar();
   });
 }
@@ -543,7 +826,7 @@ async function init() {
   onAuthChange(() => {});
   subscribe(() => applyTheme());
 
-  // 5: pas nu renderen.
+  // 5 en 6: filters bepalen en pas dan renderen.
   render();
 }
 

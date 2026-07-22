@@ -1152,3 +1152,240 @@ code {
     animation: none !important;
   }
 }
+
+/* =========================================================
+   Filterbalk
+   De balk staat direct onder de paginakop en gebruikt dezelfde
+   veld-, knop- en badgecomponenten als de rest van het dashboard.
+   ========================================================= */
+
+.filterbalk-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow);
+}
+
+.filterbalk-kop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.filterbalk-titel {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin: 0;
+  margin-right: auto;
+}
+
+/* De knop is alleen op smalle schermen zichtbaar; daar vouwt de balk in. */
+.filterbalk-toggle { display: none; }
+
+.filterbalk-wrap .filterbalk-velden {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-2);
+  align-items: end;
+  margin-bottom: var(--space-2);
+}
+
+.filterbalk-wrap[data-variant='client'] .filterbalk-velden {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.filterbalk-wrap .veld-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  margin-bottom: 4px;
+}
+
+.filterbalk-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-subtle);
+}
+
+/* Een datumveld van de browser krijgt dezelfde vorm als de overige velden,
+   zodat het niet als een vreemd element in het ontwerp staat. */
+.veld-datum input[type='date'] {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.3;
+  min-height: 38px;
+}
+
+.veld-datum input[type='date']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- Kanaalmenu ---------- */
+
+.kanaalkiezer { position: relative; }
+
+.kanaalknop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.kanaalknop:hover { border-color: var(--accent); }
+.kanaalknop:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.kanaalknop-pijl { color: var(--ink-subtle); }
+
+.kanaalpaneel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 260px;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: var(--space-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+.kanaalpaneel[hidden] { display: none; }
+
+.kanaalpaneel fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.kanaaloptie {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.kanaaloptie:hover { background: var(--surface-sunken); }
+.kanaaloptie input { accent-color: var(--accent); }
+
+.kanaalpaneel-acties {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Actieve waarden ---------- */
+
+.filter-samenvatting {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.filter-samenvatting li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  background: var(--surface-sunken);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.chip-label { color: var(--ink-subtle); font-weight: 600; }
+.chip-waarde { color: var(--ink); }
+
+.filter-bronnen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 12px;
+}
+
+.bron-status { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---------- Datakwaliteit ---------- */
+
+.datakwaliteit ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.datakwaliteit li { margin-bottom: 2px; }
+
+.budget-blok .kpi-row { margin-bottom: var(--space-2); }
+
+/* Alleen voor screenreaders. */
+.visueel-verborgen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Mobiel ---------- */
+
+@media (max-width: 780px) {
+  .filterbalk-toggle { display: inline-flex; }
+
+  /* De velden vouwen in tot een lade. De actieve waarden blijven altijd
+     zichtbaar, zodat duidelijk is waar je naar kijkt. */
+  .filterbalk-wrap .filterbalk-velden {
+    display: none;
+  }
+  .filterbalk-wrap .filterbalk-velden.open {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .kanaalpaneel {
+    position: static;
+    min-width: 0;
+    max-width: none;
+    margin-top: 4px;
+    box-shadow: none;
+  }
+}
