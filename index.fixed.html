@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aizy Agency Data Dashboard</title>
+    <style>body{font-family:Inter,Arial,sans-serif;margin:0;background:#f4f7fb;color:#14213d}.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}.sidebar{background:linear-gradient(180deg,#0f172a,#111c35);color:#fff;padding:20px;display:flex;flex-direction:column;gap:14px}.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#6d8dff,#2dd4bf);display:grid;place-items:center;font-weight:700}.btn{border:0;border-radius:999px;padding:9px 12px;font-weight:600}.btn.primary{background:#4569ff;color:#fff}.btn.ghost{background:#f4f7fb;color:#14213d}.nav{display:grid;gap:8px}.nav button{background:rgba(255,255,255,.08);color:#e8eefc;border:0;border-radius:12px;padding:10px 12px;text-align:left}.nav button.active{background:linear-gradient(90deg,rgba(109,141,255,.35),rgba(45,212,191,.3))}.main{padding:20px;display:flex;flex-direction:column;gap:16px}.topbar,.card,.hero{background:#fff;border:1px solid #e6ebf3;border-radius:20px;box-shadow:0 18px 35px rgba(15,23,42,.08)}.topbar{padding:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}.filters{display:flex;flex-wrap:wrap;gap:10px}.field{display:flex;flex-direction:column;gap:6px}.field select,.field input{border:1px solid #e6ebf3;border-radius:10px;padding:8px 10px;background:#f9fbff}.hero{padding:20px}.hero h2{margin:0 0 6px;font-size:24px}.hero p{margin:0;color:#64748b}.grid{display:grid;gap:16px}.grid-2{grid-template-columns:1.2fr .8fr}.grid-3{grid-template-columns:1fr 1fr 1fr}.grid-4{grid-template-columns:1fr 1fr 1fr 1fr}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.card{padding:16px}.kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b}.kpi .value{font-size:24px;font-weight:700;margin-top:4px}.list{display:grid;gap:10px}.item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #eef2f7}.item:last-child{border-bottom:0}.pill{display:inline-block;padding:6px 8px;border-radius:999px;background:#e8eeff;color:#4569ff;font-size:12px}.table{width:100%;border-collapse:collapse}th,td{padding:10px 8px;border-bottom:1px solid #eef2f7;text-align:left;font-size:13px}th{color:#64748b;font-size:11px;text-transform:uppercase}.small{color:#64748b;font-size:12px}.page{display:none}.page.active{display:flex;flex-direction:column;gap:16px}.hide{display:none!important}</style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand"><div class="brand-mark">A</div><div><div style="font-weight:700">Aizy</div><div class="small">Agency Data Dashboard</div></div></div>
+        <div class="nav" id="nav"></div>
+      </aside>
+      <main class="main">
+        <div class="topbar">
+          <div class="filters">
+            <div class="field"><label>Klant</label><select id="customerFilter"></select></div>
+            <div class="field"><label>Kanaal</label><select id="channelFilter"></select></div>
+            <div class="field"><label>Periode</label><select id="periodFilter"></select></div>
+          </div>
+          <div class="filters">
+            <button class="btn ghost" id="themeBtn">☀️ Lichte modus</button>
+            <button class="btn primary" id="viewBtn">Agencyview</button>
+          </div>
+        </div>
+        <section class="page active" id="overviewPage"></section>
+        <section class="page" id="customerPage"></section>
+        <section class="page" id="channelsPage"></section>
+        <section class="page" id="actionsPage"></section>
+      </main>
+    </div>
+    <script>
+      const navItems = ['Overzicht','Klanten','Kanalen','Acties'];
+      const customers = [
+        {id:'muebles', name:'Maatwerk Tafels', status:'Presteert boven verwachting', manager:'Lotte de Vries', spend:18450, budget:22000, roas:8.0, cpa:59, health:92, channels:['Google Ads','Meta Ads','LinkedIn Ads'], change:18, tracking:'Gezond'},
+        {id:'fysiotherapie', name:'Vitalis Fysiotherapie', status:'Optimalisatie nodig', manager:'Daan Verhoeven', spend:11820, budget:14000, roas:7.9, cpa:100, health:74, channels:['Google Ads','Meta Ads','Microsoft Ads'], change:-9, tracking:'Controle aanbevolen'},
+        {id:'northstar', name:'Northstar AI', status:'Directe aandacht nodig', manager:'Eva Krol', spend:22140, budget:18000, roas:8.2, cpa:257, health:61, channels:['Google Ads','LinkedIn Ads','Meta Ads'], change:-16, tracking:'Probleem'}
+      ];
+      const alerts = [
+        {customer:'Northstar AI', channel:'LinkedIn Ads', problem:'CPA is 24% gestegen', severity:'Hoog'},
+        {customer:'Vitalis Fysiotherapie', channel:'Meta Ads', problem:'Conversies dalen plotseling', severity:'Medium'}
+      ];
+      const state = {page:'overview', view:'agency', dark:false, customer:'all', channel:'all', period:'Deze maand'};
+      function init(){renderNav();populateFilters();bindEvents();render();}
+      function bindEvents(){
+        document.getElementById('nav').addEventListener('click', e=>{const btn=e.target.closest('button[data-page]'); if(btn){state.page=btn.dataset.page; render();}});
+        document.getElementById('themeBtn').addEventListener('click', ()=>{state.dark=!state.dark; document.body.style.background=state.dark?'#07111d':'#f4f7fb'; document.body.style.color=state.dark?'#f8fbff':'#14213d';});
+        document.getElementById('viewBtn').addEventListener('click', ()=>{state.view=state.view==='agency'?'customer':'agency'; document.getElementById('viewBtn').textContent=state.view==='agency'?'Agencyview':'Klantview'; if(state.view==='customer'){state.page='customer';} else {state.page='overview';} render();});
+        document.getElementById('customerFilter').addEventListener('change', e=>{state.customer=e.target.value; render();});
+        document.getElementById('channelFilter').addEventListener('change', e=>{state.channel=e.target.value; render();});
+        document.getElementById('periodFilter').addEventListener('change', e=>{state.period=e.target.value; render();});
+      }
+      function populateFilters(){const customerFilter=document.getElementById('customerFilter'); const channelFilter=document.getElementById('channelFilter'); const periodFilter=document.getElementById('periodFilter'); customerFilter.innerHTML='<option value="all">Alle klanten</option>' + customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); channelFilter.innerHTML='<option value="all">Alle kanalen</option><option value="Google Ads">Google Ads</option><option value="Microsoft Ads">Microsoft Ads</option><option value="Meta Ads">Meta Ads</option><option value="LinkedIn Ads">LinkedIn Ads</option>'; periodFilter.innerHTML='<option>Deze maand</option><option>Vorige maand</option><option>Dit kwartaal</option>';} 
+      function renderNav(){document.getElementById('nav').innerHTML=navItems.map((item,i)=>`<button class="${state.page=== ['overview','customers','channels','actions'][i] ? 'active':''}" data-page="${['overview','customers','channels','actions'][i]}">${item}</button>`).join('');}
+      function render(){renderNav();document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));const page=document.getElementById((state.page==='customers'?'customer':state.page)+'Page')||document.getElementById('overviewPage'); page.classList.add('active'); if(state.page==='overview') page.innerHTML=renderOverview(); if(state.page==='customers' || state.page==='customer') page.innerHTML=renderCustomer(); if(state.page==='channels') page.innerHTML=renderChannels(); if(state.page==='actions') page.innerHTML=renderActions();}
+      function renderOverview(){const list=customers.filter(c=>state.customer==='all'||c.id===state.customer).filter(c=>state.channel==='all'||c.channels.includes(state.channel)); return ` <div class="hero"><h2>Aizy Agency Data Dashboard</h2><p>Een eerste werkende opzet met agencyview, klantview, cross-channel inzichten, alerts en acties.</p></div><div class="stats"><div class="card kpi"><span class="label">Totale spend</span><span class="value">€${list.reduce((s,c)=>s+c.spend,0).toLocaleString('nl-NL')}</span></div><div class="card kpi"><span class="label">Gemiddelde ROAS</span><span class="value">${(list.reduce((s,c)=>s+c.roas,0)/Math.max(1,list.length)).toFixed(1)}x</span></div><div class="card kpi"><span class="label">Health score</span><span class="value">${Math.round(list.reduce((s,c)=>s+c.health,0)/Math.max(1,list.length))}%</span></div><div class="card kpi"><span class="label">Open signalen</span><span class="value">${alerts.length}</span></div></div><div class="grid" style="grid-template-columns:1.2fr .8fr"><div class="card"><h3 style="margin-top:0">Wat heeft vandaag aandacht nodig?</h3><div class="list">${alerts.map(a=>`<div class="item"><div><strong>${a.customer}</strong><br><span class="small">${a.problem}</span></div><span class="pill">${a.severity}</span></div>`).join('')}</div></div><div class="card"><h3 style="margin-top:0">Klanten</h3><div class="list">${list.map(c=>`<div class="item"><div><strong>${c.name}</strong><br><span class="small">${c.tracking}</span></div><span class="pill">${c.health}%</span></div>`).join('')}</div></div></div>`; }
+      function renderCustomer(){const customer=customers.find(c=>c.id===state.customer)||customers[0]; return `<div class="hero"><h2>${customer.name}</h2><p>${customer.status} · ${customer.manager} · ${state.period}</p></div><div class="stats"><div class="card kpi"><span class="label">Spend</span><span class="value">€${customer.spend.toLocaleString('nl-NL')}</span></div><div class="card kpi"><span class="label">ROAS</span><span class="value">${customer.roas.toFixed(1)}x</span></div><div class="card kpi"><span class="label">CPA</span><span class="value">€${customer.cpa}</span></div><div class="card kpi"><span class="label">Health</span><span class="value">${customer.health}%</span></div></div><div class="card"><h3 style="margin-top:0">Executive summary</h3><p>Google Search en retargeting leveren een gezonde bijdrage; de belangrijkste aandachtspunten zijn trackingkwaliteit en budget pacing.</p></div>`; }
+      function renderChannels(){return `<div class="hero"><h2>Cross-channel analyse</h2><p>Google Ads, Microsoft Ads, Meta Ads en LinkedIn Ads zijn zichtbaar als eerste, uitbreidbare kanalen.</p></div><div class="grid grid-2"><div class="card"><h3 style="margin-top:0">Kanaaloverzicht</h3><div class="list"><div class="item"><div><strong>Google Ads</strong><br><span class="small">Search en PMax</span></div><span class="pill">8.4x</span></div><div class="item"><div><strong>Microsoft Ads</strong><br><span class="small">Efficiënt, onderbenut</span></div><span class="pill">7.6x</span></div><div class="item"><div><strong>Meta Ads</strong><br><span class="small">Frequentie en CPM stijgen</span></div><span class="pill">6.9x</span></div><div class="item"><div><strong>LinkedIn Ads</strong><br><span class="small">Leadquality sterk</span></div><span class="pill">7.8x</span></div></div></div><div class="card"><h3 style="margin-top:0">Attributie</h3><p>Platformconversies, GA4-conversies en CRM-conversies kunnen verschillen door attributie en meetmethodiek.</p></div></div>`; }
+      function renderActions(){return `<div class="hero"><h2>Actiecentrum</h2><p>Acties kunnen direct uit signalen of AI-inzichten worden afgeleid.</p></div><div class="card"><table class="table"><thead><tr><th>Actie</th><th>Klant</th><th>Prioriteit</th></tr></thead><tbody><tr><td>Trackingprobleem controleren</td><td>Vitalis</td><td>Hoog</td></tr><tr><td>Budget herzien</td><td>Northstar AI</td><td>Medium</td></tr></tbody></table></div>`; }
+      document.addEventListener('DOMContentLoaded', init);
+    </script>
+  </body>
+</html>
