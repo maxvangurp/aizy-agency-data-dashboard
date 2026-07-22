@@ -17,6 +17,7 @@ import {
   getClient,
 } from './sample-data/shared.js';
 import { renderEcommerceClient, drawEcommerceCharts } from './views/ecommerce.js';
+import { renderLeadgenClient, renderLeadgenKlantview, drawLeadgenCharts } from './views/leadgen.js';
 import { destroyAllCharts } from './charts.js';
 
 const NAV = [
@@ -194,8 +195,16 @@ function renderCustomer() {
   if (!client) return '<p class="empty">Geen klant geselecteerd.</p>';
 
   // Het bedrijfsmodel bepaalt welk klantdashboard wordt getoond.
+  // In de klantview verschijnt een rustige, klantgerichte variant.
+  const banner = statusBanner(getResource('overview'));
+
   if (client.businessModel === BusinessModel.ECOMMERCE) {
-    return statusBanner(getResource('overview')) + renderEcommerceClient(client);
+    return banner + renderEcommerceClient(client);
+  }
+  if (client.businessModel === BusinessModel.LEADGEN) {
+    return banner + (state.view === 'customer'
+      ? renderLeadgenKlantview(client)
+      : renderLeadgenClient(client));
   }
 
   const kpiKeys = PRIMARY_KPIS[client.businessModel] ?? [];
@@ -408,6 +417,17 @@ function render() {
   const themeBtn = document.getElementById('themeBtn');
   if (themeBtn) themeBtn.textContent = state.theme === 'dark' ? 'Lichte modus' : 'Donkere modus';
 
+  // De klantview is alleen zinvol op een klantscherm.
+  const viewBtn = document.getElementById('viewBtn');
+  if (viewBtn) {
+    viewBtn.textContent = state.view === 'customer' ? 'Klantview' : 'Agencyview';
+    viewBtn.dataset.view = state.view;
+    viewBtn.disabled = state.page !== 'customers';
+    viewBtn.title = state.page !== 'customers'
+      ? 'De klantview is beschikbaar op een klantdashboard'
+      : 'Wissel tussen agencyview en klantview';
+  }
+
   // Chart.js-instanties opruimen voordat het canvas uit de DOM verdwijnt.
   destroyAllCharts();
 
@@ -418,7 +438,11 @@ function render() {
   // Grafieken tekenen nadat de canvassen in de DOM staan.
   if (state.page === 'customers') {
     const client = getClient(state.customerId) ?? SAMPLE_CLIENTS[0];
-    if (client?.businessModel === BusinessModel.ECOMMERCE) drawEcommerceCharts(client);
+    if (client?.businessModel === BusinessModel.ECOMMERCE) {
+      drawEcommerceCharts(client);
+    } else if (client?.businessModel === BusinessModel.LEADGEN) {
+      drawLeadgenCharts(client, { klantview: state.view === 'customer' });
+    }
   }
 }
 
@@ -440,6 +464,10 @@ function bindEvents() {
   });
 
   document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+
+  document.getElementById('viewBtn').addEventListener('click', () => {
+    setState({ view: state.view === 'agency' ? 'customer' : 'agency' });
+  });
 
   document.getElementById('modeBtn').addEventListener('click', () => {
     const next = state.dataMode === DataMode.SAMPLE ? DataMode.LIVE : DataMode.SAMPLE;

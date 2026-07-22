@@ -29,7 +29,9 @@ js/
     ecommerce.js      E-commerce dataset
     leads.js          Leadgeneratie dataset
   views/
+    components.js     Gedeelde KPI-kaarten, tabellen, doelbalken en formatters
     ecommerce.js      E-commerce klantdashboard
+    leadgen.js        Leadgeneratie klantdashboard en klantview
 server.js             Express API en OAuth
 db.js                 SQLite schema en queries
 utils.js              Tokenversleuteling
@@ -115,11 +117,41 @@ Het model staat in `js/sample-data.js` per klant onder `businessModel`.
 
 ### Een klant toevoegen
 
-1. Voeg een object toe aan `SAMPLE_CLIENTS` in `js/sample-data.js`.
+1. Voeg een object toe aan `SAMPLE_CLIENTS` in `js/sample-data/shared.js`.
 2. Zet `businessModel` op een waarde uit `BusinessModel`.
-3. Voor e-commerce: voeg een dataset toe aan `ECOMMERCE_DATA` in
-   `js/data/ecommerce.js` met dezelfde sleutel als de klant-id.
+3. Voeg een dataset toe met dezelfde sleutel als de klant-id:
+   - e-commerce: `ECOMMERCE_DATA` in `js/sample-data/ecommerce.js`
+   - leadgeneratie: `LEADS_DATA` in `js/sample-data/leads.js`
 4. Doelen staan per klant onder `doelen`.
+
+### Conversies per klant instellen
+
+Welke conversies als lead tellen verschilt per klant. Een telefoonklik is bij een
+praktijk een serieus signaal maar geen lead; een spoedaanvraag wel. Die indeling
+staat daarom per klant in `conversieConfig` en niet vast in de code:
+
+```js
+conversieConfig: {
+  primair:   ['contactformulier', 'afspraakGepland', 'spoedaanvraag'],
+  secundair: ['telefoonklik', 'emailklik', 'routeaanvraag'],
+}
+```
+
+Labels komen uit `CONVERSIE_LABELS` in hetzelfde bestand.
+
+### Klantview
+
+De knop rechtsboven wisselt tussen agencyview en klantview. De klantview toont
+een rustige weergave met investering, leads, leadkwaliteit, doelen, funnel en
+het periodeverhaal, zonder technische tabellen. De keuze wordt lokaal bewaard.
+
+### Ontbrekende data
+
+Een ontbrekende meting is iets anders dan een resultaat van nul. Waar een bron
+niet gekoppeld is, toont het dashboard `Onvoldoende data` met de reden. Zulke
+stappen worden uitgesloten van de knelpuntberekening en niet als nul in
+grafieken getekend. Havenkwartier Makelaars is de demoklant zonder
+CRM-koppeling en dekt dit geval af.
 
 ## Grafieken
 
@@ -172,7 +204,8 @@ versleuteld opgeslagen met AES-256-GCM.
 
 ## Nog niet gebouwd
 
-- Leadgeneratie- en awareness-klantdashboards met eigen funnels
+- Awareness-klantdashboard met eigen funnel
+- E-commerce klantview (bestaat nu alleen voor leadgeneratie)
 - Microsoft Ads, Meta Ads en LinkedIn Ads detailschermen
 - Budget en forecasting
 - Actiecentrum met status, eigenaar en deadline

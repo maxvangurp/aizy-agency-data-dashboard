@@ -15,10 +15,31 @@
 const SERIES_LIGHT = ['#6935CC', '#eb6834', '#1baf7a', '#eda100', '#FF47D8', '#008300', '#2a78d6', '#e34948'];
 const SERIES_DARK = ['#8b6ae0', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#3987e5', '#cc4444'];
 
-/* Ordinale ramp voor de funnel. Stappen hebben een volgorde, dus een hue
-   met oplopende donkerte in plaats van acht losse kleuren. */
-const FUNNEL_LIGHT = ['#d9c9f5', '#b99ceb', '#9a6fe0', '#7c47d1', '#5623b3'];
-const FUNNEL_DARK = ['#4a2f80', '#5f3d9e', '#7550bd', '#8b6ae0', '#a68af0'];
+/* Ordinale ramp voor de funnel. Stappen hebben een volgorde, dus één hue met
+   oplopende donkerte in plaats van losse kleuren. De eindpunten staan vast;
+   de tussenliggende stappen worden berekend op het aantal funnelstappen, zodat
+   de ramp nooit herhaalt. Een herhalende ramp zou de volgorde tenietdoen. */
+const FUNNEL_ENDS_LIGHT = ['#e2d5f7', '#4a1d99'];
+const FUNNEL_ENDS_DARK = ['#3d2668', '#b79bf5'];
+
+function hexNaarRgb(hex) {
+  const h = hex.replace('#', '');
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+}
+
+function rgbNaarHex([r, g, b]) {
+  return `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Bouwt een ordinale ramp van n stappen tussen twee eindpunten. */
+function funnelRamp(n, dark = false) {
+  const [start, eind] = (dark ? FUNNEL_ENDS_DARK : FUNNEL_ENDS_LIGHT).map(hexNaarRgb);
+  if (n <= 1) return [rgbNaarHex(eind)];
+  return Array.from({ length: n }, (_, i) => {
+    const t = i / (n - 1);
+    return rgbNaarHex(start.map((c, k) => c + (eind[k] - c) * t));
+  });
+}
 
 /* Statuskleuren. Gereserveerd, nooit hergebruikt als reeks. */
 const STATUS = {
@@ -36,7 +57,8 @@ export function palette() {
   const dark = isDark();
   return {
     series: dark ? SERIES_DARK : SERIES_LIGHT,
-    funnel: dark ? FUNNEL_DARK : FUNNEL_LIGHT,
+    /** Ordinale ramp op maat van het aantal stappen. */
+    funnelRamp: (n) => funnelRamp(n, dark),
     status: dark ? STATUS.dark : STATUS.light,
     ink: dark ? '#f4f2fa' : '#160d27',
     inkMuted: dark ? '#b3accb' : '#5b5570',
@@ -205,14 +227,21 @@ export function funnelChart(canvasId, { stappen, valueFormatter }) {
   const p = palette();
   const options = baseOptions(p, { horizontal: true, valueFormatter });
   options.plugins.legend.display = false;
+  // De tooltip toont altijd de absolute aantallen, ook wanneer de balk zelf
+  // een percentage weergeeft. `absoluutVolume` wordt dan meegegeven.
+  const getal = new Intl.NumberFormat('nl-NL');
   options.plugins.tooltip.callbacks = {
     label: (ctx) => {
       const stap = stappen[ctx.dataIndex];
-      return [
-        ` Volume: ${valueFormatter ? valueFormatter(stap.volume) : stap.volume}`,
-        ` Doorstroom: ${stap.doorstroom.toFixed(1)} procent`,
-        ` Uitval: ${valueFormatter ? valueFormatter(stap.uitval) : stap.uitval}`,
-      ];
+      const regels = [];
+
+      const absoluut = stap.absoluutVolume ?? stap.volume;
+      if (absoluut != null) regels.push(` Aantal: ${getal.format(Math.round(absoluut))}`);
+
+      if (stap.doorstroom != null) regels.push(` Doorstroom: ${stap.doorstroom.toFixed(1)} procent`);
+      if (stap.uitval != null) regels.push(` Uitval: ${getal.format(Math.round(stap.uitval))}`);
+
+      return regels.length ? regels : [' Onvoldoende data'];
     },
   };
 
@@ -223,7 +252,7 @@ export function funnelChart(canvasId, { stappen, valueFormatter }) {
       datasets: [{
         label: 'Volume',
         data: stappen.map((s) => s.volume),
-        backgroundColor: stappen.map((_, i) => p.funnel[i % p.funnel.length]),
+        backgroundColor: p.funnelRamp(stappen.length),
         borderRadius: 4,
         borderSkipped: false,
         barPercentage: 0.8,

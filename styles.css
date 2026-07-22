@@ -640,6 +640,58 @@ tbody tr:hover td {
   border-top: 1px solid var(--border);
 }
 
+/* ---------- Leadgeneratie ---------- */
+
+.head-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+/* Twee kolommen die op smalle schermen onder elkaar vallen. */
+.grid-2-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+}
+
+.grid-2-col h3 {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.grid-2-col > div > .muted {
+  display: block;
+  font-size: 12px;
+  margin-bottom: var(--space-2);
+}
+
+.leadfunnel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Klantview: opsommingen in het periodeverhaal. */
+.verhaal-lijst {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.verhaal-lijst li {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+#viewBtn[data-view='customer'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {

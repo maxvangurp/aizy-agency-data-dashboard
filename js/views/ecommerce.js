@@ -10,70 +10,16 @@
  */
 
 import { getEcommerceData, buildFunnel } from '../sample-data/ecommerce.js';
-import { lineChart, barChart, funnelChart, donutChart, palette } from '../charts.js';
+import { lineChart, barChart, funnelChart, donutChart } from '../charts.js';
+import { fmt, esc, delta, kpi, tabel, figure } from './components.js';
 
 const nf = new Intl.NumberFormat('nl-NL');
 const cf = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
-const cf2 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 });
-
-const fmt = {
-  getal: (v) => (v == null ? 'Niet beschikbaar' : nf.format(Math.round(v))),
-  euro: (v) => (v == null ? 'Niet beschikbaar' : cf.format(v)),
-  euro2: (v) => (v == null ? 'Niet beschikbaar' : cf2.format(v)),
-  ratio: (v) => (v == null ? 'Niet beschikbaar' : `${v.toFixed(2)}×`),
-  procent: (v) => (v == null ? 'Niet beschikbaar' : `${v.toFixed(1)}%`),
-};
-
-function esc(v) {
-  return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 
 const MAAND_LABELS = {
   '2026-01': 'jan', '2026-02': 'feb', '2026-03': 'mrt', '2026-04': 'apr',
   '2026-05': 'mei', '2026-06': 'jun', '2026-07': 'jul',
 };
-
-/** Verschil met richting. Bij CPA en CPC is lager beter. */
-function delta(actueel, vorig, lagerIsBeter = false) {
-  if (actueel == null || vorig == null || vorig === 0) return { tekst: 'Niet beschikbaar', richting: 'neutraal' };
-  const pct = ((actueel - vorig) / vorig) * 100;
-  const positief = lagerIsBeter ? pct < 0 : pct > 0;
-  return {
-    tekst: `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`,
-    richting: Math.abs(pct) < 0.5 ? 'neutraal' : positief ? 'positief' : 'negatief',
-  };
-}
-
-function kpi(label, waarde, sub, richting = 'neutraal') {
-  return `<article class="card kpi">
-    <span class="kpi-label">${esc(label)}</span>
-    <span class="kpi-value">${esc(waarde)}</span>
-    <span class="kpi-sub trend-${richting}">${esc(sub)}</span>
-  </article>`;
-}
-
-/** Grafiek met bijbehorende, uitklapbare tabelweergave. */
-function figure(id, titel, subtitel, tabelHtml, bron, hoogte = 260) {
-  return `<figure class="chart-figure card">
-    <figcaption>
-      <h3>${esc(titel)}</h3>
-      <p class="muted">${esc(subtitel)}</p>
-    </figcaption>
-    <div class="chart-canvas" style="height:${hoogte}px"><canvas id="${esc(id)}"></canvas></div>
-    <details class="chart-table">
-      <summary>Tabelweergave</summary>
-      <div class="table-scroll">${tabelHtml}</div>
-    </details>
-    <p class="chart-source muted">Bron: ${esc(bron)}</p>
-  </figure>`;
-}
-
-function tabel(kolommen, rijen) {
-  return `<table>
-    <thead><tr>${kolommen.map((k) => `<th>${esc(k)}</th>`).join('')}</tr></thead>
-    <tbody>${rijen.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
-  </table>`;
-}
 
 /* ---------------------------------------------------------------
    Hoofdweergave
@@ -309,7 +255,6 @@ export function drawEcommerceCharts(client) {
   if (!data) return;
 
   const { googleAds, acquisitie, events } = data;
-  const p = palette();
   const maandLabels = googleAds.maanden.map((m) => MAAND_LABELS[m.maand] ?? m.maand);
 
   barChart('chart-omzet-kosten', {
