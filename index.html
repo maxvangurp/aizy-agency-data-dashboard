@@ -33,48 +33,10 @@
   <body>
     <a class="skip-link" href="#pageRoot">Ga naar de inhoud</a>
 
-    <div class="app">
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 64 64">
-              <path d="M19 13h13.3a12.9 12.9 0 1 1 0 25.8H19V13Zm8.4 8.2v9.4h4.6a4.7 4.7 0 1 0 0-9.4h-4.6Zm0 15.3v7.2h4.7a3.6 3.6 0 0 0 0-7.2h-4.7Z"></path>
-            </svg>
-          </div>
-          <div>
-            <div class="brand-title">Aizy</div>
-            <div class="brand-sub">Agency Data Dashboard</div>
-          </div>
-        </div>
-        <nav class="nav" id="nav" aria-label="Hoofdnavigatie"></nav>
-      </aside>
-
-      <main class="main">
-        <div class="topbar">
-          <div class="filters">
-            <div class="field">
-              <label for="customerFilter">Klant</label>
-              <select id="customerFilter"></select>
-            </div>
-            <div class="field">
-              <label for="channelFilter">Kanaal</label>
-              <select id="channelFilter"></select>
-            </div>
-            <div class="field">
-              <label for="periodFilter">Periode</label>
-              <select id="periodFilter"></select>
-            </div>
-          </div>
-          <div class="topbar-actions">
-            <button class="btn ghost" id="viewBtn" type="button">Agencyview</button>
-            <button class="btn ghost" id="modeBtn" type="button">Demodata</button>
-            <button class="btn ghost" id="themeBtn" type="button">Donkere modus</button>
-          </div>
-        </div>
-
-        <div id="pageRoot" class="page-root" tabindex="-1"></div>
-      </main>
-    </div>
+    <!-- De volledige interface wordt door js/app.js opgebouwd, pas nadat de
+         sessie is hersteld en de route is gecontroleerd. Zo staat er nooit
+         data in de DOM voordat de rechten bekend zijn. -->
+    <div id="app"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script type="module" src="js/app.js"></script>

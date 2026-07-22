@@ -1,73 +1,76 @@
 import { test, expect } from '@playwright/test';
+import { login, ga, ACCOUNTS, foutenVerzamelen } from './helpers.js';
 
-const PAGES = ['overview', 'customers', 'channels', 'actions', 'integration'];
+/**
+ * Basistests voor stabiliteit.
+ *
+ * De navigatie verliep eerder via knoppen zonder inlog. Sinds de invoering
+ * van accounts is er geen ongeauthenticeerde toegang meer, dus loggen deze
+ * tests eerst in. De controles zelf zijn ongewijzigd.
+ */
 
-/** Verzamelt console-fouten en mislukte verzoeken tijdens een test. */
-function attachErrorCollector(page) {
-  const errors = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(`console: ${msg.text()}`);
-  });
-  page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
-  page.on('requestfailed', (req) => {
-    // Afgebroken navigatieverzoeken zijn niet relevant.
-    if (req.failure()?.errorText !== 'net::ERR_ABORTED') {
-      errors.push(`requestfailed: ${req.url()} ${req.failure()?.errorText}`);
-    }
-  });
-  return errors;
-}
+const AGENCY_ROUTES = [
+  { hash: '#/agency/overview', kop: 'Goede' },
+  { hash: '#/agency/clients', kop: 'Klanten' },
+  { hash: '#/agency/signals', kop: 'Signalen' },
+  { hash: '#/agency/actions', kop: 'Acties' },
+  { hash: '#/agency/team', kop: 'Team' },
+  { hash: '#/agency/settings', kop: 'Instellingen' },
+];
 
-test.describe('Fase 1 stabiliteit', () => {
+test.describe('Stabiliteit', () => {
   test('de applicatie laadt zonder console-fouten', async ({ page }) => {
-    const errors = attachErrorCollector(page);
-    await page.goto('/index.html');
-    await expect(page.locator('#nav button')).toHaveCount(PAGES.length);
+    const errors = foutenVerzamelen(page);
+    await login(page, ACCOUNTS.admin);
+
+    await expect(page.locator('.sidebar .nav a')).toHaveCount(AGENCY_ROUTES.length);
     await expect(page.locator('.kpi-value').first()).toBeVisible();
     expect(errors).toEqual([]);
   });
 
   test('iedere navigatielink rendert een scherm', async ({ page }) => {
-    const errors = attachErrorCollector(page);
-    await page.goto('/index.html');
-    for (const id of PAGES) {
-      await page.click(`#nav button[data-page="${id}"]`);
+    const errors = foutenVerzamelen(page);
+    await login(page, ACCOUNTS.admin);
+
+    for (const route of AGENCY_ROUTES) {
+      await ga(page, route.hash);
       await expect(page.locator('#pageRoot h1')).toBeVisible();
-      await expect(page.locator(`#nav button[data-page="${id}"]`)).toHaveClass(/active/);
+      await expect(page.locator('#pageRoot h1')).toContainText(route.kop);
     }
     expect(errors).toEqual([]);
   });
 
   test('het thema wisselt en blijft bewaard na herladen', async ({ page }) => {
-    await page.goto('/index.html');
+    await login(page, ACCOUNTS.admin);
     const html = page.locator('html');
 
     const start = await html.getAttribute('data-theme');
-    await page.click('#themeBtn');
+    await page.click('#accountKnop');
+    await page.click('#menuThema');
+    await page.waitForTimeout(300);
+
     const gewisseld = await html.getAttribute('data-theme');
     expect(gewisseld).not.toBe(start);
 
     await page.reload();
+    await page.waitForTimeout(600);
     await expect(html).toHaveAttribute('data-theme', gewisseld);
   });
 
-  test('tekst blijft leesbaar in beide thema\'s', async ({ page }) => {
+  test("tekst blijft leesbaar in beide thema's", async ({ page }) => {
     for (const theme of ['light', 'dark']) {
-      await page.goto('/index.html');
-      await page.evaluate((t) => {
-        localStorage.setItem('aizy.theme', t);
-      }, theme);
-      await page.reload();
-
-      const contrast = await page.evaluate(() => {
+      await login(page, ACCOUNTS.admin, { theme });
+      const kleuren = await page.evaluate(() => {
         const body = getComputedStyle(document.body);
         return { bg: body.backgroundColor, ink: body.color };
       });
       // Achtergrond en tekst mogen nooit dezelfde kleur zijn.
-      expect(contrast.bg).not.toBe(contrast.ink);
+      expect(kleuren.bg).not.toBe(kleuren.ink);
     }
   });
+});
 
+test.describe('Backend', () => {
   test('onbekende API-routes geven JSON, geen HTML', async ({ request }) => {
     const response = await request.get('/api/bestaat-niet');
     expect(response.status()).toBe(404);
@@ -83,41 +86,60 @@ test.describe('Fase 1 stabiliteit', () => {
   });
 });
 
-test.describe('Fase 1 fallback zonder backend', () => {
-  test('geen "Unexpected token" bij een HTML-antwoord op een API-pad', async ({ page }) => {
-    const errors = attachErrorCollector(page);
+/**
+ * De shell doet op dit moment geen API-aanroepen: alle demodata staat in de
+ * bundel. De bescherming tegen een HTML-antwoord op een API-pad blijft wel
+ * nodig zodra er weer een backend bij komt, dus safeFetchJson wordt hier
+ * rechtstreeks getest in plaats van via de interface.
+ */
+test.describe('API-fallback', () => {
+  test('een HTML-antwoord levert geen "Unexpected token" op', async ({ page }) => {
+    const errors = foutenVerzamelen(page);
+    await page.goto('/index.html');
 
-    // Simuleer GitHub Pages: iedere API-aanroep geeft de index.html terug.
     await page.route('**/api/**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'text/html',
-        body: '<!DOCTYPE html><html><body>index</body></html>',
-      })
+      route.fulfill({ status: 200, contentType: 'text/html', body: '<!DOCTYPE html><html><body>index</body></html>' })
     );
 
-    await page.goto('/index.html');
-    await page.evaluate(() => localStorage.setItem('aizy.dataMode', 'live'));
-    await page.reload();
-    await page.waitForTimeout(500);
+    const resultaat = await page.evaluate(async () => {
+      const mod = await import('/js/data-provider.js');
+      return mod.safeFetchJson('/api/overview');
+    });
 
-    const unexpectedToken = errors.filter((e) => e.includes('Unexpected token'));
-    expect(unexpectedToken).toEqual([]);
-
-    // De gebruiker krijgt een begrijpelijke melding in plaats van een lege pagina.
-    await expect(page.locator('.banner-danger')).toBeVisible();
+    expect(resultaat.status).toBe('error');
+    expect(resultaat.message).toContain('webpagina');
+    expect(errors.filter((e) => e.includes('Unexpected token'))).toEqual([]);
   });
 
   test('een serverfout levert een leesbare melding op', async ({ page }) => {
-    const errors = attachErrorCollector(page);
-    await page.route('**/api/**', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"Serverfout"}' }));
-
+    const errors = foutenVerzamelen(page);
     await page.goto('/index.html');
-    await page.evaluate(() => localStorage.setItem('aizy.dataMode', 'live'));
-    await page.reload();
-    await page.waitForTimeout(500);
 
-    await expect(page.locator('.banner-danger')).toBeVisible();
+    await page.route('**/api/**', (route) =>
+      route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"Serverfout"}' })
+    );
+
+    const resultaat = await page.evaluate(async () => {
+      const mod = await import('/js/data-provider.js');
+      return mod.safeFetchJson('/api/overview');
+    });
+
+    expect(resultaat.status).toBe('error');
+    expect(resultaat.message).toBeTruthy();
     expect(errors.filter((e) => e.includes('Unexpected token'))).toEqual([]);
+  });
+
+  test('een leeg antwoord wordt als leeg herkend, niet als fout', async ({ page }) => {
+    await page.goto('/index.html');
+    await page.route('**/api/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+    );
+
+    const resultaat = await page.evaluate(async () => {
+      const mod = await import('/js/data-provider.js');
+      return mod.safeFetchJson('/api/overview');
+    });
+
+    expect(resultaat.status).toBe('empty');
   });
 });

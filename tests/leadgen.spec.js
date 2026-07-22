@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { login, ga, ACCOUNTS, foutenVerzamelen, canvasIsGevuld } from './helpers.js';
 
 const LEADGEN_KLANTEN = [
   { id: 'vitaalpunt', naam: 'Vitaalpunt Fysiotherapie' },
@@ -6,31 +7,20 @@ const LEADGEN_KLANTEN = [
   { id: 'havenkwartier', naam: 'Havenkwartier Makelaars' },
 ];
 
-/** Zet klant, thema en weergave, en open het klantdashboard. */
-async function openKlant(page, clientId, { theme = 'light', view = 'agency', period = 'deze-maand' } = {}) {
-  await page.goto('/index.html');
-  await page.evaluate(
-    ([id, t, v, p]) => {
-      localStorage.setItem('aizy.theme', t);
-      localStorage.setItem(
-        'aizy.state',
-        JSON.stringify({ customerId: id, view: v, theme: t, channel: 'all', period: p, comparison: 'vorige-periode' })
-      );
-    },
-    [clientId, theme, view, period]
-  );
-  await page.reload();
-  await page.click('#nav button[data-page="customers"]');
-  await page.waitForTimeout(700);
-}
-
-function foutenVerzamelen(page) {
-  const errors = [];
-  page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(`console: ${m.text()}`);
-  });
-  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  return errors;
+/**
+ * Zet klant, thema en weergave, en opent het klantdashboard.
+ *
+ * Sinds de invoering van accounts logt deze helper eerst in. De agencyweergave
+ * gebruikt de klantdetailroute, de klantweergave de klantomgeving.
+ */
+async function openKlant(page, clientId, { theme = 'light', view = 'agency' } = {}) {
+  await login(page, ACCOUNTS.admin, { theme });
+  if (view === 'customer') {
+    await page.selectOption('#contextSelect', clientId);
+    await page.waitForTimeout(700);
+  } else {
+    await ga(page, `#/agency/clients/${clientId}`);
+  }
 }
 
 test.describe('Leadgeneratie klantdashboard', () => {
@@ -70,8 +60,7 @@ test.describe('Leadgeneratie klantdashboard', () => {
     await openKlant(page, 'vitaalpunt');
     await expect(page.getByRole('heading', { name: 'Vitaalpunt Fysiotherapie' })).toBeVisible();
 
-    await page.selectOption('#customerFilter', 'meridiaan');
-    await page.waitForTimeout(600);
+    await ga(page, '#/agency/clients/meridiaan');
     await expect(page.getByRole('heading', { name: 'Meridiaan Bedrijfsadvies' })).toBeVisible();
   });
 
@@ -234,25 +223,24 @@ test.describe('Leadgeneratie klantview', () => {
 
   test('de knop wisselt tussen agencyview en klantview', async ({ page }) => {
     await openKlant(page, 'meridiaan');
-    await expect(page.locator('#viewBtn')).toHaveText('Agencyview');
     await expect(page.getByRole('heading', { name: 'Google Ads campagnes' })).toBeVisible();
 
-    await page.click('#viewBtn');
-    await page.waitForTimeout(600);
-    await expect(page.locator('#viewBtn')).toHaveText('Klantview');
+    // De contextwisselaar opent de klantweergave.
+    await page.selectOption('#contextSelect', 'meridiaan');
+    await page.waitForTimeout(700);
     await expect(page.getByRole('heading', { name: 'Wat ging goed' })).toBeVisible();
+    await expect(page.locator('.contextbalk')).toContainText('Meridiaan');
   });
 
   test('de klantview blijft bewaard na herladen', async ({ page }) => {
-    await openKlant(page, 'meridiaan');
-    await page.click('#viewBtn');
-    await page.waitForTimeout(400);
-
-    await page.reload();
-    await page.click('#nav button[data-page="customers"]');
-    await page.waitForTimeout(600);
-    await expect(page.locator('#viewBtn')).toHaveText('Klantview');
+    await openKlant(page, 'meridiaan', { view: 'customer' });
     await expect(page.getByRole('heading', { name: 'Wat ging goed' })).toBeVisible();
+
+    // De gekozen klantcontext overleeft een herlaadactie.
+    await page.reload();
+    await page.waitForTimeout(800);
+    await expect(page.getByRole('heading', { name: 'Wat ging goed' })).toBeVisible();
+    await expect(page.locator('.contextbalk')).toContainText('Meridiaan');
   });
 });
 
@@ -323,12 +311,9 @@ test.describe('Leadgeneratie grafieken en thema\'s', () => {
     await openKlant(page, 'vitaalpunt');
 
     for (const id of ['meridiaan', 'havenkwartier', 'vitaalpunt']) {
-      await page.selectOption('#customerFilter', id);
-      await page.waitForTimeout(400);
-      await page.click('#nav button[data-page="overview"]');
-      await page.waitForTimeout(200);
-      await page.click('#nav button[data-page="customers"]');
-      await page.waitForTimeout(400);
+      await ga(page, `#/agency/clients/${id}`, { wacht: 500 });
+      await ga(page, '#/agency/overview', { wacht: 300 });
+      await ga(page, `#/agency/clients/${id}`, { wacht: 500 });
     }
     await expect(page.locator('#chart-lead-funnel')).toBeVisible();
     expect(errors).toEqual([]);
@@ -336,33 +321,26 @@ test.describe('Leadgeneratie grafieken en thema\'s', () => {
 });
 
 test.describe('Leadgeneratie filters en persistentie', () => {
-  test('het periodefilter blijft bewaard na herladen', async ({ page }) => {
+  test('de sessie blijft behouden na herladen', async ({ page }) => {
     await openKlant(page, 'vitaalpunt');
-    await page.selectOption('#periodFilter', 'dit-kwartaal');
-    await page.waitForTimeout(300);
-
     await page.reload();
-    await page.waitForTimeout(400);
-    await expect(page.locator('#periodFilter')).toHaveValue('dit-kwartaal');
+    await page.waitForTimeout(800);
+    // Nog steeds ingelogd, dus niet teruggestuurd naar het inlogscherm.
+    expect(await page.evaluate(() => location.hash)).not.toContain('/login');
+    await expect(page.getByRole('heading', { name: 'Vitaalpunt Fysiotherapie' })).toBeVisible();
   });
 
-  test('de klantselectie blijft bewaard na herladen', async ({ page }) => {
-    await openKlant(page, 'vitaalpunt');
-    await page.selectOption('#customerFilter', 'havenkwartier');
-    await page.waitForTimeout(300);
-
+  test('de klantroute blijft bewaard na herladen', async ({ page }) => {
+    await openKlant(page, 'havenkwartier');
     await page.reload();
-    await page.click('#nav button[data-page="customers"]');
-    await page.waitForTimeout(500);
-    await expect(page.locator('#customerFilter')).toHaveValue('havenkwartier');
+    await page.waitForTimeout(800);
     await expect(page.getByRole('heading', { name: 'Havenkwartier Makelaars' })).toBeVisible();
   });
 
-  test('alle leadgeneratieklanten staan in het klantfilter', async ({ page }) => {
-    await page.goto('/index.html');
-    await page.waitForTimeout(400);
+  test('alle leadgeneratieklanten staan in de contextwisselaar', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
     for (const klant of LEADGEN_KLANTEN) {
-      await expect(page.locator(`#customerFilter option[value="${klant.id}"]`)).toHaveCount(1);
+      await expect(page.locator(`#contextSelect option[value="${klant.id}"]`)).toHaveCount(1);
     }
   });
 });

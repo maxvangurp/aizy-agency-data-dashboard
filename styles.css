@@ -692,23 +692,446 @@ tbody tr:hover td {
   color: var(--accent);
 }
 
+/* ---------- Authenticatieschermen ---------- */
+
+.auth-scherm {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background:
+    radial-gradient(circle at 15% 10%, rgba(105, 53, 204, 0.14), transparent 45%),
+    radial-gradient(circle at 85% 90%, rgba(255, 71, 216, 0.10), transparent 45%),
+    var(--bg);
+}
+
+.auth-kaart {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.auth-brand-name {
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.auth-kaart h1 {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.auth-kaart > .muted {
+  margin: 0 0 var(--space-4);
+}
+
+.veld {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: var(--space-3);
+}
+
+.veld label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.veld input[type='email'],
+.veld input[type='password'],
+.veld input[type='text'],
+.veld input[type='search'],
+.veld select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  width: 100%;
+}
+
+.veld-met-knop {
+  position: relative;
+  display: flex;
+}
+
+.veld-met-knop input {
+  padding-right: 84px;
+}
+
+.veld-knop {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.veld-fout {
+  margin: 0;
+  font-size: 12px;
+  color: var(--negatief);
+  min-height: 0;
+}
+
+.veld-fout:empty { display: none; }
+
+.veld-rij {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.checkbox input { accent-color: var(--accent); }
+
+.link-klein {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.btn.breed { width: 100%; justify-content: center; text-align: center; }
+.btn.klein { padding: 5px 10px; font-size: 12px; }
+.btn.gevaar { color: var(--negatief); border-color: var(--negatief); }
+
+.demo-accounts {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.demo-accounts h2 { font-size: 13px; margin-bottom: 4px; }
+.demo-accounts .muted { font-size: 12px; margin: 0 0 var(--space-2); }
+
+.demo-account-lijst {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.demo-account {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.demo-account:hover { border-color: var(--accent); }
+.demo-account-email { font-size: 13px; font-weight: 600; }
+.demo-account-rol { font-size: 11px; }
+
+.klein { font-size: 11px; }
+
+code {
+  background: var(--surface-sunken);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.92em;
+}
+
+/* ---------- Statusschermen ---------- */
+
+.status-scherm {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  padding: var(--space-5);
+  background: var(--bg);
+}
+
+.status-scherm h1 { font-size: 24px; }
+.status-scherm p { color: var(--ink-muted); max-width: 42ch; margin: 0; }
+
+/* ---------- Shell ---------- */
+
+.app-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar .nav a {
+  display: block;
+  color: var(--sidebar-ink-muted);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-weight: 500;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.sidebar .nav a:hover { background: rgba(255, 255, 255, 0.07); color: var(--sidebar-ink); }
+.sidebar .nav a.active { background: var(--aizy-gradient); color: #fff; font-weight: 600; }
+
+.topbar-links, .topbar-rechts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.topbar-rechts { margin-left: auto; }
+
+.contextkiezer { margin: 0; min-width: 200px; }
+.contextkiezer label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.menuknop {
+  display: none;
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---------- Contextbalk ---------- */
+
+.contextbalk {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: 10px var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.contextbalk button { margin-left: auto; }
+
+/* ---------- Accountmenu ---------- */
+
+.accountmenu { position: relative; }
+
+.accountknop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 5px 12px 5px 5px;
+}
+
+.accountknop:hover { border-color: var(--accent); }
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--aizy-gradient);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.avatar.groot { width: 40px; height: 40px; font-size: 15px; }
+
+.accountknop-tekst { display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
+.accountknop-naam { font-size: 13px; font-weight: 600; }
+.accountknop-rol { font-size: 11px; color: var(--ink-muted); }
+
+.accountpaneel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 260px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-3);
+  z-index: 50;
+}
+
+.accountpaneel[hidden] { display: none; }
+
+.accountpaneel-kop {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.accountpaneel-naam { font-weight: 700; font-size: 14px; }
+
+.accountpaneel-gegevens {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px var(--space-2);
+  margin: var(--space-2) 0;
+  font-size: 12px;
+}
+
+.accountpaneel-gegevens dt { color: var(--ink-subtle); }
+.accountpaneel-gegevens dd { margin: 0; font-weight: 600; }
+
+.accountpaneel-acties {
+  display: grid;
+  gap: 2px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.menu-item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.menu-item:hover { background: var(--surface-sunken); }
+.menu-item.gevaar { color: var(--negatief); }
+
+/* ---------- Agencyonderdelen ---------- */
+
+.filterbalk {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.filterbalk .veld { margin-bottom: 0; }
+
+.kaart-kop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.kaart-kop h2 { margin: 0; }
+
+.type-blok { margin-top: var(--space-3); }
+.type-blok h3 { font-size: 14px; margin-bottom: var(--space-2); }
+.type-blok h3 .muted { font-weight: 400; font-size: 12px; }
+
+.inzicht-lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+
+.inzicht {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--ink-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+}
+
+.inzicht-positief { border-left-color: var(--positief); }
+.inzicht-negatief { border-left-color: var(--negatief); }
+.inzicht-aandacht { border-left-color: var(--waarschuwing); }
+.inzicht p { margin: 4px 0 0; font-size: 13px; }
+
+.actie-groep { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.intern-blok { border-left: 3px solid var(--accent); }
+.intern-rij { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: var(--space-2); }
+
+.leeg-blok { text-align: center; padding: var(--space-5); }
+.leeg-blok h2 { margin-bottom: var(--space-1); }
+.leeg-blok p { max-width: 46ch; margin: 0 auto; }
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 7, 24, 0.5);
+  z-index: 40;
+}
+
+.sidebar-overlay[hidden] { display: none; }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {
-  .app {
+  .app,
+  .app-grid {
     grid-template-columns: 1fr;
   }
-  .sidebar {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-3);
-    overflow-x: auto;
+
+  /* De navigatie schuift in als paneel, zodat de inhoud volledige breedte houdt. */
+  .app-grid .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 45;
   }
-  .nav {
-    grid-auto-flow: column;
+  .app-grid .sidebar.open { transform: translateX(0); }
+
+  .menuknop { display: block; }
+
+  .topbar { flex-wrap: wrap; }
+  .topbar-rechts { width: 100%; justify-content: space-between; }
+  .contextkiezer { min-width: 0; flex: 1; }
+
+  .accountpaneel { right: 0; width: min(260px, calc(100vw - 32px)); }
+
+  .contextbalk button { margin-left: 0; }
+
+  /* De oude horizontale strip gold voor het vorige sidebar-ontwerp. In de
+     uitschuivende lade moeten de items juist onder elkaar blijven staan. */
+  .app-grid .nav {
+    grid-auto-flow: row;
     gap: 4px;
   }
-  .nav button {
+  .app-grid .sidebar {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-y: auto;
+  }
+  .app-grid .nav a {
     white-space: nowrap;
   }
   .main {

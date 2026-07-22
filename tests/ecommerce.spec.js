@@ -1,23 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { login, ga, ACCOUNTS } from './helpers.js';
 
 const ECOM_KLANTEN = ['tafelwerk', 'draadloos', 'kaapnoord'];
 
-/** Zet de actieve klant en open het klantdashboard. */
+/** Zet de actieve klant en opent het klantdashboard binnen de agencyomgeving. */
 async function openKlant(page, clientId, theme = 'light') {
-  await page.goto('/index.html');
-  await page.evaluate(
-    ([id, t]) => {
-      localStorage.setItem('aizy.theme', t);
-      localStorage.setItem(
-        'aizy.state',
-        JSON.stringify({ customerId: id, view: 'agency', theme: t, channel: 'all', period: 'deze-maand', comparison: 'vorige-periode' })
-      );
-    },
-    [clientId, theme]
-  );
-  await page.reload();
-  await page.click('#nav button[data-page="customers"]');
-  await page.waitForTimeout(600);
+  await login(page, ACCOUNTS.admin, { theme });
+  await ga(page, `#/agency/clients/${clientId}`);
 }
 
 test.describe('E-commerce klantdashboard', () => {
@@ -94,10 +83,8 @@ test.describe('E-commerce klantdashboard', () => {
     await openKlant(page, 'tafelwerk');
     // Meerdere keren heen en weer, om dubbele Chart.js-instanties uit te lokken.
     for (let i = 0; i < 3; i++) {
-      await page.click('#nav button[data-page="overview"]');
-      await page.waitForTimeout(150);
-      await page.click('#nav button[data-page="customers"]');
-      await page.waitForTimeout(300);
+      await ga(page, '#/agency/overview', { wacht: 250 });
+      await ga(page, '#/agency/clients/tafelwerk', { wacht: 450 });
     }
     await expect(page.locator('#chart-funnel')).toBeVisible();
     expect(errors).toEqual([]);
