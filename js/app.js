@@ -15,7 +15,7 @@ import {
   PRIMARY_KPIS,
   BusinessModel,
   getClient,
-} from './sample-data.js';
+} from './sample-data/shared.js';
 import { renderEcommerceClient, drawEcommerceCharts } from './views/ecommerce.js';
 import { destroyAllCharts } from './charts.js';
 

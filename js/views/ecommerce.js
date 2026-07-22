@@ -9,7 +9,7 @@
  * het is ook de opheffing van de contrastwaarschuwing op de lichte reekskleuren.
  */
 
-import { getEcommerceData, buildFunnel } from '../data/ecommerce.js';
+import { getEcommerceData, buildFunnel } from '../sample-data/ecommerce.js';
 import { lineChart, barChart, funnelChart, donutChart, palette } from '../charts.js';
 
 const nf = new Intl.NumberFormat('nl-NL');

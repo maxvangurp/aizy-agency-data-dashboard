@@ -3,12 +3,16 @@ node_modules/
 .DS_Store
 npm-debug.log
 
-# Lokale database met versleutelde tokens
-data/
+# Lokale database met versleutelde tokens.
+# De schuine streep vooraan is essentieel: die verankert het patroon aan de
+# hoofdmap. Zonder streep matcht "data/" op ieder niveau en verdwijnt ook
+# bijvoorbeeld js/data/ uit Git, met een 404 op GitHub Pages tot gevolg.
+/data/
+
+# Lokale referentiebestanden, niet publiceren
+/references/
 
 # Playwright
-test-results/
-playwright-report/
-blob-report/
-
-references/
+/test-results/
+/playwright-report/
+/blob-report/

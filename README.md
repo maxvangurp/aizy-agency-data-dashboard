@@ -24,9 +24,10 @@ js/
   state.js            Centrale applicatiestate met persistentie
   data-provider.js    safeFetchJson en de datamodi
   charts.js           Visualisatielaag met gevalideerd kleurenpalet
-  sample-data.js      Klantenregister en signalen
-  data/
-    ecommerce.js      E-commerce demodataset
+  sample-data/        Publieke, fictieve demodata (hoort in Git)
+    shared.js         Klantenregister, bedrijfsmodellen en signalen
+    ecommerce.js      E-commerce dataset
+    leads.js          Leadgeneratie dataset
   views/
     ecommerce.js      E-commerce klantdashboard
 server.js             Express API en OAuth
@@ -62,6 +63,24 @@ Beperkingen zonder backend:
 `safeFetchJson` controleert altijd de `content-type` voordat er wordt geparsed.
 Een HTML-antwoord op een API-pad levert een leesbare melding op in plaats van
 `Unexpected token '<'`.
+
+### Wat wel en niet in Git hoort
+
+| Wel | Niet |
+|---|---|
+| `js/sample-data/` — publieke, fictieve demodata | `/data/` — lokale database met versleutelde tokens |
+| Alles onder `js/`, `styles.css`, `index.html` | `/references/` — lokale referentiebestanden |
+| | `.env` — secrets |
+
+Patronen in `.gitignore` staan met een schuine streep vooraan (`/data/`). Zonder
+die streep matcht een patroon op ieder niveau. Dat is eerder misgegaan: `data/`
+blokkeerde ook `js/data/`, waardoor de demodata niet werd gepusht en de
+applicatie op GitHub Pages niet initialiseerde.
+
+`tests/publiceerbaar.spec.js` bewaakt dit. Die test volgt de modulegraaf vanaf
+`js/app.js` en controleert of ieder geïmporteerd bestand ook door Git wordt
+gepubliceerd. Ook controleert hij dat de database en `.env` er juist buiten
+blijven.
 
 ## Tests
 
