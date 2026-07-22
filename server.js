@@ -11,6 +11,7 @@ const {
   upsertGoogleConnection,
   deleteGoogleConnection,
   deleteClientResourceMapping,
+  deleteClientResourceMappings,
   getClientResourceMappings,
   getClientResourceMappingsByClient,
   getClientResourceMappingsByProvider,
@@ -565,6 +566,29 @@ app.get('/api/overview', async (req, res) => {
     console.error('Overview API error', formatError(error));
     res.status(500).json({error: formatError(error), ...buildDemoOverview()});
   }
+});
+
+// Onbekende API-routes geven JSON terug, geen HTML.
+// Zonder dit levert Express een text/html 404 op en breekt response.json()
+// in de frontend met "Unexpected token '<'".
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: 'Niet gevonden',
+    message: `Onbekende API-route: ${req.method} ${req.originalUrl}`,
+  });
+});
+
+// Centrale foutafhandeling. Ook hier altijd JSON voor /api-routes.
+app.use((error, req, res, next) => {
+  console.error('Onverwachte serverfout', formatError(error));
+  if (res.headersSent) return next(error);
+  if (req.path.startsWith('/api')) {
+    return res.status(500).json({
+      error: 'Serverfout',
+      message: formatError(error),
+    });
+  }
+  return res.status(500).send('Er is een serverfout opgetreden.');
 });
 
 app.listen(port, () => {

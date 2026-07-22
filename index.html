@@ -1,328 +1,77 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="nl" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aizy Agency Data Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
+    <script>
+      // Thema vroeg toepassen om een flits van het verkeerde thema te voorkomen.
+      (function () {
+        try {
+          var stored = localStorage.getItem('aizy.theme');
+          var theme = stored === 'dark' || stored === 'light'
+            ? stored
+            : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
   </head>
   <body>
+    <a class="skip-link" href="#pageRoot">Ga naar de inhoud</a>
+
     <div class="app">
       <aside class="sidebar">
-        <div class="brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M19 13h13.3a12.9 12.9 0 1 1 0 25.8H19V13Zm8.4 8.2v9.4h4.6a4.7 4.7 0 1 0 0-9.4h-4.6Zm0 15.3v7.2h4.7a3.6 3.6 0 0 0 0-7.2h-4.7Z"></path></svg></div><div><div class="brand-title">Aizy</div><div class="brand-sub">Agency Data Dashboard</div></div></div>
-        <div class="nav" id="nav"></div>
-      </aside>
-      <main class="main">
-        <div class="topbar">
-          <div class="topbar-left">
-            <div class="topbar-mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M19 13h13.3a12.9 12.9 0 1 1 0 25.8H19V13Zm8.4 8.2v9.4h4.6a4.7 4.7 0 1 0 0-9.4h-4.6Zm0 15.3v7.2h4.7a3.6 3.6 0 0 0 0-7.2h-4.7Z"></path></svg></div>
-            <div>
-              <div class="topbar-brand-title">Aizy</div>
-              <div class="topbar-brand-sub">Agency performance</div>
-            </div>
-            <div class="topbar-meta">
-              <div class="progress" aria-label="Progress"><span></span></div>
-              <div class="small">3 signalen</div>
-            </div>
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64">
+              <path d="M19 13h13.3a12.9 12.9 0 1 1 0 25.8H19V13Zm8.4 8.2v9.4h4.6a4.7 4.7 0 1 0 0-9.4h-4.6Zm0 15.3v7.2h4.7a3.6 3.6 0 0 0 0-7.2h-4.7Z"></path>
+            </svg>
           </div>
-          <div class="filters">
-            <div class="field"><label>Klant</label><select id="customerFilter"></select></div>
-            <div class="field"><label>Kanaal</label><select id="channelFilter"></select></div>
-            <div class="field"><label>Periode</label><select id="periodFilter"></select></div>
-          </div>
-          <div class="filters">
-            <button class="btn ghost" id="connectBtn" data-tip="Verbind je Google-account">Connect Google</button>
-            <button class="btn ghost" id="logoutBtn" data-tip="Verbreek de verbinding" style="display:none;">Log uit</button>
-            <button class="btn ghost" id="themeBtn" data-tip="Schakel tussen light en dark">☀️ Lichte modus</button>
-            <button class="btn ghost" id="presentationBtn" data-tip="Toon een rustige presentatiemodus">Presentatiemodus</button>
-            <button class="btn primary" id="viewBtn" data-tip="Schakel tussen agencyview en klantview">Agencyview</button>
+          <div>
+            <div class="brand-title">Aizy</div>
+            <div class="brand-sub">Agency Data Dashboard</div>
           </div>
         </div>
-        <section class="page active" id="overviewPage"></section>
-        <section class="page" id="customerPage"></section>
-        <section class="page" id="channelsPage"></section>
-        <section class="page" id="actionsPage"></section>
-        <section class="page" id="integrationPage"></section>
+        <nav class="nav" id="nav" aria-label="Hoofdnavigatie"></nav>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <div class="filters">
+            <div class="field">
+              <label for="customerFilter">Klant</label>
+              <select id="customerFilter"></select>
+            </div>
+            <div class="field">
+              <label for="channelFilter">Kanaal</label>
+              <select id="channelFilter"></select>
+            </div>
+            <div class="field">
+              <label for="periodFilter">Periode</label>
+              <select id="periodFilter"></select>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <button class="btn ghost" id="modeBtn" type="button">Demodata</button>
+            <button class="btn ghost" id="themeBtn" type="button">Donkere modus</button>
+          </div>
+        </div>
+
+        <div id="pageRoot" class="page-root" tabindex="-1"></div>
       </main>
     </div>
-    <script>
-      const navItems = ['Overzicht','Klanten','Kanalen','Acties','Integraties'];
-      const navPages = ['overview','customer','channels','actions','integration'];
-      const customers = [
-        {id:'muebles', name:'Maatwerk Tafels', status:'Presteert boven verwachting', manager:'Lotte de Vries', spend:18450, budget:22000, roas:8.0, cpa:59, health:92, channels:['Google Ads','Meta Ads','LinkedIn Ads'], change:18, tracking:'Gezond'},
-        {id:'fysiotherapie', name:'Vitalis Fysiotherapie', status:'Optimalisatie nodig', manager:'Daan Verhoeven', spend:11820, budget:14000, roas:7.9, cpa:100, health:74, channels:['Google Ads','Meta Ads','Microsoft Ads'], change:-9, tracking:'Controle aanbevolen'},
-        {id:'northstar', name:'Northstar AI', status:'Directe aandacht nodig', manager:'Eva Krol', spend:22140, budget:18000, roas:8.2, cpa:257, health:61, channels:['Google Ads','LinkedIn Ads','Meta Ads'], change:-16, tracking:'Probleem'}
-      ];
-      const alerts = [
-        {customer:'Northstar AI', channel:'LinkedIn Ads', problem:'CPA is 24% gestegen', severity:'Hoog'},
-        {customer:'Vitalis Fysiotherapie', channel:'Meta Ads', problem:'Conversies dalen plotseling', severity:'Medium'}
-      ];
-      const state = {page:'overview', view:'agency', dark:false, customer:'all', channel:'all', period:'Deze maand'};
-      const apiState = {
-        connected:false,
-        configured:false,
-        loading:true,
-        overview:null,
-        integration: {
-          loading: false,
-          clients: [],
-          ga4Accounts: [],
-          ga4Properties: [],
-          merchantAccounts: [],
-          searchConsoleSites: [],
-          mappings: [],
-          selectedGa4Account: '',
-          error: null,
-        },
-      };
 
-      function init(){
-        renderNav();
-        populateFilters();
-        bindEvents();
-        loadAuthStatus().then(loadOverview).then(render);
-      }
-
-      function bindEvents(){
-        document.getElementById('nav').addEventListener('click', e=>{const btn=e.target.closest('button[data-page]'); if(btn){state.page=btn.dataset.page; if(state.page==='integration'){ loadIntegrationData().then(render); } else { render(); }}});
-        document.getElementById('themeBtn').addEventListener('click', ()=>{state.dark=!state.dark; document.body.classList.toggle('theme-dark', state.dark); document.getElementById('themeBtn').textContent=state.dark?'🌙 Donkere modus':'☀️ Lichte modus';});
-        document.getElementById('presentationBtn').addEventListener('click', ()=>{document.body.classList.toggle('presentation'); document.getElementById('presentationBtn').textContent=document.body.classList.contains('presentation')?'Normale weergave':'Presentatiemodus';});
-        document.getElementById('viewBtn').addEventListener('click', ()=>{state.view=state.view==='agency'?'customer':'agency'; document.getElementById('viewBtn').textContent=state.view==='agency'?'Agencyview':'Klantview'; if(state.view==='customer'){state.page='customer';} else {state.page='overview';} render();});
-        document.getElementById('connectBtn').addEventListener('click', () => { window.location.href = '/auth/google'; });
-        document.getElementById('logoutBtn').addEventListener('click', () => { window.location.href = '/auth/logout'; });
-        document.getElementById('customerFilter').addEventListener('change', e=>{state.customer=e.target.value; render();});
-        document.getElementById('channelFilter').addEventListener('change', e=>{state.channel=e.target.value; render();});
-        document.getElementById('periodFilter').addEventListener('change', e=>{state.period=e.target.value; render();});
-      }
-
-      async function loadAuthStatus(){
-        try {
-          const response = await fetch('/api/auth/status');
-          const data = await response.json();
-          apiState.connected = data.connected;
-          apiState.configured = data.configured;
-          apiState.loading = false;
-        } catch (error) {
-          apiState.connected = false;
-          apiState.configured = false;
-          apiState.loading = false;
-        }
-      }
-
-      async function loadOverview(){
-        try {
-          const response = await fetch('/api/overview');
-          apiState.overview = await response.json();
-        } catch (error) {
-          apiState.overview = {
-            connected: false,
-            demo: true,
-            message: 'Kan geen data laden. Controleer de server of de network-instellingen.',
-            kpis: {spend:0, roas:0, health:0, alerts:0},
-            merchant: {accounts:0, products:0},
-            search: {clicks:0, impressionCount:0},
-          };
-        }
-      }
-
-      async function loadIntegrationData() {
-        apiState.integration.loading = true;
-        apiState.integration.error = null;
-        try {
-          const [clientsRes, resourcesRes] = await Promise.all([
-            fetch('/api/clients'),
-            apiState.connected ? fetch('/api/google/resources') : Promise.resolve({ok:true,json:async()=>({ga4Accounts:[],ga4Properties:[],merchantAccounts:[],searchConsoleSites:[],mappings:[]})}),
-          ]);
-
-          const clientsPayload = await clientsRes.json();
-          apiState.integration.clients = clientsPayload.clients || [];
-
-          if (resourcesRes.ok) {
-            const resourcesPayload = await resourcesRes.json();
-            apiState.integration.ga4Accounts = resourcesPayload.ga4Accounts || [];
-            apiState.integration.ga4Properties = resourcesPayload.ga4Properties || [];
-            apiState.integration.merchantAccounts = resourcesPayload.merchantAccounts || [];
-            apiState.integration.searchConsoleSites = resourcesPayload.searchConsoleSites || [];
-            apiState.integration.mappings = resourcesPayload.mappings || [];
-          } else {
-            const errorText = await resourcesRes.text();
-            throw new Error(errorText || 'Resources laden mislukt');
-          }
-        } catch (error) {
-          apiState.integration.error = error.message || 'Fout bij laden integraties';
-        } finally {
-          apiState.integration.loading = false;
-        }
-      }
-
-      async function loadGa4Properties(accountId) {
-        if (!accountId) return;
-        apiState.integration.selectedGa4Account = accountId;
-        apiState.integration.ga4Properties = [];
-        try {
-          const response = await fetch(`/api/ga4/properties?accountId=${encodeURIComponent(accountId)}`);
-          if (!response.ok) throw new Error(await response.text());
-          const payload = await response.json();
-          apiState.integration.ga4Properties = payload.properties || [];
-        } catch (error) {
-          apiState.integration.error = error.message || 'GA4 properties laden mislukt';
-        }
-      }
-
-      async function createMapping(payload) {
-        const response = await fetch('/api/mapping', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(payload),
-        });
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-        await loadIntegrationData();
-      }
-
-      function populateFilters(){const customerFilter=document.getElementById('customerFilter'); const channelFilter=document.getElementById('channelFilter'); const periodFilter=document.getElementById('periodFilter'); customerFilter.innerHTML='<option value="all">Alle klanten</option>' + customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); channelFilter.innerHTML='<option value="all">Alle kanalen</option><option value="Google Ads">Google Ads</option><option value="Microsoft Ads">Microsoft Ads</option><option value="Meta Ads">Meta Ads</option><option value="LinkedIn Ads">LinkedIn Ads</option>'; periodFilter.innerHTML='<option>Deze maand</option><option>Vorige maand</option><option>Dit kwartaal</option>';} 
-      function renderNav(){
-        document.getElementById('nav').innerHTML = navItems
-          .map((item, i) => `
-            <button class="${state.page === navPages[i] ? 'active' : ''}" data-page="${navPages[i]}">
-              ${item}
-            </button>
-          `)
-          .join('');
-      }
-      function render(){
-        renderNav();
-        const connectBtn = document.getElementById('connectBtn');
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (connectBtn) connectBtn.style.display = apiState.connected ? 'none' : 'inline-flex';
-        if (logoutBtn) logoutBtn.style.display = apiState.connected ? 'inline-flex' : 'none';
-
-        document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-        const page = document.getElementById((state.page==='customers'?'customer':state.page)+'Page') || document.getElementById('overviewPage');
-        page.classList.add('active');
-        if(state.page==='overview') page.innerHTML=renderOverview();
-        if(state.page==='customers' || state.page==='customer') page.innerHTML=renderCustomer();
-        if(state.page==='channels') page.innerHTML=renderChannels();
-        if(state.page==='actions') page.innerHTML=renderActions();
-        if(state.page==='integration') page.innerHTML=renderIntegration();
-      }
-      function renderOverview(){
-        const overview = apiState.overview || {
-          connected: false,
-          demo: true,
-          message: 'Laadt gegevens...',
-          kpis: {spend:0, roas:0, health:0, alerts:0},
-          merchant: {accounts:0, products:0},
-          search: {clicks:0, impressionCount:0},
-        };
-        const list = customers.filter(c=>state.customer==='all'||c.id===state.customer).filter(c=>state.channel==='all'||c.channels.includes(state.channel));
-        const statusLabel = overview.connected ? 'Live Google data' : 'Demo modus';
-        const heroText = overview.connected ? 'Live data uit GA4, Merchant Center en Search Console' : 'Ontwerp jouw dashboard met demo-waarden of verbind je Google-account voor live data.';
-
-        return `
-          <div class="hero hero-top">
-            <span class="eyebrow">${statusLabel}</span>
-            <h2>Waar het vandaag om draait</h2>
-            <p>${heroText}</p>
-            <div class="hero-grid">
-              <span class="hero-pill">${overview.kpis.alerts} signalen</span>
-              <span class="hero-pill">Budget pacing</span>
-              <span class="hero-pill">Trackingkwaliteit</span>
-            </div>
-            <p class="small" style="margin-top: 18px; opacity: .9; max-width: 680px;">${overview.message}</p>
-          </div>
-          <div class="stats">
-            <div class="card kpi"><span class="label">Totale spend</span><span class="value">€${Number(overview.kpis.spend || list.reduce((s,c)=>s+c.spend,0)).toLocaleString('nl-NL')}</span></div>
-            <div class="card kpi"><span class="label">Gemiddelde ROAS</span><span class="value">${overview.kpis.roas ? overview.kpis.roas.toFixed(1) + 'x' : (list.reduce((s,c)=>s+c.roas,0)/Math.max(1,list.length)).toFixed(1) + 'x'}</span></div>
-            <div class="card kpi"><span class="label">Health score</span><span class="value">${overview.kpis.health || Math.round(list.reduce((s,c)=>s+c.health,0)/Math.max(1,list.length))}%</span></div>
-            <div class="card kpi"><span class="label">Open signalen</span><span class="value">${overview.kpis.alerts || alerts.length}</span></div>
-          </div>
-          <div class="grid grid-2">
-            <div class="card"><h3 style="margin-top:0">Aandachtspunt</h3><div class="list">${alerts.map(a=>`<div class="item"><div><strong>${a.customer}</strong><br><span class="small">${a.problem}</span></div><span class="pill warning">${a.severity}</span></div>`).join('')}</div></div>
-            <div class="card"><h3 style="margin-top:0">Klanten</h3><div class="list">${list.map(c=>`<div class="item"><div><strong>${c.name}</strong><br><span class="small">${c.tracking}</span></div><span class="pill good">${c.health}%</span></div>`).join('')}</div></div>
-          </div>
-        `;
-      }
-      function renderCustomer(){const customer=customers.find(c=>c.id===state.customer)||customers[0]; return `<div class="hero hero-top"><span class="eyebrow">Klantview</span><h2>${customer.name}</h2><p>${customer.status} · ${customer.manager} · ${state.period}</p><div class="hero-grid"><span class="hero-pill">Klantfocus</span><span class="hero-pill">Budgetpacing</span><span class="hero-pill">Tracking</span></div></div><div class="stats"><div class="card kpi"><span class="label">Spend</span><span class="value">€${customer.spend.toLocaleString('nl-NL')}</span></div><div class="card kpi"><span class="label">ROAS</span><span class="value">${customer.roas.toFixed(1)}x</span></div><div class="card kpi"><span class="label">CPA</span><span class="value">€${customer.cpa}</span></div><div class="card kpi"><span class="label">Health</span><span class="value">${customer.health}%</span></div></div><div class="grid grid-2"><div class="card"><h3 style="margin-top:0">Context</h3><p>Google Search en retargeting leveren een solide bijdrage. De belangrijkste aandachtspunten zijn trackingkwaliteit, budget pacing en de mate waarin het kanaalvolume nog verder kan worden opgeschaald.</p></div><div class="card"><h3 style="margin-top:0">Actie</h3><p>Ik zou de komende week eerst de trackingkwaliteit controleren en daarna het budgetpijplijnoverzicht herzien.</p></div></div>`; }
-      function renderChannels(){return `<div class="hero"><span class="eyebrow">Kanaalanalyse</span><h2>Waar het kanaalverloop vandaan komt</h2><p>Google Ads, Microsoft Ads, Meta Ads en LinkedIn Ads zijn zichtbaar als eerste, uitbreidbare kanalen.</p></div><div class="grid grid-2"><div class="card"><h3 style="margin-top:0">Kanaaloverzicht</h3><div class="list"><div class="item"><div><strong>Google Ads</strong><br><span class="small">Search en PMax</span></div><span class="pill good">8.4x</span></div><div class="item"><div><strong>Microsoft Ads</strong><br><span class="small">Efficiënt, onderbenut</span></div><span class="pill">7.6x</span></div><div class="item"><div><strong>Meta Ads</strong><br><span class="small">Frequentie en CPM stijgen</span></div><span class="pill warning">6.9x</span></div><div class="item"><div><strong>LinkedIn Ads</strong><br><span class="small">Leadquality sterk</span></div><span class="pill good">7.8x</span></div></div></div><div class="card"><h3 style="margin-top:0">Kanttekening</h3><p>Platformconversies, GA4-conversies en CRM-conversies kunnen verschillen door attributie en meetmethodiek. Dat is relevant voor de interpretatie van deze weergave.</p></div></div>`; }
-      function renderIntegration(){
-        const data = apiState.integration;
-        const hasClients = data.clients.length > 0;
-        const selectedClientId = data.clients[0]?.id || '';
-        const clientOptions = data.clients.map(client => `<option value="${client.id}">${client.name}</option>`).join('');
-        const mappingRows = data.mappings.map(mapping => `
-          <div class="item">
-            <div><strong>${mapping.resource_name || mapping.resource_id}</strong><br><span class="small">${mapping.resource_type.replace('_', ' ')} → ${mapping.client_id}</span></div>
-            <span class="pill">${mapping.active ? 'Actief' : 'Inactief'}</span>
-          </div>
-        `).join('');
-
-        const ga4List = data.ga4Accounts.length ? data.ga4Accounts.map(account => `<div class="item"><div><strong>${account.displayName}</strong><br><span class="small">${account.name}</span></div><button class="btn ghost" onclick="handleLoadGa4Properties('${account.account}')">Bekijk properties</button></div>`).join('') : '<p class="small">Geen GA4-accounts geladen.</p>';
-        const ga4Props = data.ga4Properties.length ? data.ga4Properties.map(prop => `<div class="item"><div><strong>${prop.displayName}</strong><br><span class="small">${prop.name}</span></div><button class="btn ghost" onclick="handleCreateMapping({clientId: document.getElementById('integrationClientSelect').value, provider:'google', resourceType:'ga4_property', resourceId:'${prop.name}', resourceName:'${prop.displayName}', accountId:'${data.selectedGa4Account || ''}', propertyUrl:null})">Koppel</button></div>`).join('') : '<p class="small">Selecteer een GA4-account om properties te laden.</p>';
-        const merchantList = data.merchantAccounts.length ? data.merchantAccounts.map(account => `<div class="item"><div><strong>${account.name}</strong><br><span class="small">${account.id}</span></div><button class="btn ghost" onclick="handleCreateMapping({clientId: document.getElementById('integrationClientSelect').value, provider:'google', resourceType:'merchant_account', resourceId:'${account.id}', resourceName:'${account.name}', accountId:'${account.id}', propertyUrl:null})">Koppel</button></div>`).join('') : '<p class="small">Geen Merchant Center-accounts gevonden.</p>';
-        const searchList = data.searchConsoleSites.length ? data.searchConsoleSites.map(site => `<div class="item"><div><strong>${site.siteUrl || site}</strong></div><button class="btn ghost" onclick="handleCreateMapping({clientId: document.getElementById('integrationClientSelect').value, provider:'google', resourceType:'search_console_property', resourceId:'${site.siteUrl || site}', resourceName:'${site.siteUrl || site}', accountId:null, propertyUrl:'${site.siteUrl || site}'})">Koppel</button></div>`).join('') : '<p class="small">Geen Search Console-sites gevonden.</p>';
-
-        return `
-          <div class="hero hero-top">
-            <span class="eyebrow">Integraties</span>
-            <h2>Google API resource discovery</h2>
-            <p>Bekijk gekoppelde Google-accounts, laad resources en koppel deze aan klanten in het dashboard.</p>
-          </div>
-          <div class="stats">
-            <div class="card kpi"><span class="label">Clients</span><span class="value">${data.clients.length}</span></div>
-            <div class="card kpi"><span class="label">GA4-accounts</span><span class="value">${data.ga4Accounts.length}</span></div>
-            <div class="card kpi"><span class="label">Merchant accounts</span><span class="value">${data.merchantAccounts.length}</span></div>
-            <div class="card kpi"><span class="label">GSC-sites</span><span class="value">${data.searchConsoleSites.length}</span></div>
-          </div>
-          <div class="grid grid-2">
-            <div class="card">
-              <h3 style="margin-top:0">Selecteer klant</h3>
-              <select id="integrationClientSelect" style="width:100%; margin-top:10px;">${clientOptions}</select>
-              <p class="small" style="margin-top:12px;">Kies een klant om resources te koppelen.</p>
-              ${data.error ? `<p class="small" style="color:#FFB547">${data.error}</p>` : ''}
-              ${!apiState.connected ? `<p class="small">Verbind eerst je Google-account om live resources te laden.</p>` : ''}
-            </div>
-            <div class="card">
-              <h3 style="margin-top:0">Huidige mappings</h3>
-              <div class="list">${mappingRows || '<p class="small">Nog geen mappings.</p>'}</div>
-            </div>
-          </div>
-          <div class="grid grid-2">
-            <div class="card">
-              <h3 style="margin-top:0">GA4-accounts</h3>
-              <div class="list">${ga4List}</div>
-              <div style="margin-top:16px;"><h4 class="small">Properties</h4><div class="list">${ga4Props}</div></div>
-            </div>
-            <div class="card">
-              <h3 style="margin-top:0">Merchant + Search Console</h3>
-              <div class="list">${merchantList}</div>
-              <div style="margin-top:24px"><h4 class="small">Search Console</h4><div class="list">${searchList}</div></div>
-            </div>
-          </div>
-        `;
-      }
-
-      async function handleLoadGa4Properties(accountId) {
-        await loadGa4Properties(accountId);
-        render();
-      }
-
-      async function handleCreateMapping(payload) {
-        try {
-          await createMapping(payload);
-          render();
-        } catch (error) {
-          apiState.integration.error = error.message || 'Mapping kon niet worden aangemaakt.';
-          render();
-        }
-      }
-
-      function renderActions(){return `<div class="hero"><span class="eyebrow">Actiecentrum</span><h2>Welke actie logisch is</h2><p>Acties volgen direct uit signalen, trackingstatus en de huidige pacing.</p></div><div class="card"><table class="table"><thead><tr><th>Actie</th><th>Klant</th><th>Prioriteit</th></tr></thead><tbody><tr><td>Trackingkwaliteit controleren</td><td>Vitalis</td><td>Hoog</td></tr><tr><td>Budgetpacing herzien</td><td>Northstar AI</td><td>Medium</td></tr></tbody></table></div>`; }
-      document.addEventListener('DOMContentLoaded', init);
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script type="module" src="js/app.js"></script>
   </body>
 </html>

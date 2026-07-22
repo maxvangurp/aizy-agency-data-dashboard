@@ -2,3 +2,13 @@ node_modules/
 .env
 .DS_Store
 npm-debug.log
+
+# Lokale database met versleutelde tokens
+data/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
+references/
