@@ -2,60 +2,89 @@
  * Klantdetail binnen de agencyomgeving.
  *
  * Dit is de werkweergave voor een medewerker: het volledige dashboard van de
- * klant, met daarboven de interne context die de klant zelf niet ziet, zoals de
- * statusonderbouwing en de openstaande signalen.
+ * klant, met daarboven de interne context die de klant zelf niet ziet. Die
+ * scheiding is expliciet: de contextheader benoemt dat dit de agencyweergave is
+ * en het interne blok staat visueel apart.
  *
  * De filterselectie blijft behouden wanneer een medewerker vanuit het
  * agencyoverzicht een klant opent. Kanalen die deze klant niet heeft, worden
- * automatisch uit de selectie gehaald; dat wordt zichtbaar gemeld in plaats van
- * stil doorgevoerd.
+ * automatisch uit de selectie gehaald en dat wordt zichtbaar gemeld.
  */
 
 import { BusinessModel, BUSINESS_MODEL_LABELS } from '../data/repository.js';
 import { renderLeadgenClient, drawLeadgenCharts } from './leadgen.js';
 import { renderEcommerceClient, drawEcommerceCharts } from './ecommerce.js';
-import { esc, badge, trackingBadge } from './components.js';
+import { renderAwarenessClient, drawAwarenessCharts } from './awareness.js';
+import { esc, badge, meetstatusBadge, fmt } from './components.js';
+import { renderContextheader, renderMedewerker } from './context-header.js';
+import { renderPrioriteit } from './insight-cards.js';
 import { kanaalLabel } from '../filters/channels.js';
+import { toonBereik } from '../filters/period.js';
+import { LABELS, dashboardtypeTerm, verantwoordelijkheidTerm } from '../terminology.js';
 
 export function renderAgencyClientDetail({ dashboard, verhaal, signalen = [], filterbalk = '', kanaalWaarschuwing = null }) {
   // null betekent: bestaat niet, of geen toegang. Beide leveren hetzelfde
   // antwoord op, zodat het bestaan van een klant niet wordt verklapt.
   if (!dashboard) return null;
 
-  const { client, status } = dashboard;
+  const { client, status, periode, prioriteit, team } = dashboard;
 
-  const statusVariant = {
-    'op-koers': 'ok', aandacht: 'middel', tracking: 'hoog',
-    'onvoldoende-data': 'muted', 'geen-doel': 'muted',
-  };
+  const kop = renderContextheader({
+    kruimelpad: [
+      { label: 'Agency', href: '#/agency/overview' },
+      { label: 'Klanten', href: '#/agency/clients' },
+      { label: client.name },
+    ],
+    titel: client.name,
+    ondertitel: `Agencyweergave over ${toonBereik(periode.startDate, periode.endDate)}. Deze pagina bevat interne informatie die de klant niet ziet.`,
+    omgeving: 'agency',
+    dashboardtype: dashboard.model,
+    labels: [
+      { tekst: status.label, variant: status.variant, uitleg: status.reden },
+      { tekst: prioriteit.label, variant: prioriteit.variant, uitleg: prioriteit.redenen[0] },
+    ],
+    actie: { href: '#/agency/clients', tekst: 'Terug naar klantenoverzicht' },
+  });
 
   const intern = `
-    <section class="card intern-blok">
+    <section class="card intern-blok" aria-labelledby="internTitel">
       <div class="kaart-kop">
-        <h2>Interne status</h2>
-        <a class="link" href="#/agency/clients">Terug naar klanten</a>
+        <h2 id="internTitel">Interne status</h2>
+        <span class="muted klein">Niet zichtbaar voor de klant</span>
       </div>
-      <div class="intern-rij">
-        ${badge(status.label, statusVariant[status.code] ?? 'muted')}
-        ${trackingBadge(client.trackingStatus)}
-        ${badge(`Datakwaliteit ${client.dataHealth} procent`, client.dataHealth >= 80 ? 'ok' : client.dataHealth >= 65 ? 'middel' : 'hoog')}
-        ${badge(BUSINESS_MODEL_LABELS[client.businessModel] ?? client.businessModel, 'muted')}
+
+      <div class="intern-grid">
+        <div>
+          ${renderPrioriteit(prioriteit)}
+        </div>
+        <div>
+          <p class="eyebrow">${esc(LABELS.verantwoordelijke)}</p>
+          ${renderMedewerker(team.primair, { rol: verantwoordelijkheidTerm('primair').volledig })}
+          ${team.ondersteunend.length ? `
+            <p class="eyebrow" style="margin-top:12px">${esc(LABELS.ondersteunend)}</p>
+            ${team.ondersteunend.map((m) => renderMedewerker(m, { rol: verantwoordelijkheidTerm('ondersteunend').volledig })).join('')}
+          ` : ''}
+        </div>
+        <div>
+          <p class="eyebrow">${esc(LABELS.datakwaliteit)}</p>
+          <div class="intern-rij">
+            ${meetstatusBadge(client.trackingStatus)}
+            ${badge(`Datakwaliteit ${client.dataHealth} procent`, client.dataHealth >= 80 ? 'ok' : client.dataHealth >= 65 ? 'middel' : 'hoog')}
+            ${badge(dashboardtypeTerm(dashboard.model).kort, 'muted')}
+          </div>
+          <p class="muted klein">Maandbudget ${fmt.euro(client.maandbudget)}</p>
+        </div>
       </div>
-      <p class="muted">${esc(status.reden)}</p>
-      <p class="muted klein">
-        Accountmanager ${esc(client.accountmanager)} · Marketeer ${esc(client.marketeer)} ·
-        Budget ${new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(client.maandbudget)}
-      </p>
 
       ${signalen.length
-        ? `<h3>Signalen</h3>
+        ? `<h3>Signalen binnen deze selectie</h3>
            <ul class="alert-list">${signalen.map((s) => `<li class="alert alert-${esc(s.ernst)}">
              <div class="alert-head">
-               ${badge(s.ernst === 'hoog' ? 'Hoge ernst' : 'Middelmatige ernst', s.ernst === 'hoog' ? 'hoog' : 'middel')}
+               ${badge(s.ernst === 'hoog' ? 'Hoge urgentie' : 'Gemiddelde urgentie', s.ernst === 'hoog' ? 'hoog' : 'middel')}
                <span class="muted">${esc(s.kanaalLabel ?? kanaalLabel(s.kanaal))}</span>
              </div>
              <p class="alert-problem">${esc(s.probleem)}</p>
-             <p class="alert-meta"><span class="muted">Aanbevolen actie:</span> ${esc(s.aanbeveling)}</p>
+             <p class="alert-meta"><span class="eyebrow">${esc(LABELS.actie)}</span> ${esc(s.aanbeveling)}</p>
            </li>`).join('')}</ul>`
         : '<p class="muted">Geen signalen voor deze klant binnen de geselecteerde periode en kanalen.</p>'}
     </section>`;
@@ -67,25 +96,26 @@ export function renderAgencyClientDetail({ dashboard, verhaal, signalen = [], fi
       </div>`
     : '';
 
-  if (![BusinessModel.LEADGEN, BusinessModel.ECOMMERCE].includes(dashboard.type)) {
-    return intern + filterbalk + waarschuwing + `<section class="card leeg-blok">
-      <h2>Nog geen dashboard beschikbaar</h2>
-      <p class="muted">
-        Voor het bedrijfsmodel ${esc(BUSINESS_MODEL_LABELS[client.businessModel] ?? client.businessModel)}
-        is nog geen dashboard gebouwd.
-      </p>
-    </section>`;
-  }
-
   const inhoud = dashboard.type === BusinessModel.LEADGEN
     ? renderLeadgenClient(dashboard, verhaal)
-    : renderEcommerceClient(dashboard, verhaal);
+    : dashboard.type === BusinessModel.ECOMMERCE
+      ? renderEcommerceClient(dashboard, verhaal)
+      : dashboard.type === BusinessModel.AWARENESS
+        ? renderAwarenessClient(dashboard)
+        : `<section class="card leeg-blok">
+            <h2>Nog geen dashboard beschikbaar</h2>
+            <p class="muted">
+              Voor het dashboardtype ${esc(BUSINESS_MODEL_LABELS[client.businessModel] ?? client.businessModel)}
+              is nog geen weergave gebouwd.
+            </p>
+          </section>`;
 
-  return intern + filterbalk + waarschuwing + inhoud;
+  return kop + intern + filterbalk + waarschuwing + inhoud;
 }
 
 export function drawAgencyClientCharts(dashboard) {
   if (!dashboard) return;
   if (dashboard.type === BusinessModel.LEADGEN) drawLeadgenCharts(dashboard, { klantview: false });
   else if (dashboard.type === BusinessModel.ECOMMERCE) drawEcommerceCharts(dashboard);
+  else if (dashboard.type === BusinessModel.AWARENESS) drawAwarenessCharts(dashboard);
 }

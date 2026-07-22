@@ -10,7 +10,8 @@
  */
 
 import { metriekMeta, Formaat, DeltaStatus } from '../data/metrics.js';
-import { PacingStatus, PACING_LABELS } from '../data/selectors.js';
+import { PacingStatus } from '../data/selectors.js';
+import { ontbrekendTerm, budgetstatusTerm, KLANTSTATUSSEN } from '../terminology.js';
 
 const nf = new Intl.NumberFormat('nl-NL');
 const cf0 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
@@ -79,17 +80,36 @@ export function deltaTekst(delta, vergelijkingLabel = 'de vorige periode') {
   }
 }
 
-/** KPI-kaart. */
-export function kpi(label, waarde, sub = '', richting = 'neutraal') {
-  return `<article class="card kpi">
-    <span class="kpi-label">${esc(label)}</span>
+/**
+ * KPI-kaart.
+ *
+ * De kaart benoemt altijd de volledige naam. Een afkorting staat er als
+ * ondersteunende tekst bij, nooit in plaats van de naam: "CPQL" zonder "Kosten
+ * per gekwalificeerde lead" is voor de helft van de lezers betekenisloos.
+ *
+ * De verandering wordt niet alleen met kleur weergegeven. Er staat een richting
+ * in woorden, het percentage en waarmee vergeleken wordt.
+ */
+export function kpi(label, waarde, sub = '', richting = 'neutraal', {
+  kort = null, uitleg = '', detail = null,
+} = {}) {
+  const uitlegId = uitleg ? `kpi-${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-uitleg` : null;
+
+  return `<article class="card kpi" data-label="${esc(label)}"${uitleg ? ` aria-describedby="${esc(uitlegId)}"` : ''}>
+    <span class="kpi-label">
+      ${esc(label)}
+      ${kort ? `<abbr class="kpi-kort" title="${esc(uitleg || label)}">${esc(kort)}</abbr>` : ''}
+    </span>
     <span class="kpi-value">${esc(waarde)}</span>
     <span class="kpi-sub trend-${esc(richting)}">${esc(sub)}</span>
+    ${uitleg ? `<span class="kpi-uitleg" id="${esc(uitlegId)}">${esc(uitleg)}</span>` : ''}
+    ${detail ? `<a class="kpi-detail link-klein" href="${esc(detail.href)}">${esc(detail.tekst)}</a>` : ''}
   </article>`;
 }
 
 /**
- * KPI-kaart die zijn waarde, opmaak en richting uit de metriekmetadata haalt.
+ * KPI-kaart die zijn naam, opmaak, uitleg en richting uit de metriekmetadata
+ * haalt. Een view bepaalt dus nooit zelf of een daling goed nieuws is.
  *
  * @param {object} totalen     berekende totalen
  * @param {string} key         metrieksleutel
@@ -98,21 +118,40 @@ export function kpi(label, waarde, sub = '', richting = 'neutraal') {
  */
 export function kpiMetriek(totalen, key, deltas, {
   label = null, leegTekst = 'Onvoldoende data', leegSub = 'Niet gemeten in deze periode',
-  vergelijkingLabel = 'de vorige periode',
+  vergelijkingLabel = 'de vorige periode', detail = null,
 } = {}) {
   const meta = metriekMeta(key);
   const waarde = totalen?.[key];
   const delta = deltas?.[key];
+  const opmaak = { kort: meta.kort ?? null, uitleg: meta.uitleg ?? '', detail };
 
   if (waarde == null) {
-    return kpi(label ?? meta.label, leegTekst, leegSub, 'neutraal');
+    return kpi(label ?? meta.label, leegTekst, leegSub, 'neutraal', opmaak);
   }
   return kpi(
     label ?? meta.label,
     formatteerMetriek(waarde, meta.formaat),
     deltaTekst(delta, vergelijkingLabel),
-    delta?.richting ?? 'neutraal'
+    delta?.richting ?? 'neutraal',
+    opmaak
   );
+}
+
+/**
+ * Cel voor een waarde die er niet is.
+ *
+ * Er zijn vijf redenen waarom een vakje leeg blijft en ze betekenen alle vijf
+ * iets anders. Eén streepje voor alle vijf laat de lezer raden.
+ */
+export function ontbrekendeCel(soort = 'onvoldoende_data') {
+  const term = ontbrekendTerm(soort);
+  return `<span class="muted ontbrekend" title="${esc(term.omschrijving)}">${esc(term.kort)}</span>`;
+}
+
+/** Toont een getal, of de reden waarom het er niet is. */
+export function getalOfReden(waarde, soort = 'onvoldoende_data', format = null) {
+  if (waarde == null) return ontbrekendeCel(soort);
+  return (format ?? fmt.getal)(waarde);
 }
 
 /** Tabelcel met een verandering, inclusief statuswoord voor wie geen kleur ziet. */
@@ -126,15 +165,40 @@ export function deltaCel(delta) {
   return `<span class="trend-${esc(delta.richting)}">${esc(delta.tekst)}</span>`;
 }
 
-/** Tabel uit kolomnamen en rijen. Cellen mogen HTML bevatten. */
-export function tabel(kolommen, rijen) {
+/**
+ * Tabel uit kolomnamen en rijen. Cellen mogen HTML bevatten.
+ *
+ * Een kolom is een string of een object met een label en een uitleg. Die uitleg
+ * komt in de titel van de kop terecht, zodat een afkorting als CPQL ook in een
+ * tabel te begrijpen is zonder de legenda erbij te zoeken.
+ *
+ * @param {(string|{label: string, uitleg?: string})[]} kolommen
+ * @param {string[][]} rijen
+ * @param {{leegTekst?: string}} opties
+ */
+export function tabel(kolommen, rijen, { leegTekst = 'Geen gegevens beschikbaar.' } = {}) {
   if (!rijen.length) {
-    return `<p class="empty">Geen gegevens beschikbaar.</p>`;
+    return `<p class="empty">${esc(leegTekst)}</p>`;
   }
+
+  const kop = kolommen.map((k) => {
+    const label = typeof k === 'string' ? k : k.label;
+    const uitleg = typeof k === 'string' ? null : k.uitleg;
+    return uitleg
+      ? `<th scope="col"><span title="${esc(uitleg)}">${esc(label)}</span></th>`
+      : `<th scope="col">${esc(label)}</th>`;
+  }).join('');
+
   return `<table>
-    <thead><tr>${kolommen.map((k) => `<th>${esc(k)}</th>`).join('')}</tr></thead>
+    <thead><tr>${kop}</tr></thead>
     <tbody>${rijen.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
   </table>`;
+}
+
+/** Kolomkop uit de metriekmetadata, inclusief uitleg bij de afkorting. */
+export function metriekKolom(key, label = null) {
+  const meta = metriekMeta(key);
+  return { label: label ?? meta.label, uitleg: meta.uitleg ?? '' };
 }
 
 /**
@@ -144,10 +208,11 @@ export function tabel(kolommen, rijen) {
  * van de contrastwaarschuwing op enkele lichte reekskleuren: de waarden zijn
  * altijd ook zonder kleur af te lezen.
  */
-export function figure(id, titel, subtitel, tabelHtml, bron, hoogte = 260) {
+export function figure(id, titel, subtitel, tabelHtml, bron, hoogte = 260, { conclusie = null } = {}) {
   return `<figure class="chart-figure card">
     <figcaption>
-      <h3>${esc(titel)}</h3>
+      ${conclusie ? `<p class="chart-conclusie">${esc(conclusie)}</p>` : ''}
+      <h3${conclusie ? ' class="chart-titel-sub"' : ''}>${esc(titel)}</h3>
       <p class="muted">${esc(subtitel)}</p>
     </figcaption>
     <div class="chart-canvas" style="height:${hoogte}px"><canvas id="${esc(id)}"></canvas></div>
@@ -302,7 +367,7 @@ export function renderBudget(dashboard) {
       ${kpi('Verwacht eindbedrag', b.prognose == null ? 'Geen prognose' : fmt.euro(b.prognose),
         b.prognose == null ? b.reden : `Gemiddeld ${fmt.euro(b.gemiddeldPerDag)} per dag`, variant)}
       ${kpi('Verschil met budget', b.verschil == null ? 'Niet beschikbaar' : fmt.euro(b.verschil),
-        PACING_LABELS[b.status] ?? '', variant)}
+        budgetstatusTerm(b.status).kort, variant)}
     </div>
     <p class="muted note">${esc(b.reden)}</p>
   </section>`;
@@ -313,16 +378,19 @@ export function badge(tekst, variant = 'muted') {
   return `<span class="badge badge-${esc(variant)}">${esc(tekst)}</span>`;
 }
 
-/** Vertaalt een trackingstatus naar label en badgevariant. */
-export function trackingBadge(status) {
+/**
+ * De staat van de meting bij een klant.
+ * "Trackingprobleem" was jargon; een klant leest nu dat de meting onvolledig is.
+ */
+export function meetstatusBadge(status) {
   const map = {
-    gezond: ['Gezond', 'ok'],
-    'controle-aanbevolen': ['Controle aanbevolen', 'middel'],
-    probleem: ['Probleem', 'hoog'],
-    kritiek: ['Kritiek', 'hoog'],
-    'niet-ingericht': ['Niet ingericht', 'muted'],
-    'onvoldoende-data': ['Onvoldoende data', 'muted'],
+    gezond: ['Meting volledig', 'ok', 'Alle bronnen leveren gegevens.'],
+    'controle-aanbevolen': ['Meting controleren', 'middel', 'Een of meer bronnen leveren onvolledige gegevens.'],
+    probleem: ['Meting onvolledig', 'hoog', 'De cijfers zijn onbetrouwbaar doordat metingen ontbreken.'],
+    kritiek: ['Meting onvolledig', 'hoog', 'De cijfers zijn onbetrouwbaar doordat metingen ontbreken.'],
+    'niet-ingericht': ['Meting niet ingericht', 'muted', 'Er is nog geen meting ingericht.'],
+    'onvoldoende-data': [KLANTSTATUSSEN['onvoldoende-data'].kort, 'muted', KLANTSTATUSSEN['onvoldoende-data'].omschrijving],
   };
-  const [label, variant] = map[status] ?? ['Onbekend', 'muted'];
-  return badge(label, variant);
+  const [label, variant, uitleg] = map[status] ?? ['Onbekend', 'muted', ''];
+  return `<span class="badge badge-${esc(variant)}" title="${esc(uitleg)}">${esc(label)}</span>`;
 }

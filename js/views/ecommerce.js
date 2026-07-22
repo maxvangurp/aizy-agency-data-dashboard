@@ -15,7 +15,9 @@
 import { lineChart, barChart, funnelChart, donutChart } from '../charts.js';
 import {
   fmt, esc, kpi, kpiMetriek, tabel, figure, doelRij, renderBudget,
+  ontbrekendeCel, metriekKolom,
 } from './components.js';
+import { renderInzichten } from './insight-cards.js';
 import { toonKorteDatum, toonBereik } from '../filters/period.js';
 
 const nf = new Intl.NumberFormat('nl-NL');
@@ -35,15 +37,10 @@ const vgl = (d) => (d.vergelijkingActief ? d.vergelijking.label.toLowerCase() : 
    --------------------------------------------------------------- */
 
 export function renderEcommerceClient(dashboard, verhaal) {
-  const { client, periode, totalen, deltas } = dashboard;
-
-  const kop = `<header class="page-head">
-      <h1>${esc(client.name)}</h1>
-      <p>E-commerce · ${esc(client.accountmanager)} · ${esc(client.land)} · ${esc(toonBereik(periode.startDate, periode.endDate))}</p>
-    </header>`;
+  const { totalen, deltas } = dashboard;
 
   if (!dashboard.heeftData) {
-    return `${kop}<section class="card leeg-blok" id="geenDataBlok">
+    return `<section class="card leeg-blok" id="geenDataBlok">
       <h2>Geen data voor deze selectie</h2>
       <p class="muted">Er zijn geen gegevens voor deze periode en kanaalselectie. Kies een langere periode of voeg een kanaal toe.</p>
     </section>`;
@@ -53,7 +50,6 @@ export function renderEcommerceClient(dashboard, verhaal) {
   const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, ...opties });
 
   return `
-    ${kop}
     ${renderMeldingen(dashboard)}
 
     <div class="kpi-row">
@@ -69,6 +65,7 @@ export function renderEcommerceClient(dashboard, verhaal) {
       ${m('aankoopratio', { label: 'Aankoopratio' })}
     </div>
 
+    ${renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd in de omzet' })}
     ${renderBudget(dashboard)}
     ${renderDoelen(dashboard)}
 

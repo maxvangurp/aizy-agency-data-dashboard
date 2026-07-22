@@ -30,7 +30,7 @@ import { getEcommerceProfiel, ECOMMERCE_CONVERSIE_CONFIG, ECOMMERCE_CONVERSIE_LA
 import { getLeadsProfiel, CONVERSIE_LABELS } from '../sample-data/leads.js';
 import { getClientRows, getClientKanalen, getClientModel } from '../sample-data/timeseries.js';
 import { toegankelijkeKlantIds, magKlantZien, can, Permission } from '../auth/permissions.js';
-import { DEMO_GEBRUIKERS, isAgencyGebruiker } from '../auth/domain.js';
+import { DEMO_GEBRUIKERS, isAgencyGebruiker, vindGebruikerOpId, agencyMedewerkers } from '../auth/domain.js';
 import { metOverrides } from '../auth/demo-auth-provider.js';
 import {
   KANALEN, KanaalStatus, KanaalSoort, ADVERTENTIEKANAAL_KEYS, kanaalLabel, sorteerKanalen,
@@ -38,10 +38,12 @@ import {
 import { ConversieScope } from '../filters/filter-context.js';
 import { dagenInMaand, isVoor, isNa, DATA_VOLLEDIG_TOT } from '../filters/period.js';
 import { berekenDeltas } from './metrics.js';
+import { klantstatusTerm } from '../terminology.js';
+import { bouwKlantInzichten, bepaalPrioriteit } from './insights.js';
 import {
   selecteerRijen, totalenVoorModel, perKanaal, dagelijkseReeks, verdichtReeks,
   conversieTotalen, bepaalDekking, dekkingMeldingen, DekkingStatus,
-  bouwLeadFunnel, bouwEcommerceFunnel, budgetPrognose, bouwPeriodeVerhaal,
+  bouwLeadFunnel, bouwEcommerceFunnel, budgetPrognose,
   schaalVerdeling, PacingStatus,
 } from './selectors.js';
 
@@ -93,6 +95,38 @@ function conversieLabelsVan(client) {
 function kanaalKeysVan(client) {
   return sorteerKanalen(getClientKanalen(client.id).map((k) => k.key))
     .filter((k) => ADVERTENTIEKANAAL_KEYS.includes(k));
+}
+
+/* ---------------------------------------------------------------
+   Medewerkers en klantverantwoordelijkheid
+   --------------------------------------------------------------- */
+
+/** Eén medewerker, inclusief lokale demowijzigingen. Null wanneer onbekend. */
+export function getGebruiker(userId) {
+  const basis = vindGebruikerOpId(userId);
+  return basis ? metOverrides(basis) : null;
+}
+
+/**
+ * Wie er bij een klant betrokken is.
+ *
+ * Verantwoordelijk zijn voor een klant is iets anders dan ondersteunend
+ * betrokken zijn, en beide zijn iets anders dan de functietitel die iemand bij
+ * Aizy heeft. Ze worden daarom apart teruggegeven en nooit tot één regel
+ * samengevoegd.
+ */
+export function getKlantTeam(clientId) {
+  const client = SAMPLE_CLIENTS.find((c) => c.id === clientId);
+  if (!client) return { primair: null, ondersteunend: [] };
+  return {
+    primair: getGebruiker(client.primaryOwnerId),
+    ondersteunend: (client.supportingOwnerIds ?? []).map(getGebruiker).filter(Boolean),
+  };
+}
+
+/** True wanneer deze medewerker het aanspreekpunt van de klant is. */
+function isVerantwoordelijk(user, client) {
+  return client.primaryOwnerId === user?.id;
 }
 
 /* ---------------------------------------------------------------
@@ -232,7 +266,9 @@ const DELTA_KEYS = {
   ecommerce: ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'sessions', 'users', 'revenue',
     'roas', 'purchases', 'cpa', 'aov', 'conversieratio', 'productViews', 'addToCarts',
     'checkouts', 'winkelwagenratio', 'checkoutratio', 'aankoopratio', 'conversies'],
-  awareness: ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'cpm'],
+  awareness: ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'cpm', 'reach',
+    'frequentie', 'sessions', 'videoStarts', 'videoCompletions', 'videoVoltooiing',
+    'gemKijktijd', 'engagements', 'engagementRatio', 'brandedSearchClicks', 'kostenPerBereik'],
 };
 
 function deltasVan(model, totalen, vorigeTotalen, vergelijkingActief) {
@@ -308,34 +344,31 @@ function lagerIsBeterDoel(kpi) {
  * als eerste gemeld.
  */
 export function klantStatus(samenvatting) {
-  if (!samenvatting) return { code: 'onbekend', label: 'Onbekend', reden: '' };
+  if (!samenvatting) return { ...statusUitRegister('onbekend'), reden: '' };
   const { client, totalen, doelen, dekking } = samenvatting;
 
   if (client.trackingStatus === 'probleem') {
     return {
-      code: 'tracking',
-      label: 'Trackingprobleem',
-      reden: `De datakwaliteit staat op ${client.dataHealth} procent. Cijfers zijn mogelijk onvolledig.`,
+      ...statusUitRegister('tracking'),
+      reden: `De meting is onvolledig: de datakwaliteit staat op ${client.dataHealth} procent, waardoor de cijfers onbetrouwbaar zijn.`,
     };
   }
 
   if (dekking?.status === DekkingStatus.GEEN_DATA) {
     return {
-      code: 'onvoldoende-data',
-      label: 'Onvoldoende data',
+      ...statusUitRegister('onvoldoende-data'),
       reden: 'Er is geen data binnen de geselecteerde periode en kanalen.',
     };
   }
 
   if (!doelen?.length) {
-    return { code: 'geen-doel', label: 'Doel ontbreekt', reden: 'Er zijn geen maanddoelen ingesteld.' };
+    return { ...statusUitRegister('geen-doel'), reden: 'Er zijn geen maanddoelen ingesteld.' };
   }
 
   const primair = PRIMAIRE_METRIEK[client.businessModel];
   if (primair && totalen?.[primair] == null) {
     return {
-      code: 'onvoldoende-data',
-      label: 'Onvoldoende data',
+      ...statusUitRegister('onvoldoende-data'),
       reden: 'Het primaire resultaat wordt voor deze klant niet gemeten.',
     };
   }
@@ -343,8 +376,7 @@ export function klantStatus(samenvatting) {
   const meetbaar = doelen.filter((d) => d.actueel != null && d.target != null);
   if (!meetbaar.length) {
     return {
-      code: 'onvoldoende-data',
-      label: 'Onvoldoende data',
+      ...statusUitRegister('onvoldoende-data'),
       reden: 'Geen van de doelen heeft een meetbare waarde.',
     };
   }
@@ -353,17 +385,21 @@ export function klantStatus(samenvatting) {
 
   if (!achter.length) {
     return {
-      code: 'op-koers',
-      label: 'Op koers',
+      ...statusUitRegister('op-koers'),
       reden: `Alle ${meetbaar.length} meetbare doelen liggen op of boven het doel.`,
     };
   }
 
   return {
-    code: 'aandacht',
-    label: 'Aandacht nodig',
+    ...statusUitRegister('aandacht'),
     reden: `${achter.length} van ${meetbaar.length} doelen liggen onder het doel.`,
   };
+}
+
+/** Haalt label en variant van een klantstatus uit het terminologieregister. */
+function statusUitRegister(code) {
+  const term = klantstatusTerm(code);
+  return { code, label: term.kort, uitleg: term.omschrijving, variant: term.variant };
 }
 
 function doelBehaald(doel) {
@@ -382,12 +418,27 @@ function doelBehaald(doel) {
  * Dit is de enige bron voor het klantenoverzicht en voor de agencytotalen.
  */
 export function getAccessibleClientSummaries(user, filters) {
+  const signalenPerKlant = new Map();
+  for (const signaal of getAccessibleSignals(user, filters)) {
+    signalenPerKlant.set(signaal.klantId, (signalenPerKlant.get(signaal.klantId) ?? 0) + 1);
+  }
+
   return getAccessibleClients(user).map((client) => {
     const basis = rekenKlantDoor(client, beperkFiltersTot(filters, client));
-    const doelen = berekenDoelen(client, basis.totalen, filters.periode);
+    const doelen = berekenDoelen(client, basis.totalen, filters.periode, {
+      vorigeTotalen: basis.vorigeTotalen, budget: basis.budget,
+    });
     const deltas = deltasVan(basis.model, basis.totalen, basis.vorigeTotalen, filters.vergelijkingActief);
-    const samenvatting = { ...basis, doelen, deltas };
-    return { ...samenvatting, status: klantStatus(samenvatting) };
+    const openSignalen = signalenPerKlant.get(client.id) ?? 0;
+    const samenvatting = { ...basis, doelen, deltas, openSignalen, team: getKlantTeam(client.id) };
+
+    return {
+      ...samenvatting,
+      status: klantStatus(samenvatting),
+      prioriteit: bepaalPrioriteit(samenvatting),
+      verantwoordelijk: isVerantwoordelijk(user, client),
+      ondersteunend: (client.supportingOwnerIds ?? []).includes(user?.id),
+    };
   });
 }
 
@@ -520,6 +571,45 @@ export function getAgencyOverview(user, filters) {
     openSignalen: signalen.length,
     trackingProblemen: samenvattingen.filter((s) => s.client.trackingStatus === 'probleem').length,
     onvolledigeDekking: dekkingProblemen.length,
+
+    portefeuille: bouwPortefeuille(samenvattingen),
+  };
+}
+
+/**
+ * De portefeuille als werkvolgorde.
+ *
+ * Het agencyoverzicht moet helpen bepalen waar de dag aan besteed wordt. Daarom
+ * staan hier niet alleen totalen, maar groepen klanten met de reden erbij. De
+ * volgorde volgt de prioriteitsscore; de redenen achter die score staan bij
+ * iedere klant, zodat er geen ondoorzichtig cijfer op het scherm komt.
+ */
+function bouwPortefeuille(samenvattingen) {
+  const ontwikkeling = (s) => {
+    const metriek = PRIMAIRE_METRIEK[s.client.businessModel];
+    const delta = metriek ? s.deltas[metriek] : null;
+    return delta && ['gestegen', 'gedaald'].includes(delta.status) ? delta.procent : null;
+  };
+
+  const metOntwikkeling = samenvattingen
+    .map((s) => ({ s, pct: ontwikkeling(s) }))
+    .filter((x) => x.pct != null)
+    .sort((a, b) => b.pct - a.pct);
+
+  return {
+    opPrioriteit: [...samenvattingen].sort((a, b) => b.prioriteit.punten - a.prioriteit.punten),
+    onderDoel: samenvattingen.filter((s) => s.status.code === 'aandacht'),
+    grootsteStijgers: metOntwikkeling.filter((x) => x.pct > 0).slice(0, 3),
+    grootsteDalers: metOntwikkeling.filter((x) => x.pct < 0).reverse().slice(0, 3),
+    metMeetprobleem: samenvattingen.filter((s) => s.client.trackingStatus === 'probleem'),
+    zonderCrm: samenvattingen.filter(
+      (s) => s.client.businessModel === BusinessModel.LEADGEN && s.totalen.qualifiedLeads == null
+    ),
+    onvoldoendeData: samenvattingen.filter((s) => s.dekking.status === DekkingStatus.GEEN_DATA),
+    onvolledigeDekking: samenvattingen.filter((s) => s.dekking.status === DekkingStatus.GEDEELTELIJK),
+    bovenBudget: samenvattingen.filter((s) => s.budget.status === PacingStatus.BOVEN_BUDGET),
+    onderBudget: samenvattingen.filter((s) => s.budget.status === PacingStatus.ONDER_BUDGET),
+    metOpenSignalen: samenvattingen.filter((s) => (s.openSignalen ?? 0) > 0),
   };
 }
 
@@ -658,18 +748,29 @@ export function getClientDashboard(user, clientId, filters) {
     ? ['spend', 'revenue', 'purchases', 'clicks', 'impressions']
     : model === 'leadgen'
       ? ['spend', 'leads', 'qualifiedLeads', 'clicks', 'impressions']
-      : ['spend', 'impressions', 'clicks'];
+      : ['spend', 'impressions', 'reach', 'engagements', 'videoStarts', 'videoCompletions'];
 
   const ruweReeks = dagelijkseReeks(basis.periodeRijen, reeksVelden, filters.periode);
   const reeks = verdichtReeks(ruweReeks, reeksVelden);
 
-  const samenvatting = { ...basis, doelen, deltas };
+  const meldingen = dekkingMeldingen(dekking, { crmGekoppeld: heeftCrm(client) });
+  const openSignalen = getAccessibleSignals(user, filters).filter((s) => s.klantId === clientId).length;
+  const samenvatting = { ...basis, doelen, deltas, openSignalen };
   const status = klantStatus(samenvatting);
+  const prioriteit = bepaalPrioriteit(samenvatting);
+
+  const inzichten = bouwKlantInzichten({
+    model, totalen, vorigeTotalen, deltas, kanaalRijen, funnel, dekking, budget,
+    meldingen, vergelijkingActief: filters.vergelijkingActief,
+  });
 
   return {
     client,
     model,
     type: client.businessModel,
+    team: getKlantTeam(clientId),
+    prioriteit,
+    inzichten,
     filters: eigenFilters,
     periode: filters.periode,
     vergelijking: filters.vergelijking,
@@ -682,7 +783,8 @@ export function getClientDashboard(user, clientId, filters) {
     status,
     budget,
     dekking,
-    meldingen: dekkingMeldingen(dekking, { crmGekoppeld: heeftCrm(client) }),
+    meldingen,
+    bronnen: bronnenVan(client),
 
     kanaalRijen,
     funnel,
@@ -873,29 +975,37 @@ function schaalGbp(gbp, factor) {
 export function getPeriodNarrative(user, clientId, filters) {
   const dashboard = getClientDashboard(user, clientId, filters);
   if (!dashboard) return null;
+  return narratiefUitDashboard(dashboard);
+}
 
-  const gegenereerd = bouwPeriodeVerhaal({
-    model: dashboard.model,
-    totalen: dashboard.totalen,
-    vorigeTotalen: dashboard.vorigeTotalen,
-    deltas: dashboard.deltas,
-    kanaalRijen: dashboard.kanaalRijen,
-    dekking: dashboard.dekking,
-    budget: dashboard.budget,
-    filters: dashboard.filters,
-  });
-
+/**
+ * Zet een dashboardviewmodel om in het verhaal bij de periode.
+ *
+ * De uitspraken over ontwikkeling en aandacht komen uit de inzichtlaag en zijn
+ * dus onderbouwd met bewijs. De werkzaamheden, vervolgstappen en vragen aan de
+ * klant komen uit het werklogboek: dat zijn geen beweringen over de periode
+ * maar vastgelegde afspraken, en die veranderen niet door een filter.
+ */
+function narratiefUitDashboard(dashboard) {
   const werk = dashboard.profiel?.werk ?? {};
+  const { primair, aanvullend } = dashboard.inzichten;
 
   return {
-    ...gegenereerd,
+    primair,
+    aanvullend,
+    goed: primair.filter((i) => ['ontwikkeling', 'kans'].includes(i.categorie)),
+    aandacht: primair.filter((i) => i.categorie === 'aandachtspunt'),
+    meetbeperkingen: dashboard.inzichten.alle.filter((i) => i.categorie === 'meetbeperking'),
     gedaan: werk.gedaan ?? [],
     volgende: werk.volgende ?? [],
     vanKlant: werk.vanKlant ?? [],
-    periodeLabel: dashboard.periode,
+    verantwoordelijke: dashboard.team?.primair ?? null,
+    periode: dashboard.periode,
     vergelijking: dashboard.vergelijking,
   };
 }
+
+export { narratiefUitDashboard };
 
 /* ---------------------------------------------------------------
    Team
@@ -905,6 +1015,117 @@ export function getPeriodNarrative(user, clientId, filters) {
 export function getTeamLeden(user) {
   if (!can(user, Permission.MANAGE_TEAM)) return [];
   return DEMO_GEBRUIKERS.map(metOverrides).filter((u) => isAgencyGebruiker(u));
+}
+
+/**
+ * Teamoverzicht met de gegevens die bij het werk horen.
+ *
+ * Naam, functietitel, toegangsniveau, accountstatus en klantverantwoordelijkheid
+ * staan naast elkaar en worden nergens tot één label samengevoegd. Er wordt geen
+ * ranglijst gemaakt: er staan geen prestatiescores, responstijden of
+ * productiviteitscijfers per medewerker in.
+ */
+export function getTeamOverzicht(user, filters) {
+  if (!can(user, Permission.MANAGE_TEAM)) return [];
+
+  const samenvattingen = getAccessibleClientSummaries(user, filters);
+  const perKlant = new Map(samenvattingen.map((s) => [s.client.id, s]));
+
+  return agencyMedewerkers().map(metOverrides).map((lid) => bouwTeamlid(lid, perKlant));
+}
+
+function bouwTeamlid(lid, perKlant) {
+  const isBeheerder = lid.memberships?.[0]?.rol === 'agency_admin';
+  const toegewezen = isBeheerder
+    ? [...perKlant.values()]
+    : (lid.clientAssignments ?? []).map((id) => perKlant.get(id)).filter(Boolean);
+
+  const primair = toegewezen.filter((s) => s.client.primaryOwnerId === lid.id);
+  const ondersteunend = toegewezen.filter((s) => (s.client.supportingOwnerIds ?? []).includes(lid.id));
+
+  return {
+    gebruiker: lid,
+    isBeheerder,
+    // Een beheerder ziet alle klanten, maar is niet automatisch verantwoordelijk.
+    toegangTot: isBeheerder ? 'alle' : toegewezen.length,
+    toegewezen,
+    primair,
+    ondersteunend,
+    aandachtNodig: primair.filter((s) => s.prioriteit.niveau !== 'geen'),
+    openSignalen: primair.reduce((t, s) => t + (s.openSignalen ?? 0), 0),
+  };
+}
+
+/**
+ * Eén medewerker met zijn klanten, of null wanneer die niet bestaat.
+ * Alleen beschikbaar voor wie het team mag beheren.
+ */
+export function getMedewerkerDetail(user, userId, filters) {
+  if (!can(user, Permission.MANAGE_TEAM)) return null;
+  const lid = getGebruiker(userId);
+  if (!lid || !isAgencyGebruiker(lid)) return null;
+
+  const samenvattingen = getAccessibleClientSummaries(user, filters);
+  return bouwTeamlid(lid, new Map(samenvattingen.map((s) => [s.client.id, s])));
+}
+
+/**
+ * Het persoonlijke overzicht van een medewerker.
+ *
+ * Beantwoordt de vragen van een werkdag: welke klanten hebben vandaag aandacht
+ * nodig, waar ben ik verantwoordelijk voor, waar ondersteun ik alleen, en waar
+ * ontbreekt data. Geen ranglijst en geen scores, alleen een werkvolgorde.
+ */
+export function getPersoonlijkOverzicht(user, filters) {
+  const samenvattingen = getAccessibleClientSummaries(user, filters);
+  const signalen = getAccessibleSignals(user, filters);
+
+  const opPrioriteit = [...samenvattingen].sort((a, b) => b.prioriteit.punten - a.prioriteit.punten);
+
+  const totaleSpend = samenvattingen
+    .map((s) => s.totalen.spend)
+    .filter((v) => v != null)
+    .reduce((a, b) => a + b, 0);
+
+  return {
+    filters,
+    samenvattingen,
+    totaleSpend,
+    verantwoordelijkVoor: samenvattingen.filter((s) => s.verantwoordelijk),
+    ondersteuntBij: samenvattingen.filter((s) => s.ondersteunend),
+    vandaagAandacht: opPrioriteit.filter((s) => s.prioriteit.niveau === 'direct'),
+    dezeWeek: opPrioriteit.filter((s) => s.prioriteit.niveau === 'binnenkort'),
+    opKoers: samenvattingen.filter((s) => s.prioriteit.niveau === 'geen'),
+    datakwaliteit: samenvattingen.filter((s) => s.dekking.status !== DekkingStatus.VOLLEDIG
+      || s.client.trackingStatus === 'probleem'),
+    signalen,
+    recenteVeranderingen: bouwRecenteVeranderingen(samenvattingen),
+  };
+}
+
+/**
+ * De grootste bewegingen binnen de portefeuille van deze gebruiker.
+ * Alleen veranderingen die groot genoeg zijn om iets te betekenen.
+ */
+function bouwRecenteVeranderingen(samenvattingen) {
+  const uit = [];
+
+  for (const s of samenvattingen) {
+    const metriek = PRIMAIRE_METRIEK[s.client.businessModel];
+    const delta = metriek ? s.deltas[metriek] : null;
+    if (!delta || !['gestegen', 'gedaald'].includes(delta.status)) continue;
+    if (Math.abs(delta.procent) < 5) continue;
+
+    uit.push({
+      clientId: s.client.id,
+      clientNaam: s.client.name,
+      metriek,
+      delta,
+      richting: delta.richting,
+    });
+  }
+
+  return uit.sort((a, b) => Math.abs(b.delta.procent) - Math.abs(a.delta.procent)).slice(0, 5);
 }
 
 /** Gebruikers binnen de eigen klantorganisatie. */

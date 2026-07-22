@@ -44,6 +44,8 @@ export const Permission = {
 
   // Klant
   VIEW_CLIENT_DASHBOARD: 'view_client_dashboard',
+  VIEW_CLIENT_CHANNELS: 'view_client_channels',
+  VIEW_CLIENT_CONVERSIONS: 'view_client_conversions',
   VIEW_CLIENT_REPORT: 'view_client_report',
   MANAGE_CLIENT_USERS: 'manage_client_users',
   INVITE_CLIENT_USER: 'invite_client_user',
@@ -66,6 +68,8 @@ const RECHTEN_PER_ROL = {
     Permission.SWITCH_CONTEXT,
     Permission.VIEW_AGENCY_SETTINGS,
     Permission.VIEW_CLIENT_DASHBOARD,
+    Permission.VIEW_CLIENT_CHANNELS,
+    Permission.VIEW_CLIENT_CONVERSIONS,
     Permission.VIEW_CLIENT_REPORT,
   ]),
 
@@ -74,18 +78,26 @@ const RECHTEN_PER_ROL = {
     Permission.VIEW_AGENCY_SIGNALS,
     Permission.SWITCH_CONTEXT,
     Permission.VIEW_CLIENT_DASHBOARD,
+    Permission.VIEW_CLIENT_CHANNELS,
+    Permission.VIEW_CLIENT_CONVERSIONS,
     Permission.VIEW_CLIENT_REPORT,
   ]),
 
   [Rol.CLIENT_ADMIN]: new Set([
     Permission.VIEW_CLIENT_DASHBOARD,
+    Permission.VIEW_CLIENT_CHANNELS,
+    Permission.VIEW_CLIENT_CONVERSIONS,
     Permission.VIEW_CLIENT_REPORT,
     Permission.MANAGE_CLIENT_USERS,
     Permission.INVITE_CLIENT_USER,
   ]),
 
+  // Een alleen-lezen klantgebruiker ziet het resultaat en waar het vandaan
+  // komt. De losse conversieconfiguratie is beheerdersinformatie: die gaat over
+  // hoe er gemeten wordt, niet over wat het resultaat is.
   [Rol.CLIENT_VIEWER]: new Set([
     Permission.VIEW_CLIENT_DASHBOARD,
+    Permission.VIEW_CLIENT_CHANNELS,
     Permission.VIEW_CLIENT_REPORT,
   ]),
 };
@@ -181,9 +193,9 @@ export function standaardRoute(user) {
   if (!user) return '#/login';
   if (user.status !== AccountStatus.ACTIEF) return '#/login';
 
-  if (isAgencyGebruiker(user)) {
-    return can(user, Permission.VIEW_ALL_CLIENTS) ? '#/agency/overview' : '#/agency/clients';
-  }
+  // Beide agencyrollen starten op het overzicht. Voor een beheerder is dat de
+  // portefeuille, voor een medewerker zijn eigen werkdag.
+  if (isAgencyGebruiker(user)) return '#/agency/overview';
   return '#/client/overview';
 }
 

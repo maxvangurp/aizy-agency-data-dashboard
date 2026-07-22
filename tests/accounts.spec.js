@@ -9,7 +9,7 @@ import { login, ga, ACCOUNTS, DEMO_WACHTWOORD, foutenVerzamelen, canvasIsGevuld 
  * steeds in de DOM en telt dus als lek.
  */
 
-const NIET_TOEGANKELIJK_VOOR_SANNE = ['Meridiaan', 'Tafelwerk', 'Draadloos', 'Kaap Noord', 'Noordlicht'];
+const NIET_TOEGANKELIJK_VOOR_MEDEWERKER = ['Meridiaan', 'Tafelwerk', 'Draadloos', 'Kaap Noord', 'Noordlicht'];
 
 /* ---------------------------------------------------------------
    Authenticatie
@@ -26,13 +26,15 @@ test.describe('Authenticatie', () => {
   test('een agencybeheerder kan inloggen en komt op het agencyoverzicht', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     expect(await page.evaluate(() => location.hash)).toBe('#/agency/overview');
-    await expect(page.locator('#pageRoot h1')).toContainText('Max');
+    await expect(page.locator('#pageRoot h1')).toContainText('Portefeuilleoverzicht');
   });
 
-  test('een agencymedewerker komt op zijn eigen klantenlijst', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
-    expect(await page.evaluate(() => location.hash)).toBe('#/agency/clients');
-    await expect(page.getByRole('heading', { name: 'Mijn klanten' })).toBeVisible();
+  test('een agencymedewerker komt op zijn eigen overzicht', async ({ page }) => {
+    await login(page, ACCOUNTS.medewerker);
+    expect(await page.evaluate(() => location.hash)).toBe('#/agency/overview');
+    // De medewerker begint bij zijn werkdag, niet bij de portefeuille.
+    await expect(page.locator('#pageRoot h1')).toContainText('Berry');
+    await expect(page.getByRole('link', { name: 'Mijn klanten' })).toBeVisible();
   });
 
   test('een klantgebruiker komt direct in de eigen klantomgeving', async ({ page }) => {
@@ -66,7 +68,7 @@ test.describe('Authenticatie', () => {
   test('een uitgenodigd account kan nog niet inloggen', async ({ page }) => {
     await page.goto('/index.html');
     await page.waitForSelector('#loginEmail');
-    await page.fill('#loginEmail', 'noor@aizy.demo');
+    await page.fill('#loginEmail', ACCOUNTS.uitgenodigd);
     await page.fill('#loginWachtwoord', DEMO_WACHTWOORD);
     await page.click('#loginKnop');
     await page.waitForTimeout(500);
@@ -88,7 +90,7 @@ test.describe('Authenticatie', () => {
     await page.reload();
     await page.waitForTimeout(700);
     expect(await page.evaluate(() => location.hash)).not.toContain('/login');
-    await expect(page.locator('#accountKnop')).toContainText('Max');
+    await expect(page.locator('#accountKnop')).toContainText('Enrico');
   });
 
   test('een beschadigde sessie wordt opgeruimd', async ({ page }) => {
@@ -141,7 +143,7 @@ test.describe('Herstel en uitnodiging', () => {
   test('een uitnodiging accepteren activeert het account', async ({ page }) => {
     await page.goto('/index.html#/accept-invite');
     await page.waitForSelector('#inviteEmail');
-    await page.fill('#inviteEmail', 'noor@aizy.demo');
+    await page.fill('#inviteEmail', ACCOUNTS.uitgenodigd);
     await page.fill('#inviteWachtwoord', 'nieuwwachtwoord');
     await page.check('#naamBevestigd');
     await page.click('button[type="submit"]');
@@ -153,7 +155,7 @@ test.describe('Herstel en uitnodiging', () => {
   test('een uitnodiging zonder bevestiging wordt geweigerd', async ({ page }) => {
     await page.goto('/index.html#/accept-invite');
     await page.waitForSelector('#inviteEmail');
-    await page.fill('#inviteEmail', 'noor@aizy.demo');
+    await page.fill('#inviteEmail', ACCOUNTS.uitgenodigd);
     await page.fill('#inviteWachtwoord', 'nieuwwachtwoord');
     await page.click('button[type="submit"]');
     await page.waitForTimeout(400);
@@ -174,7 +176,8 @@ test.describe('Autorisatie', () => {
   });
 
   test('een medewerker ziet alleen toegewezen klanten', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
+    await ga(page, '#/agency/clients');
     const rijen = page.locator('#pageRoot tbody tr');
     expect(await rijen.count()).toBe(2);
     await expect(page.locator('#pageRoot')).toContainText('Vitaalpunt');
@@ -182,14 +185,14 @@ test.describe('Autorisatie', () => {
   });
 
   test('een medewerker kan een niet-toegewezen klant niet via de URL openen', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     await ga(page, '#/agency/clients/meridiaan');
     await expect(page.getByRole('heading', { name: 'Geen toegang' })).toBeVisible();
     await expect(page.locator('body')).not.toContainText('Meridiaan Bedrijfsadvies');
   });
 
   test('een medewerker kan teambeheer niet openen', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     await ga(page, '#/agency/team');
     await expect(page.getByRole('heading', { name: 'Geen toegang' })).toBeVisible();
   });
@@ -235,29 +238,29 @@ test.describe('Autorisatie', () => {
 
 test.describe('Data-isolatie', () => {
   test('namen van niet-toegankelijke klanten staan niet in de DOM', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
 
     for (const route of ['#/agency/overview', '#/agency/clients', '#/agency/signals', '#/agency/actions']) {
       await ga(page, route);
       const html = await page.content();
-      for (const naam of NIET_TOEGANKELIJK_VOOR_SANNE) {
+      for (const naam of NIET_TOEGANKELIJK_VOOR_MEDEWERKER) {
         expect(html, `${naam} lekt op ${route}`).not.toContain(naam);
       }
     }
   });
 
   test('niet-toegankelijke klanten staan niet in de contextwisselaar', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     const opties = await page.locator('#contextSelect option').allTextContents();
     const samen = opties.join(' ');
-    for (const naam of NIET_TOEGANKELIJK_VOOR_SANNE) {
+    for (const naam of NIET_TOEGANKELIJK_VOOR_MEDEWERKER) {
       expect(samen).not.toContain(naam);
     }
     expect(samen).toContain('Vitaalpunt');
   });
 
   test('de totalen van een medewerker bevatten alleen toegewezen klanten', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     await ga(page, '#/agency/overview');
 
     // Vitaalpunt 11.820 plus Havenkwartier 9.400 is 21.220 euro.
@@ -283,7 +286,7 @@ test.describe('Data-isolatie', () => {
   });
 
   test('een aangepaste klantcontext in localStorage geeft geen toegang', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
 
     await page.evaluate(() => {
       const s = JSON.parse(localStorage.getItem('aizy.session'));
@@ -305,12 +308,12 @@ test.describe('Data-isolatie', () => {
 test.describe('Weergaven', () => {
   test('het agencyoverzicht scheidt e-commerce en leadgeneratie', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
-    const sectie = page.locator('.card').filter({ hasText: 'Resultaten per type' });
+    const sectie = page.locator('.card').filter({ hasText: 'Resultaten per dashboardtype' });
 
     await expect(sectie).toContainText('E-commerce');
     await expect(sectie).toContainText('Leadgeneratie');
-    await expect(sectie).toContainText('Gemiddelde ROAS');
-    await expect(sectie).toContainText('Gemiddelde CPL');
+    await expect(sectie).toContainText('Gemiddeld rendement');
+    await expect(sectie).toContainText('Gemiddelde kosten per lead');
     // De twee mogen niet tot één gemiddelde zijn samengevoegd.
     await expect(sectie).toContainText('niet onderling vergelijkbaar');
   });
@@ -320,7 +323,7 @@ test.describe('Weergaven', () => {
     await ga(page, '#/agency/clients');
     const tabel = page.locator('#pageRoot table');
 
-    await expect(tabel).toContainText('Trackingprobleem');
+    await expect(tabel).toContainText('Meetprobleem');
     await expect(tabel).toContainText('doelen liggen onder het doel');
   });
 
@@ -344,10 +347,13 @@ test.describe('Weergaven', () => {
     await ga(page, '#/agency/team');
     const tabel = page.locator('#pageRoot table');
 
-    await expect(tabel).toContainText('Beheerder');
-    await expect(tabel).toContainText('Medewerker');
+    await expect(tabel).toContainText('Agencybeheerder');
+    await expect(tabel).toContainText('Aizy-medewerker');
     await expect(tabel).toContainText('Uitgenodigd');
     await expect(tabel).toContainText('Alle klanten');
+    // Functietitel en toegangsniveau staan in aparte kolommen.
+    await expect(tabel).toContainText('Performance Lead');
+    await expect(tabel).toContainText('Operational Manager');
   });
 
   test('een medewerker deactiveren werkt binnen de demo', async ({ page }) => {
@@ -365,8 +371,8 @@ test.describe('Weergaven', () => {
     await page.selectOption('#contextSelect', 'vitaalpunt');
     await page.waitForTimeout(800);
 
-    await expect(page.locator('.contextbalk')).toContainText('Klantweergave: Vitaalpunt');
-    await expect(page.locator('.contextbalk')).toContainText('medewerker van Aizy');
+    await expect(page.locator('.contextbalk')).toContainText('Vitaalpunt');
+    await expect(page.locator('.contextbalk')).toContainText('als Aizy-medewerker');
     expect(await page.evaluate(() => location.hash)).toContain('/client');
   });
 
@@ -397,14 +403,10 @@ test.describe('Weergaven', () => {
   });
 
   test('een medewerker zonder toewijzingen krijgt uitleg, geen leeg scherm', async ({ page }) => {
-    await login(page, ACCOUNTS.admin);
-    // Noor is uitgenodigd en heeft geen toewijzingen. Activeer haar en log in.
-    await page.evaluate(() => {
-      localStorage.setItem('aizy.userOverrides', JSON.stringify({ 'u-noor': { status: 'actief' } }));
-    });
-    await login(page, 'noor@aizy.demo');
+    // Tim is actief maar heeft geen toewijzingen.
+    await login(page, ACCOUNTS.medewerkerZonderKlanten);
 
-    await expect(page.locator('#pageRoot')).toContainText('geen klanten aan je account toegewezen');
+    await expect(page.locator('#geenKlanten')).toContainText('geen klanten aan je account toegewezen');
     await expect(page.locator('#pageRoot canvas')).toHaveCount(0);
   });
 });
@@ -420,8 +422,10 @@ test.describe('Accountmenu', () => {
     const paneel = page.locator('#accountPaneel');
 
     await expect(paneel).toBeVisible();
-    await expect(paneel).toContainText('Max van Gurp');
-    await expect(paneel).toContainText('Beheerder');
+    await expect(paneel).toContainText('Enrico van de Lindeloof');
+    // Functietitel en toegangsniveau staan als twee afzonderlijke gegevens.
+    await expect(paneel).toContainText('Performance Lead');
+    await expect(paneel).toContainText('Agencybeheerder');
     await expect(paneel).toContainText('Aizy');
   });
 

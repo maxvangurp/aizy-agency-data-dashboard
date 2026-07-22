@@ -10,7 +10,7 @@ import { login, ga, ACCOUNTS, foutenVerzamelen } from './helpers.js';
  */
 
 const AGENCY_ROUTES = [
-  { hash: '#/agency/overview', kop: 'Goede' },
+  { hash: '#/agency/overview', kop: 'Portefeuilleoverzicht' },
   { hash: '#/agency/clients', kop: 'Klanten' },
   { hash: '#/agency/signals', kop: 'Signalen' },
   { hash: '#/agency/actions', kop: 'Acties' },

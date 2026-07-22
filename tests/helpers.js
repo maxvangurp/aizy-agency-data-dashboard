@@ -9,12 +9,31 @@
 export const DEMO_WACHTWOORD = 'demo123';
 
 export const ACCOUNTS = {
-  admin: 'max@aizy.demo',
-  medewerkerSanne: 'sanne@aizy.demo',
-  medewerkerDaan: 'daan@aizy.demo',
+  // Enrico en Jim zijn in de demo agencybeheerder; de overige teamleden zijn
+  // Aizy-medewerker met eigen klanttoewijzingen.
+  admin: 'enrico@aizy.demo',
+  adminJim: 'jim@aizy.demo',
+  medewerker: 'berry@aizy.demo',
+  medewerkerEcommerce: 'erik@aizy.demo',
+  medewerkerGemengd: 'benito@aizy.demo',
+  medewerkerZonderKlanten: 'tim@aizy.demo',
+  uitgenodigd: 'thyra@aizy.demo',
   klantAdmin: 'directie@vitaalpunt.demo',
   klantViewer: 'marketing@meridiaan.demo',
 };
+
+/** De negen medewerkers van het Aizy Performance Team, zoals ze horen te staan. */
+export const AIZY_TEAM = [
+  { naam: 'Benito Perez', functie: 'Performance Marketeer', email: 'benito@aizy.demo' },
+  { naam: 'Berry Vermeulen', functie: 'Performance Marketeer', email: 'berry@aizy.demo' },
+  { naam: 'Enrico van de Lindeloof', functie: 'Performance Lead', email: 'enrico@aizy.demo' },
+  { naam: 'Erik Nieuwenhuijs', functie: 'Performance Marketeer', email: 'erik@aizy.demo' },
+  { naam: 'Jens Kwekkeboom', functie: 'Performance Marketeer', email: 'jens@aizy.demo' },
+  { naam: 'Jim Egging', functie: 'Operational Manager', email: 'jim@aizy.demo' },
+  { naam: 'Jip van Leest', functie: 'Performance Marketeer', email: 'jip@aizy.demo' },
+  { naam: 'Thyra van der Schoor', functie: 'Performance Marketeer', email: 'thyra@aizy.demo' },
+  { naam: 'Tim Suijkerbuijk', functie: 'Performance Marketeer', email: 'tim@aizy.demo' },
+];
 
 /**
  * Logt in en wacht tot de applicatie is gerenderd.
@@ -132,11 +151,13 @@ export async function kiesKanalen(page, keys) {
 
 /** De waarde van een KPI-kaart met exact dit label. */
 export async function kpiWaarde(page, label) {
-  const kaart = page
-    .locator('.kpi')
-    .filter({ has: page.locator('.kpi-label', { hasText: new RegExp(`^${label}$`) }) })
-    .first();
+  const kaart = page.locator(`.kpi[data-label="${label}"]`).first();
   return (await kaart.locator('.kpi-value').textContent())?.trim();
+}
+
+/** De volledige KPI-kaart met dit label. */
+export function kpiKaart(page, label) {
+  return page.locator(`.kpi[data-label="${label}"]`).first();
 }
 
 /** Een compacte handtekening van de getekende pixels, om verandering te zien. */

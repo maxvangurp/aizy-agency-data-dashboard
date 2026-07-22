@@ -115,7 +115,11 @@ const ECOMMERCE_VELDEN = [
   'productViews', 'addToCarts', 'checkouts', 'purchases', 'revenue',
 ];
 
-const AWARENESS_VELDEN = ['spend', 'impressions', 'clicks'];
+const AWARENESS_VELDEN = [
+  'spend', 'impressions', 'clicks', 'reach', 'sessions',
+  'videoStarts', 'videoCompletions', 'videoWatchSeconds',
+  'engagements', 'brandedSearchClicks',
+];
 
 /**
  * Totalen van een leadgeneratieklant.
@@ -171,14 +175,31 @@ export function ecommerceTotalen(rijen, conversieConfig, scope = ConversieScope.
   };
 }
 
-/** Totalen van een klant zonder eigen dashboard. */
+/**
+ * Totalen van een awarenessklant.
+ *
+ * Bereik is de lastige: unieke personen zijn niet op te tellen over dagen,
+ * want dezelfde persoon telt dan meerdere keren mee. Het veld `reach` is
+ * daarom nadrukkelijk het dagbereik, opgeteld over de periode. De frequentie
+ * die eruit volgt is een gemiddelde per dag, niet over de hele periode, en dat
+ * staat als uitleg bij de metriek. Het unieke bereik over de periode wordt niet
+ * gemeten en wordt dus ook niet getoond.
+ */
 export function awarenessTotalen(rijen) {
   const basis = totalenVan(rijen, AWARENESS_VELDEN);
+  const dagen = new Set(rijen.map((r) => r.date)).size;
+
   return {
     ...basis,
     ctr: veiligPercentage(basis.clicks, basis.impressions),
     cpc: veiligDelen(basis.spend, basis.clicks),
     cpm: veiligDelen(basis.spend, basis.impressions == null ? null : basis.impressions / 1000),
+    kostenPerBereik: veiligDelen(basis.spend, basis.reach == null ? null : basis.reach / 1000),
+    frequentie: veiligDelen(basis.impressions, basis.reach),
+    bereikPerDag: veiligDelen(basis.reach, dagen || null),
+    videoVoltooiing: veiligPercentage(basis.videoCompletions, basis.videoStarts),
+    gemKijktijd: veiligDelen(basis.videoWatchSeconds, basis.videoStarts),
+    engagementRatio: veiligPercentage(basis.engagements, basis.impressions),
   };
 }
 
@@ -259,6 +280,79 @@ export function perKanaal(rijen, model, conversieConfig, scope) {
       ...totalenVoorModel(model, kanaalRijen, conversieConfig, scope),
     }))
     .sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0));
+}
+
+/* ---------------------------------------------------------------
+   Groei-ontleding
+   --------------------------------------------------------------- */
+
+/**
+ * Ontleedt een omzetverandering in verkeer, conversie en orderwaarde.
+ *
+ * Omzet is sessies maal conversieratio maal orderwaarde. Door de factoren één
+ * voor één te vervangen, valt de verandering exact in drie stukken uiteen die
+ * samen precies het verschil vormen. Dat is iets anders dan drie losse
+ * procentuele veranderingen naast elkaar zetten: die tellen niet op en laten in
+ * het midden welke factor de omzet werkelijk stuurde.
+ *
+ * Ontbreekt een van de factoren, dan is de ontleding niet te maken en komt er
+ * null terug in plaats van een schatting.
+ */
+export function ontleedOmzetgroei(huidig, vorig) {
+  if (!huidig || !vorig) return null;
+
+  const s0 = vorig.sessions; const s1 = huidig.sessions;
+  const c0 = veiligDelen(vorig.purchases, vorig.sessions);
+  const c1 = veiligDelen(huidig.purchases, huidig.sessions);
+  const a0 = vorig.aov; const a1 = huidig.aov;
+
+  if ([s0, s1, c0, c1, a0, a1].some((v) => v == null)) return null;
+
+  const verkeer = (s1 - s0) * c0 * a0;
+  const conversie = s1 * (c1 - c0) * a0;
+  const orderwaarde = s1 * c1 * (a1 - a0);
+  const totaal = verkeer + conversie + orderwaarde;
+
+  const factoren = [
+    { key: 'verkeer', label: 'meer of minder verkeer', bijdrage: verkeer },
+    { key: 'conversie', label: 'een hogere of lagere conversieratio', bijdrage: conversie },
+    { key: 'orderwaarde', label: 'een hogere of lagere gemiddelde orderwaarde', bijdrage: orderwaarde },
+  ].sort((a, b) => Math.abs(b.bijdrage) - Math.abs(a.bijdrage));
+
+  return {
+    totaal,
+    verkeer,
+    conversie,
+    orderwaarde,
+    factoren,
+    grootste: factoren[0],
+    // Het aandeel van de grootste factor in de totale verandering.
+    aandeelGrootste: totaal === 0 ? null : Math.abs(factoren[0].bijdrage) / Math.abs(totaal),
+  };
+}
+
+/**
+ * Ontleedt een verandering in het aantal leads in verkeer en conversie.
+ * Leads zijn klikken maal het aandeel klikken dat een lead werd.
+ */
+export function ontleedLeadgroei(huidig, vorig) {
+  if (!huidig || !vorig) return null;
+
+  const k0 = vorig.clicks; const k1 = huidig.clicks;
+  const c0 = veiligDelen(vorig.leads, vorig.clicks);
+  const c1 = veiligDelen(huidig.leads, huidig.clicks);
+  if ([k0, k1, c0, c1].some((v) => v == null)) return null;
+
+  const verkeer = (k1 - k0) * c0;
+  const conversie = k1 * (c1 - c0);
+  const totaal = verkeer + conversie;
+
+  const factoren = [
+    { key: 'verkeer', label: 'meer of minder klikken', bijdrage: verkeer },
+    { key: 'conversie', label: 'een hogere of lagere conversie op de website', bijdrage: conversie },
+  ].sort((a, b) => Math.abs(b.bijdrage) - Math.abs(a.bijdrage));
+
+  return { totaal, verkeer, conversie, factoren, grootste: factoren[0] };
 }
 
 /* ---------------------------------------------------------------

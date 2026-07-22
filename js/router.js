@@ -33,12 +33,14 @@ export const ROUTES = [
   { pad: '/agency/signals', naam: 'agency-signals', permission: Permission.VIEW_AGENCY_SIGNALS, titel: 'Signalen' },
   { pad: '/agency/actions', naam: 'agency-actions', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Acties' },
   { pad: '/agency/team', naam: 'agency-team', permission: Permission.MANAGE_TEAM, titel: 'Team' },
+  { pad: '/agency/team/:userId', naam: 'agency-medewerker', permission: Permission.MANAGE_TEAM, titel: 'Medewerker' },
   { pad: '/agency/settings', naam: 'agency-settings', permission: Permission.VIEW_AGENCY_SETTINGS, titel: 'Instellingen' },
 
   { pad: '/client/overview', naam: 'client-overview', permission: Permission.VIEW_CLIENT_DASHBOARD, titel: 'Overzicht' },
   { pad: '/client/performance', naam: 'client-performance', permission: Permission.VIEW_CLIENT_DASHBOARD, titel: 'Resultaten' },
-  { pad: '/client/conversions', naam: 'client-conversions', permission: Permission.VIEW_CLIENT_DASHBOARD, titel: 'Conversies' },
-  { pad: '/client/report', naam: 'client-report', permission: Permission.VIEW_CLIENT_REPORT, titel: 'Rapportage' },
+  { pad: '/client/channels', naam: 'client-channels', permission: Permission.VIEW_CLIENT_CHANNELS, titel: 'Kanalen' },
+  { pad: '/client/conversions', naam: 'client-conversions', permission: Permission.VIEW_CLIENT_CONVERSIONS, titel: 'Conversies' },
+  { pad: '/client/report', naam: 'client-report', permission: Permission.VIEW_CLIENT_REPORT, titel: 'Rapportages' },
   { pad: '/client/users', naam: 'client-users', permission: Permission.MANAGE_CLIENT_USERS, titel: 'Gebruikers' },
 
   { pad: '/unauthorized', naam: 'unauthorized', publiek: true, titel: 'Geen toegang' },

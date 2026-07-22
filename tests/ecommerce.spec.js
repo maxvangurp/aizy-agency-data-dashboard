@@ -21,9 +21,11 @@ test.describe('E-commerce klantdashboard', () => {
       await openKlant(page, clientId);
 
       // De e-commerce KPI's zijn zichtbaar, niet de leadgeneratie-KPI's.
-      await expect(page.getByText('Omzet', { exact: true }).first()).toBeVisible();
-      await expect(page.getByText('ROAS', { exact: true }).first()).toBeVisible();
-      await expect(page.getByText('Gemiddelde orderwaarde')).toBeVisible();
+      await expect(page.locator('.kpi[data-label="Omzet"]')).toBeVisible();
+      await expect(page.locator('.kpi[data-label="ROAS"]')).toBeVisible();
+      await expect(page.locator('.kpi[data-label="Gemiddelde orderwaarde"]')).toBeVisible();
+      // De afkorting staat er nooit alleen: de volledige naam hoort erbij.
+      await expect(page.locator('.kpi[data-label="ROAS"] .kpi-uitleg')).toContainText('advertentiekosten');
 
       // De vaste secties bestaan.
       await expect(page.getByRole('heading', { name: 'E-commerce funnel' })).toBeVisible();

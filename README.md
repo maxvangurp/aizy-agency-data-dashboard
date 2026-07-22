@@ -21,6 +21,7 @@ index.html            Applicatieshell
 styles.css            Design system, semantische thema-tokens
 js/
   app.js              Applicatieshell: navigatie, accountmenu, contextwisselaar
+  terminology.js      Terminologieregister: alle zichtbare producttermen
   router.js           Hash-routes en routebeveiliging
   state.js            Thema en weergavevoorkeuren
   data-provider.js    safeFetchJson, voor als er weer een backend bij komt
@@ -39,7 +40,8 @@ js/
     filter-store.js   Filterstate per gebruiker en per context
   data/
     repository.js     Tenantgefilterde datatoegang en viewmodellen
-    selectors.js      Pure selectors: totalen, reeksen, funnels, budget, verhaal
+    selectors.js      Pure selectors: totalen, reeksen, funnels, budget, ontleding
+    insights.js       Inzichtmodel, contracten per dashboardtype en prioritering
     metrics.js        Metriekmetadata, veilige rekenregels en delta's
   sample-data/        Publieke, fictieve demodata (hoort in Git)
     shared.js         Klantenregister, bronnenstatus, doelen en signalen
@@ -48,13 +50,16 @@ js/
     leads.js          Leadgeneratie conversieconfig en verdelingen
   views/
     components.js     Gedeelde KPI-kaarten, tabellen, doelbalken en formatters
+    context-header.js Kruimelpad, paginacontext, identiteit en avatars
+    insight-cards.js  Inzichtkaarten, bewijsblokken en prioriteitsweergave
     filterbar.js      Filterbalk voor de agency- en de klantomgeving
     auth-screens.js   Inloggen, herstel, uitnodiging, geen toegang, 404
-    agency.js         Agencyoverzicht, klantenlijst, team, signalen
+    agency.js         Portefeuille, persoonlijk overzicht, klantenlijst, team
     agency-client-detail.js  Klantdetail met interne status
     client-env.js     Klantomgeving
-    ecommerce.js      E-commerce dashboard
-    leadgen.js        Leadgeneratie dashboard en klantweergave
+    ecommerce.js      E-commercedashboard
+    leadgen.js        Leadgeneratiedashboard en klantweergave
+    awareness.js      Awarenessdashboard met bereik, aandacht en verzadiging
 server.js             Express API en OAuth
 db.js                 SQLite schema en queries
 utils.js              Tokenversleuteling
@@ -123,28 +128,94 @@ afgeschermde klantomgeving. Welke omgeving iemand ziet, volgt uit zijn rol.
 > bij alle demodata komen. Gebruik deze omgeving niet voor echte klantgegevens
 > of productieaccounts.
 
+### Het Aizy Performance Team in de demo
+
+> De namen van het Aizy Performance Team zijn gebruikt om de demo herkenbaar
+> te maken. E-mailadressen, rechten, klanttoewijzingen, activiteit en overige
+> accountgegevens zijn fictief en vertegenwoordigen niet de werkelijke
+> organisatie of verantwoordelijkheden binnen Aizy.
+
+De verdeling van toegangsniveaus dient uitsluitend om de rechten in deze
+applicatie te kunnen demonstreren. Er wordt geen uitspraak gedaan over
+senioriteit, specialisatie, werkdruk of prestaties, en er bestaat nergens in
+dit product een ranglijst of prestatiescore per medewerker.
+
+| Medewerker | Functietitel | Toegangsniveau | Fictieve klanttoewijzing |
+|---|---|---|---|
+| Enrico van de Lindeloof | Performance Lead | Agencybeheerder | Alle klanten |
+| Jim Egging | Operational Manager | Agencybeheerder | Alle klanten |
+| Benito Perez | Performance Marketeer | Aizy-medewerker | Vitaalpunt, Tafelwerk, Noordlicht |
+| Berry Vermeulen | Performance Marketeer | Aizy-medewerker | Vitaalpunt, Havenkwartier |
+| Erik Nieuwenhuijs | Performance Marketeer | Aizy-medewerker | Tafelwerk, Draadloos, Kaap Noord |
+| Jens Kwekkeboom | Performance Marketeer | Aizy-medewerker | Draadloos |
+| Jip van Leest | Performance Marketeer | Aizy-medewerker | Meridiaan, Kaap Noord |
+| Tim Suijkerbuijk | Performance Marketeer | Aizy-medewerker | Nog geen klanten |
+| Thyra van der Schoor | Performance Marketeer | Aizy-medewerker | Uitnodiging nog niet geaccepteerd |
+
+De toewijzingen zijn zo gekozen dat elk UX-scenario te testen is: één klant,
+meerdere leadgeneratieklanten, meerdere e-commerceklanten, verschillende
+dashboardtypes door elkaar, geen klanten, twee betrokken medewerkers bij één
+klant, een klant met een onvolledige meting en een klant die op koers ligt.
+
+**Naam, functietitel en toegangsniveau zijn drie verschillende gegevens.** De
+interface toont ze altijd apart:
+
+```text
+Enrico van de Lindeloof
+Performance Lead
+
+Organisatie
+Aizy
+
+Toegangsniveau
+Agencybeheerder
+```
+
+Nooit samengevoegd tot iets als `Performance Lead-admin` of `Meekijker · Meridiaan`.
+
+**Klantverantwoordelijkheid** is weer iets anders. Per klant staat vast wie het
+aanspreekpunt is (`primaryOwnerId`) en wie meewerkt (`supportingOwnerIds`). De
+interface noemt dat `Verantwoordelijke medewerker` en `Ondersteunende
+medewerker`, en houdt dat gescheiden van "toegewezen aan een actie" en "laatst
+gewijzigd door".
+
 ### Demo-accounts
 
-Het wachtwoord is voor alle accounts `demo123`.
+Het wachtwoord is voor alle accounts `demo123`. Alle adressen gebruiken het
+fictieve domein `aizy.demo`; er komen geen echte Aizy-adressen in voor.
 
-| E-mailadres | Rol | Toegang |
+| E-mailadres | Toegangsniveau | Toegang |
 |---|---|---|
-| `max@aizy.demo` | Beheerder | Alle 7 klanten, team en instellingen |
-| `sanne@aizy.demo` | Medewerker | Vitaalpunt, Havenkwartier |
-| `daan@aizy.demo` | Medewerker | Meridiaan, Tafelwerk, Draadloos |
-| `noor@aizy.demo` | Medewerker | Openstaande uitnodiging, nog geen toegang |
+| `enrico@aizy.demo` | Agencybeheerder | Alle 7 klanten, team en instellingen |
+| `jim@aizy.demo` | Agencybeheerder | Alle 7 klanten, team en instellingen |
+| `benito@aizy.demo` | Aizy-medewerker | Drie klanten, drie dashboardtypes |
+| `berry@aizy.demo` | Aizy-medewerker | Twee leadgeneratieklanten |
+| `erik@aizy.demo` | Aizy-medewerker | Drie e-commerceklanten |
+| `jens@aizy.demo` | Aizy-medewerker | Eén klant |
+| `jip@aizy.demo` | Aizy-medewerker | Twee klanten die op koers liggen |
+| `tim@aizy.demo` | Aizy-medewerker | Nog geen klanten toegewezen |
+| `thyra@aizy.demo` | Aizy-medewerker | Openstaande uitnodiging, kan nog niet inloggen |
 | `directie@vitaalpunt.demo` | Klantbeheerder | Alleen Vitaalpunt, inclusief gebruikersbeheer |
-| `praktijk@vitaalpunt.demo` | Meekijker | Alleen Vitaalpunt |
-| `marketing@meridiaan.demo` | Meekijker | Alleen Meridiaan |
+| `praktijk@vitaalpunt.demo` | Alleen-lezen klantgebruiker | Alleen Vitaalpunt |
+| `marketing@meridiaan.demo` | Alleen-lezen klantgebruiker | Alleen Meridiaan |
 
-Het inlogscherm toont deze accounts, zodat een rol met één klik te testen is.
+Het inlogscherm toont deze accounts met naam, toegangsniveau en omvang als drie
+afzonderlijke gegevens.
 
 ### Rollen en rechten
 
 Rechten staan centraal in `js/auth/permissions.js`. Er staat nergens anders in
-de applicatie een controle op een rolnaam.
+de applicatie een controle op een rolnaam. De zichtbare naam van een rol komt
+uit `js/terminology.js`; de interne waarde komt nooit op het scherm.
 
-| Recht | Beheerder | Medewerker | Klantbeheerder | Meekijker |
+| Interne rol | Zichtbare naam | Betekenis |
+|---|---|---|
+| `agency_admin` | Agencybeheerder | Ziet alle klanten en beheert team, toewijzingen en instellingen. |
+| `agency_employee` | Aizy-medewerker | Ziet uitsluitend toegewezen klanten en beheert het team niet. |
+| `client_admin` | Klantbeheerder | Ziet de eigen organisatie en beheert de gebruikers daarvan. |
+| `client_viewer` | Alleen-lezen klantgebruiker | Bekijkt dashboards en rapportages, wijzigt niets. |
+
+| Recht | Agencybeheerder | Aizy-medewerker | Klantbeheerder | Alleen-lezen |
 |---|:--:|:--:|:--:|:--:|
 | Agencydashboard bekijken | ✅ | ✅ | — | — |
 | Alle klanten bekijken | ✅ | — | — | — |
@@ -155,7 +226,9 @@ de applicatie een controle op een rolnaam.
 | Klantcontext openen | ✅ | ✅ | — | — |
 | Instellingen openen | ✅ | — | — | — |
 | Klantdashboard bekijken | ✅ | ✅ | ✅ | ✅ |
-| Rapportage bekijken | ✅ | ✅ | ✅ | ✅ |
+| Kanalenpagina bekijken | ✅ | ✅ | ✅ | ✅ |
+| Conversiepagina bekijken | ✅ | ✅ | ✅ | — |
+| Rapportages bekijken | ✅ | ✅ | ✅ | ✅ |
 | Gebruikers van eigen organisatie beheren | — | — | ✅ | — |
 
 Gebruik in code:
@@ -216,6 +289,210 @@ Rechten worden bij iedere weergave opnieuw afgeleid uit het domeinmodel.
 Omdat er geen server is, kan een gebruiker de gebruikers-id in de sessie wel
 vervangen door die van een ander demo-account. Dat is inherent aan een
 statische frontend en is precies wat de Azure-stap hieronder oplost.
+
+## Terminologie
+
+Alle zichtbare producttermen staan in `js/terminology.js`. Views schrijven
+nergens zelf een rolnaam, statuslabel of afkorting uit.
+
+Een term heeft altijd dezelfde vorm:
+
+```js
+{
+  key: 'client_viewer',
+  kort: 'Alleen bekijken',
+  volledig: 'Alleen-lezen klantgebruiker',
+  omschrijving: 'Bekijkt dashboards en rapportages van de eigen organisatie en wijzigt geen instellingen.',
+  publiek: ['agency', 'client'],
+}
+```
+
+Gecentraliseerd zijn: toegangsniveaus, accountstatussen, omgevingen,
+dashboardtypes, klantstatussen, budgetstatussen, betrouwbaarheidsniveaus,
+inzichtcategorieën, klantverantwoordelijkheid, signaalurgentie, de vijf soorten
+ontbrekende waarden en de terugkerende kolomkoppen. Kanalen en meetbronnen staan
+in `js/filters/channels.js`, metrieken in `js/data/metrics.js`; die twee zijn
+zelf al registers.
+
+### Naamgevingsregels
+
+1. Een label is zonder aanvullende uitleg te begrijpen.
+2. Twee begrippen worden nooit tot één label samengevoegd. `Meekijker · Meridiaan`
+   voegde een rol en een organisatie samen en maakte beide onduidelijk; dat
+   patroon bestaat niet meer.
+3. Een functietitel is geen toegangsniveau. Wat iemand bij Aizy doet, staat los
+   van wat het account in deze applicatie mag.
+4. Interne waarden zoals `agency_admin` komen nooit op het scherm. Een test
+   bewaakt dat op alle agencyroutes.
+5. Een afkorting staat nooit alleen. `CPQL` krijgt altijd
+   "Kosten per gekwalificeerde lead" mee, in het label of in de uitleg.
+
+### Terminologiewijzigingen
+
+| Was | Is | Reden |
+|---|---|---|
+| Beheerder | Agencybeheerder | Zegt bij welke omgeving de rol hoort. |
+| Medewerker | Aizy-medewerker | Idem, en onderscheidt van een klantgebruiker. |
+| Meekijker | Alleen-lezen klantgebruiker | "Meekijker" zei niets over rechten of omgeving. |
+| Trackingprobleem | Meetprobleem, Meting onvolledig | Jargon vervangen door wat er aan de hand is. |
+| Accountmanager, Marketeer | Verantwoordelijke medewerker, Ondersteunende medewerker | Rol bij de klant, niet de functietitel. |
+| Rol | Toegangsniveau | Voorkomt verwarring met de functietitel. |
+| Spend | Advertentie-uitgaven | Nederlands, en zonder vakjargon. |
+| ROAS, CPL, CPQL alleen | Volledige naam met afkorting ernaast | Een afkorting alleen is voor de helft van de lezers leeg. |
+| Rapportage | Rapportages | Sluit aan op de navigatie en het meervoud van de inhoud. |
+| Bedrijfsmodel | Dashboardtype | Beschrijft wat de gebruiker ziet, niet hoe het model heet. |
+
+## Inzichten
+
+### Het inzichtmodel
+
+Een inzicht herhaalt geen KPI. `De CPL vraagt aandacht` vertelt niet wat er
+veranderde, hoe groot het verschil is, waar het vandaan komt of wat je eraan
+doet. Een inzicht uit `js/data/insights.js` beantwoordt die vragen wél, of het
+bestaat niet.
+
+```js
+{
+  id, categorie, titel, samenvatting,
+  bewijs: [{ label, waarde }],
+  herkomst, actie,
+  betrouwbaarheid, betrouwbaarheidRedenen,
+  impact, volume, metriek, kanalen,
+}
+```
+
+Categorieën: `ontwikkeling`, `aandachtspunt`, `kans`, `meetbeperking`.
+
+### Prioritering
+
+Per dashboard verschijnen maximaal één hoofdontwikkeling, één aandachtspunt en
+één kans. De rest staat ingeklapt eronder. De volgorde volgt een score uit vier
+delen die elk apart uit te leggen zijn:
+
+```text
+score = omvang van de afwijking
+      × betrouwbaarheidsfactor (hoog 1,0 · redelijk 0,75 · beperkt 0,4 · onvoldoende 0,15)
+      × volumefactor (logaritmisch, 0,35 tot 1,0)
+      × 1,1 wanneer er een concrete actie bij hoort
+```
+
+Daardoor komt een verandering van 300 procent op drie leads nooit boven een
+omzetdaling van 12 procent op duizend transacties.
+
+### Betrouwbaarheid
+
+| Niveau | Wanneer |
+|---|---|
+| Hoge betrouwbaarheid | Voldoende volume, volledige periode, bruikbare vergelijking. |
+| Redelijke betrouwbaarheid | Richting duidelijk, maar volume of periode beperkt de zekerheid. |
+| Beperkte betrouwbaarheid | Weinig volume of ontbrekende data; de reden staat erbij. |
+| Onvoldoende data | Te weinig gemeten om iets te zeggen. |
+
+De reden wordt altijd getoond, bijvoorbeeld: "Er zijn in deze periode 4
+metingen. Een kleine verandering geeft dan al een groot percentage."
+
+### Omgaan met oorzaken
+
+De data laat samenhang zien, geen oorzaak. Er staat daarom "hangt waarschijnlijk
+samen met" waar de data een richting geeft, en "op basis van de huidige data is
+geen oorzaak vast te stellen" waar die er niet is. Een stellige oorzaak
+verschijnt alleen wanneer het bewijs die draagt, zoals bij de omzetontleding:
+die vervangt de factoren één voor één, waardoor de drie bijdragen samen precies
+het verschil vormen.
+
+### Insight contracts per dashboardtype
+
+```text
+Leadgeneratie
+
+Verplicht:
+- volume
+- efficiëntie
+- kwaliteit
+- funnel
+- kanaalbijdrage
+
+Verboden:
+- klantconversies als 0 tonen wanneer CRM-data ontbreekt
+- de doorklikratio als funnelknelpunt aanwijzen
+- een oorzaak als feit presenteren zonder ondersteunende data
+```
+
+```text
+E-commerce
+
+Verplicht:
+- omzet
+- rendement
+- groei-ontleding in verkeer, conversie en orderwaarde
+- conversiepad
+- kanaalbijdrage
+
+Optioneel:
+- productfeed
+- budget
+
+Verboden:
+- winstgevendheid claimen zonder kostprijsdata
+- een margeprobleem claimen zonder margedata
+- een voorraadprobleem claimen zonder voorraaddata
+- attributie als causaliteit presenteren
+```
+
+```text
+Awareness
+
+Verplicht:
+- bereik en levering
+- aandacht
+- verzadiging
+
+Optioneel:
+- ondersteunende resultaten
+- budget
+
+Verboden:
+- kosten per lead als primaire KPI gebruiken
+- advertentievermoeidheid als feit presenteren op basis van alleen frequentie
+- uniek periodebereik tonen dat niet gemeten wordt
+```
+
+### Bereik is niet optelbaar
+
+Unieke personen zijn niet over dagen op te tellen: dezelfde persoon telt dan
+meerdere keren mee. Het awarenessdashboard toont daarom het dagbereik, opgeteld
+over de periode, en zegt er expliciet bij dat het unieke bereik over de hele
+periode niet gemeten wordt. De KPI `Uniek bereik in de periode` staat er met de
+waarde `Niet gemeten` en de reden erbij; een getal dat suggereert dat het wél
+gemeten is, zou hier het gevaarlijkste getal op het scherm zijn.
+
+### Prioriteit van een klant
+
+`bepaalPrioriteit` levert een niveau (`Vandaag aandacht nodig`, `Deze week
+bekijken`, `Geen actie nodig`) met de redenen erbij. De score bepaalt alleen de
+volgorde; de redenen zijn de uitkomst. Er verschijnt nergens een ondoorzichtig
+cijfer op het scherm.
+
+```text
+Waarom deze klant aandacht nodig heeft
+
+- De meting is onvolledig: de datakwaliteit staat op 61 procent.
+- De besteding ligt 23 procent boven het budget voor deze periode.
+- 2 openstaande signalen zonder opvolging.
+```
+
+## Copyregels
+
+- Nederlands, feitelijk, direct en professioneel.
+- Cijfers als cijfers: `18 procent`, niet `bijna een vijfde`.
+- Geen em-dashes in klantteksten.
+- Geen metaforen of dramatische koppen. Niet `De diagnose`, wel
+  `De CPL ligt 18 procent boven doel`.
+- Eyebrows en calloutlabels zijn inhoudelijk: `Context`, `Kanttekening`,
+  `Datakwaliteit`, `Actie`, `Bewijs`, `Vergelijking`.
+- Knoppen beschrijven wat er gebeurt: `Klanttoewijzing wijzigen`, niet `Klanten`.
+- De ik-vorm alleen in teksten die namens de verantwoordelijke Aizy-specialist
+  zijn geschreven, nooit in systeemmeldingen of KPI-labels.
 
 ## Filters
 
@@ -506,20 +783,35 @@ De suite dekt authenticatie, autorisatie, data-isolatie, het filtersysteem, de
 agency- en klantomgeving, teambeheer, navigatie, thema's, de API-fallback, het
 tekenen en opruimen van grafieken en de scheiding tussen bedrijfsmodellen.
 
-| Bestand | Tests |
-|---|--:|
-| `accounts.spec.js` | 45 |
-| `filters.spec.js` | 57 |
-| `leadgen.spec.js` | 28 |
-| `ecommerce.spec.js` | 9 |
-| `smoke.spec.js` | 9 |
-| `publiceerbaar.spec.js` | 6 |
-| **Totaal** | **154** |
+| Bestand | Tests | Dekt |
+|---|--:|---|
+| `accounts.spec.js` | 45 | Authenticatie, autorisatie, data-isolatie, weergaven |
+| `filters.spec.js` | 57 | Filterstate, periodeberekeningen, tenantisolatie, budget |
+| `inzichten.spec.js` | 43 | Inzichtkwaliteit, contracten per dashboardtype, prioritering, lege staten, toegankelijkheid |
+| `terminologie.spec.js` | 28 | Het team, rolbenamingen, context, navigatie per rol |
+| `leadgen.spec.js` | 28 | Leadgeneratiedashboard, funnel, conversies, grafieken |
+| `ecommerce.spec.js` | 9 | E-commercedashboard en grafieken |
+| `smoke.spec.js` | 9 | Stabiliteit, thema's, API-fallback |
+| `publiceerbaar.spec.js` | 6 | Publiceerbaarheid op GitHub Pages |
+| **Totaal** | **225** | |
 
 `filters.spec.js` bewaakt de filterstate, de periodeberekeningen tot op de dag,
 de tenantisolatie van kanalen, of KPI's, funnels, grafieken en verhalen
 werkelijk op de filters reageren, de budgetprognose en de bediening van de
 filterbalk op vier schermformaten.
+
+`inzichten.spec.js` bewaakt dat ieder primair inzicht bewijs, een
+betrouwbaarheidsniveau en een concrete actie draagt, dat de titel een getal
+bevat in plaats van alleen een KPI-naam, dat er maximaal drie primaire inzichten
+per dashboard verschijnen, dat de drie dashboardtypes inhoudelijk verschillende
+inzichten opleveren en dat verboden claims (marge, voorraad, winstgevendheid,
+kosten per lead bij awareness) nergens voorkomen.
+
+`terminologie.spec.js` bewaakt dat alle negen teamleden correct gespeld in de
+demo staan, dat functietitel en toegangsniveau apart worden weergegeven, dat
+interne rolwaarden nergens zichtbaar zijn, dat `Meekijker` niet meer bestaat,
+dat elke navigatielink voor elke rol op een werkend scherm uitkomt en dat de
+context op iedere pagina herkenbaar is.
 
 Losse onderdelen zijn zonder browser te controleren, omdat de selectorlaag puur
 is:
@@ -586,9 +878,23 @@ Labels komen uit `CONVERSIE_LABELS` in hetzelfde bestand.
 
 ### Klantview
 
-De knop rechtsboven wisselt tussen agencyview en klantview. De klantview toont
-een rustige weergave met investering, leads, leadkwaliteit, doelen, funnel en
-het periodeverhaal, zonder technische tabellen. De keuze wordt lokaal bewaard.
+De keuzelijst rechtsboven opent de klantomgeving van een klant. De klantview
+toont een rustige weergave met investering, leads, leadkwaliteit, doelen, funnel
+en de inzichten, zonder interne kolommen, prioriteitsscores of signalen. De
+volgorde volgt de vragen die een klant stelt:
+
+1. resultaat van deze periode
+2. voortgang tegenover doel
+3. belangrijkste ontwikkeling
+4. waar het resultaat vandaan komt
+5. aandachtspunt
+6. wat ik deze periode deed
+7. wat ik hierna ga doen
+8. datakwaliteit en beperkingen
+
+De klantnavigatie is taakgericht: Overzicht, Resultaten, Kanalen, Conversies,
+Rapportages en Gebruikers, waarbij een alleen-lezen klantgebruiker de
+conversie- en gebruikerspagina niet ziet.
 
 ### Ontbrekende data
 
@@ -649,9 +955,12 @@ versleuteld opgeslagen met AES-256-GCM.
 
 ## Nog niet gebouwd
 
-- Awareness-klantdashboard met eigen funnel
-- E-commerce klantweergave met eigen periodeverhaal, nu wordt het
+- E-commerce klantweergave met een eigen, rustigere opzet; nu wordt het
   agencydashboard hergebruikt
+- Acties met eigen status, eigenaar en deadline; nu zijn het signalen
+- Klanttoewijzingen en toegangsniveaus wijzigen vanuit teambeheer; de knoppen
+  staan er, de wijziging zelf is nog niet gebouwd
+- Assisted conversions bij awareness; de bron daarvoor ontbreekt in de demodata
 - Verdelingstabellen op dagniveau; die schalen nu proportioneel mee
 - Een datumkiezer in het designsysteem; nu wordt het datumveld van de browser
   gestyled, waardoor de notatie de taalinstelling van de browser volgt

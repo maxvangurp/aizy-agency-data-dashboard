@@ -260,11 +260,19 @@ const CLIENT_CONFIG = {
       { key: 'meta_ads', spend: 0.3, volume: 0.42, uitkomst: 0.3 },
       { key: 'google_ads', spend: 0.18, volume: 0.18, uitkomst: 0.2 },
     ],
+    // Awarenessscenario: het bereik loopt terug terwijl de frequentie oploopt,
+    // de CPM stijgt en de videovoltooiing daalt. Dat is de combinatie waaruit
+    // afnemende creatieve werking kán blijken; het dashboard benoemt het als
+    // combinatie en niet als vaststaand feit.
     huidig: {
-      spend: 22140, impressions: 1284700, clicks: 14200, sessions: null, users: null, revenue: null,
+      spend: 22140, impressions: 1284700, clicks: 14200, reach: 486300, sessions: 9840,
+      videoStarts: 92400, videoCompletions: 34600, videoWatchSeconds: 1108800,
+      engagements: 39800, brandedSearchClicks: 4820, revenue: null,
     },
     vorig: {
-      spend: 19800, impressions: 1180200, clicks: 13100, sessions: null, users: null, revenue: null,
+      spend: 19800, impressions: 1180200, clicks: 13100, reach: 512800, sessions: 9420,
+      videoStarts: 88600, videoCompletions: 37200, videoWatchSeconds: 1152000,
+      engagements: 41500, brandedSearchClicks: 4560, revenue: null,
     },
   },
 };
@@ -285,6 +293,12 @@ const DIMENSIE = {
   productViews: 'volume',
   addToCarts: 'volume',
   checkouts: 'volume',
+  reach: 'volume',
+  videoStarts: 'volume',
+  videoCompletions: 'volume',
+  videoWatchSeconds: 'volume',
+  engagements: 'volume',
+  brandedSearchClicks: 'volume',
 };
 
 function dimensieVoor(metriek) {
@@ -303,7 +317,11 @@ const METRIEKEN = {
     'spend', 'impressions', 'clicks', 'sessions', 'users', 'productViews',
     'addToCarts', 'checkouts', 'purchases', 'revenue',
   ],
-  awareness: ['spend', 'impressions', 'clicks', 'sessions', 'users', 'revenue'],
+  awareness: [
+    'spend', 'impressions', 'clicks', 'reach', 'sessions',
+    'videoStarts', 'videoCompletions', 'videoWatchSeconds',
+    'engagements', 'brandedSearchClicks', 'revenue',
+  ],
 };
 
 /* ---------------------------------------------------------------

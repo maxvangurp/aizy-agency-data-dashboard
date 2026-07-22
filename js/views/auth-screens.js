@@ -8,6 +8,7 @@
 
 import { esc } from './components.js';
 import { DEMO_ACCOUNT_SUGGESTIES, DEMO_WACHTWOORD } from '../auth/domain.js';
+import { toegangsniveauTerm } from '../terminology.js';
 
 /** Het Aizy-merkteken, gedeeld door alle authenticatieschermen. */
 function merkteken() {
@@ -74,18 +75,24 @@ export function renderLogin({ fout = null, email = '' } = {}) {
             demo-accounts <code>${esc(DEMO_WACHTWOORD)}</code>.
           </p>
           <ul class="demo-account-lijst">
-            ${DEMO_ACCOUNT_SUGGESTIES.map(
-              (a) => `<li>
-                <button type="button" class="demo-account" data-email="${esc(a.email)}">
-                  <span class="demo-account-email">${esc(a.email)}</span>
-                  <span class="demo-account-rol muted">${esc(a.omschrijving)}</span>
+            ${DEMO_ACCOUNT_SUGGESTIES.map((a) => {
+              const niveau = toegangsniveauTerm(a.rol);
+              return `<li>
+                <button type="button" class="demo-account" data-email="${esc(a.email)}"
+                  aria-label="Inloggegevens invullen van ${esc(a.naam)}, ${esc(niveau.volledig)}">
+                  <span class="demo-account-naam">${esc(a.naam)}</span>
+                  <span class="demo-account-niveau">${esc(niveau.kort)}</span>
+                  <span class="demo-account-omvang muted">${esc(a.omvang)}</span>
+                  <span class="demo-account-email muted klein">${esc(a.email)}</span>
                 </button>
-              </li>`
-            ).join('')}
+              </li>`;
+            }).join('')}
           </ul>
           <p class="muted klein">
-            Deze demo gebruikt fictieve accounts en fictieve data. Er is geen
-            productiebeveiliging en de omgeving is niet geschikt voor echte klantgegevens.
+            De namen van het Aizy Performance Team zijn gebruikt om de demo
+            herkenbaar te maken. E-mailadressen, rechten, klanttoewijzingen en
+            activiteit zijn fictief. Er is geen productiebeveiliging en de
+            omgeving is niet geschikt voor echte klantgegevens.
           </p>
         </section>
       </div>
@@ -115,7 +122,7 @@ export function renderForgotPassword({ melding = null, gelukt = false } = {}) {
               aria-describedby="forgotEmailFout" required>
             ${foutmelding('forgotEmailFout')}
           </div>
-          <button type="submit" class="btn primary breed">Herstellink versturen</button>
+          <button type="submit" class="btn primary breed">Herstellink naar dit adres versturen</button>
         </form>
 
         <p class="muted klein">
@@ -131,7 +138,7 @@ export function renderForgotPassword({ melding = null, gelukt = false } = {}) {
    Uitnodiging accepteren
    --------------------------------------------------------------- */
 
-export function renderAcceptInvite({ fout = null, email = 'noor@aizy.demo' } = {}) {
+export function renderAcceptInvite({ fout = null, email = 'thyra@aizy.demo' } = {}) {
   return `
     <div class="auth-scherm">
       <div class="auth-kaart">
@@ -164,12 +171,12 @@ export function renderAcceptInvite({ fout = null, email = 'noor@aizy.demo' } = {
             ${foutmelding('naamBevestigdFout')}
           </div>
 
-          <button type="submit" class="btn primary breed">Account activeren</button>
+          <button type="submit" class="btn primary breed">Wachtwoord instellen en account activeren</button>
         </form>
 
         <p class="muted klein">
           In deze demo staat één openstaande uitnodiging klaar voor
-          <code>noor@aizy.demo</code>.
+          <code>thyra@aizy.demo</code>.
         </p>
         <a href="#/login" class="link-klein">Terug naar inloggen</a>
       </div>

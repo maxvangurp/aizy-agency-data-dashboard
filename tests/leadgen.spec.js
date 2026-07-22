@@ -207,8 +207,9 @@ test.describe('Leadgeneratie klantview', () => {
     const errors = foutenVerzamelen(page);
     await openKlant(page, 'vitaalpunt', { view: 'customer' });
 
-    await expect(page.getByRole('heading', { name: 'Wat ging goed' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Wat aandacht nodig heeft' })).toBeVisible();
+    // De losse opsommingen zijn vervangen door onderbouwde inzichten met bewijs.
+    await expect(page.locator('#inzichten')).toBeVisible();
+    await expect(page.locator('.inzicht-kaart').first()).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Wat ik deze periode deed' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Wat ik hierna ga doen' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Wat ik van je nodig heb' })).toBeVisible();
@@ -228,18 +229,19 @@ test.describe('Leadgeneratie klantview', () => {
     // De contextwisselaar opent de klantweergave.
     await page.selectOption('#contextSelect', 'meridiaan');
     await page.waitForTimeout(700);
-    await expect(page.getByRole('heading', { name: 'Wat ging goed' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Wat ik deze periode deed' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Google Ads campagnes' })).toHaveCount(0);
     await expect(page.locator('.contextbalk')).toContainText('Meridiaan');
   });
 
   test('de klantview blijft bewaard na herladen', async ({ page }) => {
     await openKlant(page, 'meridiaan', { view: 'customer' });
-    await expect(page.getByRole('heading', { name: 'Wat ging goed' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Wat ik hierna ga doen' })).toBeVisible();
 
     // De gekozen klantcontext overleeft een herlaadactie.
     await page.reload();
     await page.waitForTimeout(800);
-    await expect(page.getByRole('heading', { name: 'Wat ging goed' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Wat ik hierna ga doen' })).toBeVisible();
     await expect(page.locator('.contextbalk')).toContainText('Meridiaan');
   });
 });

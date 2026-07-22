@@ -30,16 +30,17 @@ import {
 } from './auth/auth-service.js';
 import { can, Permission, standaardRoute } from './auth/permissions.js';
 import {
-  isAgencyGebruiker, primaireRol, primaireOrganisatieId, ROL_LABELS, getOrganisatie,
+  isAgencyGebruiker, primaireRol, primaireOrganisatieId, getOrganisatie,
 } from './auth/domain.js';
+import { toegangsniveauTerm, omgevingTerm, LABELS } from './terminology.js';
 import {
   parseHash, parseQuery, bouwHash, controleerRoute, Uitkomst, navigeer,
   navigeerNaarStartpagina, startRouter,
 } from './router.js';
 import {
   getAccessibleClients, getClientById, getFilterOpties, getAgencyOverview,
-  getAccessibleClientSummaries, getAccessibleSignals, getPortfolioInzichten,
-  getClientDashboard, getPeriodNarrative,
+  getAccessibleClientSummaries, getAccessibleSignals, getPersoonlijkOverzicht,
+  getClientDashboard, getPeriodNarrative, getTeamOverzicht, getMedewerkerDetail,
 } from './data/repository.js';
 import {
   bepaalFilters, getActieveFilters, pasFiltersAan, standaardVoorContext,
@@ -52,19 +53,20 @@ import {
   renderGeenToegang, renderNietGevonden,
 } from './views/auth-screens.js';
 import {
-  renderAgencyOverview, renderAgencyClients, renderAgencyTeam,
-  renderAgencySignals, renderAgencyActions, renderAgencySettings,
+  renderAgencyOverview, renderMijnOverzicht, renderAgencyClients, renderAgencyTeam,
+  renderMedewerkerDetail, renderAgencySignals, renderAgencyActions, renderAgencySettings,
 } from './views/agency.js';
 import {
-  renderClientOverview, renderClientPerformance, renderClientConversions,
-  renderClientReport, renderClientUsers, drawClientCharts,
+  renderClientOverview, renderClientPerformance, renderClientChannels,
+  renderClientConversions, renderClientReport, renderClientUsers, drawClientCharts,
 } from './views/client-env.js';
+import { renderAvatar, renderIdentiteit } from './views/context-header.js';
 import { renderAgencyClientDetail, drawAgencyClientCharts } from './views/agency-client-detail.js';
 import { esc } from './views/components.js';
 import { schrijfOverride } from './auth/demo-auth-provider.js';
 
 /** Filters van het klantenoverzicht. Leven in de shell, niet in de URL. */
-const klantFilters = { zoek: '', medewerker: '', type: '', status: '', sorteer: 'naam' };
+const klantFilters = { zoek: '', medewerker: '', type: '', status: '', sorteer: 'prioriteit' };
 
 /** Melding die eenmalig boven een scherm wordt getoond. */
 let vluchtigeMelding = null;
@@ -79,14 +81,20 @@ let laatstePad = null;
    Navigatie-items
    --------------------------------------------------------------- */
 
+/**
+ * Navigatie voor de agencyomgeving.
+ *
+ * De namen zijn taakgericht en verschillen per rol. Een beheerder kijkt naar de
+ * portefeuille, een medewerker naar zijn eigen werkdag; dat verschil hoort in de
+ * navigatie te staan en niet pas op de pagina te blijken. Onderdelen waar geen
+ * recht voor bestaat, verschijnen niet: een link die daarna een geen-toegangpagina
+ * toont, is een belofte die het product niet nakomt.
+ */
 function agencyNavigatie(user) {
+  const alleKlanten = can(user, Permission.VIEW_ALL_CLIENTS);
   return [
-    { hash: '#/agency/overview', label: 'Overzicht', permission: Permission.VIEW_AGENCY_DASHBOARD },
-    {
-      hash: '#/agency/clients',
-      label: can(user, Permission.VIEW_ALL_CLIENTS) ? 'Klanten' : 'Mijn klanten',
-      permission: Permission.VIEW_AGENCY_DASHBOARD,
-    },
+    { hash: '#/agency/overview', label: alleKlanten ? 'Overzicht' : 'Mijn overzicht', permission: Permission.VIEW_AGENCY_DASHBOARD },
+    { hash: '#/agency/clients', label: alleKlanten ? 'Klanten' : 'Mijn klanten', permission: Permission.VIEW_AGENCY_DASHBOARD },
     { hash: '#/agency/signals', label: 'Signalen', permission: Permission.VIEW_AGENCY_SIGNALS },
     { hash: '#/agency/actions', label: 'Acties', permission: Permission.VIEW_AGENCY_DASHBOARD },
     { hash: '#/agency/team', label: 'Team', permission: Permission.MANAGE_TEAM },
@@ -94,12 +102,14 @@ function agencyNavigatie(user) {
   ].filter((item) => can(user, item.permission));
 }
 
+/** Navigatie voor de klantomgeving, gefilterd op wat dit account werkelijk mag. */
 function clientNavigatie(user) {
   return [
     { hash: '#/client/overview', label: 'Overzicht', permission: Permission.VIEW_CLIENT_DASHBOARD },
     { hash: '#/client/performance', label: 'Resultaten', permission: Permission.VIEW_CLIENT_DASHBOARD },
-    { hash: '#/client/conversions', label: 'Conversies', permission: Permission.VIEW_CLIENT_DASHBOARD },
-    { hash: '#/client/report', label: 'Rapportage', permission: Permission.VIEW_CLIENT_REPORT },
+    { hash: '#/client/channels', label: 'Kanalen', permission: Permission.VIEW_CLIENT_CHANNELS },
+    { hash: '#/client/conversions', label: 'Conversies', permission: Permission.VIEW_CLIENT_CONVERSIONS },
+    { hash: '#/client/report', label: 'Rapportages', permission: Permission.VIEW_CLIENT_REPORT },
     { hash: '#/client/users', label: 'Gebruikers', permission: Permission.MANAGE_CLIENT_USERS },
   ].filter((item) => can(user, item.permission));
 }
@@ -143,10 +153,12 @@ function renderContextbalk(user) {
   const client = getClientById(user, clientId);
   if (!client) return '';
 
-  return `<div class="contextbalk" role="status">
-    <span>Klantweergave: <strong>${esc(client.name)}</strong></span>
-    <span class="muted">Je bent ingelogd als medewerker van Aizy</span>
-    <button type="button" class="btn klein" id="terugNaarAgency">Terug naar agency</button>
+  return `<div class="contextbalk" role="status" data-context="klantweergave">
+    <span class="contextbalk-tekst">
+      <strong>Je bekijkt de klantomgeving van ${esc(client.name)} als Aizy-medewerker.</strong>
+      <span class="muted">De klant ziet deze weergave zonder interne informatie.</span>
+    </span>
+    <button type="button" class="btn klein" id="terugNaarAgency">Terug naar agencyoverzicht</button>
   </div>`;
 }
 
@@ -159,16 +171,24 @@ function renderContextwisselaar(user) {
 
   const actief = getActieveKlantId();
   return `<div class="veld contextkiezer">
-    <label for="contextSelect">Weergave</label>
+    <label for="contextSelect">Klantomgeving openen</label>
     <select id="contextSelect">
-      <option value="">Agencyoverzicht</option>
-      ${klanten.map((c) => `<option value="${esc(c.id)}"${actief === c.id ? ' selected' : ''}>${esc(c.name)} bekijken</option>`).join('')}
+      <option value="">Blijf in de agencyomgeving</option>
+      ${klanten.map((c) => `<option value="${esc(c.id)}"${actief === c.id ? ' selected' : ''}>Klantomgeving van ${esc(c.name)}</option>`).join('')}
     </select>
   </div>`;
 }
 
+/**
+ * Accountmenu.
+ *
+ * Naam, functietitel, organisatie en toegangsniveau staan als vier
+ * afzonderlijke gegevens onder elkaar. Een samengevoegde regel als
+ * "Meekijker · Meridiaan" maakt niet duidelijk wat de rol is en wat de
+ * organisatie; deze opzet wel.
+ */
 function renderAccountmenu(user) {
-  const rol = ROL_LABELS[primaireRol(user)] ?? '';
+  const niveau = toegangsniveauTerm(primaireRol(user));
   const org = getOrganisatie(primaireOrganisatieId(user));
   const actieveKlant = getActieveKlantId();
   const actieveKlantNaam = actieveKlant ? getClientById(user, actieveKlant)?.name : null;
@@ -176,29 +196,35 @@ function renderAccountmenu(user) {
   return `
     <div class="accountmenu">
       <button type="button" class="accountknop" id="accountKnop"
-        aria-haspopup="menu" aria-expanded="false" aria-controls="accountPaneel">
-        <span class="avatar" aria-hidden="true">${esc(user.avatarInitials)}</span>
+        aria-haspopup="menu" aria-expanded="false" aria-controls="accountPaneel"
+        aria-label="Accountmenu van ${esc(user.displayName)}">
+        ${renderAvatar(user)}
         <span class="accountknop-tekst">
           <span class="accountknop-naam">${esc(user.displayName)}</span>
-          <span class="accountknop-rol">${esc(rol)}</span>
+          <span class="accountknop-rol">${esc(user.jobTitle ?? niveau.kort)}</span>
         </span>
       </button>
       <div class="accountpaneel" id="accountPaneel" role="menu" hidden>
         <div class="accountpaneel-kop">
-          <span class="avatar groot" aria-hidden="true">${esc(user.avatarInitials)}</span>
+          ${renderAvatar(user, { groot: true })}
           <div>
             <div class="accountpaneel-naam">${esc(user.displayName)}</div>
             <div class="muted klein">${esc(user.email)}</div>
           </div>
         </div>
-        <dl class="accountpaneel-gegevens">
-          <dt>Rol</dt><dd>${esc(rol)}</dd>
-          <dt>Organisatie</dt><dd>${esc(org?.name ?? 'Onbekend')}</dd>
-          ${actieveKlantNaam ? `<dt>Actieve weergave</dt><dd>${esc(actieveKlantNaam)}</dd>` : ''}
-        </dl>
+        ${renderIdentiteit(user, {
+          organisatie: org?.name ?? 'Onbekend',
+          toegangsniveau: niveau,
+        })}
+        ${actieveKlantNaam ? `<dl class="identiteit">
+          <div class="identiteit-rij">
+            <dt>Actieve klantweergave</dt>
+            <dd>${esc(actieveKlantNaam)}</dd>
+          </div>
+        </dl>` : ''}
         <div class="accountpaneel-acties">
           <button type="button" role="menuitem" class="menu-item" id="menuThema">
-            Thema wisselen
+            Wissel tussen licht en donker thema
           </button>
           <button type="button" role="menuitem" class="menu-item gevaar" id="menuUitloggen">
             Uitloggen
@@ -230,8 +256,10 @@ const FILTER_ROUTES = {
   'agency-client-detail': 'agency',
   'agency-signals': 'agency',
   'agency-actions': 'agency',
+  'agency-team': 'agency',
   'client-overview': 'client',
   'client-performance': 'client',
+  'client-channels': 'client',
   'client-conversions': 'client',
   'client-report': 'client',
 };
@@ -281,9 +309,14 @@ function bouwScherm(user, route, params, ctx, opties) {
 
   switch (route.naam) {
     case 'agency-overview': {
-      const overview = getAgencyOverview(user, filters);
-      const inzichten = getPortfolioInzichten(user, filters);
-      return { html: renderAgencyOverview(user, { overview, inzichten, filterbalk }) };
+      // Twee rollen, twee taken, twee schermen. Een beheerder krijgt de
+      // portefeuille, een medewerker zijn eigen werkdag.
+      if (can(user, Permission.VIEW_ALL_CLIENTS)) {
+        const overview = getAgencyOverview(user, filters);
+        return { html: renderAgencyOverview(user, { overview, filterbalk }) };
+      }
+      const persoonlijk = getPersoonlijkOverzicht(user, filters);
+      return { html: renderMijnOverzicht(user, { persoonlijk, filterbalk }) };
     }
 
     case 'agency-clients': {
@@ -317,7 +350,16 @@ function bouwScherm(user, route, params, ctx, opties) {
       };
     }
 
-    case 'agency-team': return { html: renderAgencyTeam(user, { melding: vluchtigeMelding }) };
+    case 'agency-team': {
+      const team = getTeamOverzicht(user, filters);
+      return { html: renderAgencyTeam(user, { team, melding: vluchtigeMelding, filterbalk }) };
+    }
+
+    case 'agency-medewerker': {
+      const lid = getMedewerkerDetail(user, params.userId, filters);
+      return { html: lid ? renderMedewerkerDetail(user, { lid }) : null };
+    }
+
     case 'agency-settings': return { html: renderAgencySettings(user) };
 
     case 'client-overview':
@@ -330,6 +372,12 @@ function bouwScherm(user, route, params, ctx, opties) {
         html: route.naam === 'client-overview' ? renderClientOverview(model) : renderClientPerformance(model),
         teken: () => drawClientCharts(dashboard),
       };
+    }
+
+    case 'client-channels': {
+      const dashboard = getClientDashboard(user, klantId, filters);
+      if (!dashboard) return { html: null };
+      return { html: renderClientChannels({ dashboard, filterbalk }) };
     }
 
     case 'client-conversions': {

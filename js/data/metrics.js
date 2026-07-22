@@ -27,49 +27,198 @@ export const Formaat = {
 };
 
 /**
- * `lagerIsBeter` bepaalt de richting van een verandering.
- * `richtingNeutraal` is voor metrieken waarbij een stijging of daling zonder
- * context niets zegt. Uitgaven zijn daar het duidelijkste voorbeeld: minder
- * uitgeven is pas goed nieuws als het resultaat gelijk blijft.
+ * Metriekmetadata.
+ *
+ *   label            de volledige naam, altijd zonder afkorting
+ *   kort             de afkorting, alleen voor krappe ruimte en nooit alleen
+ *   uitleg           één zin die het begrip verklaart, gebruikt in tooltips
+ *   lagerIsBeter     bepaalt de richting van een verandering
+ *   richtingNeutraal voor metrieken waarbij een stijging of daling zonder
+ *                    context niets zegt. Uitgaven zijn het duidelijkste
+ *                    voorbeeld: minder uitgeven is pas goed nieuws als het
+ *                    resultaat gelijk blijft.
+ *
+ * De interpretatie staat hier en nergens anders. Een view bepaalt nooit zelf of
+ * een daling groen of rood is.
  */
 export const METRIEK_META = {
-  spend: { label: 'Uitgaven', formaat: Formaat.EURO, richtingNeutraal: true },
-  impressions: { label: 'Impressies', formaat: Formaat.GETAL },
-  clicks: { label: 'Klikken', formaat: Formaat.GETAL },
-  ctr: { label: 'CTR', formaat: Formaat.PROCENT },
-  cpc: { label: 'CPC', formaat: Formaat.EURO2, lagerIsBeter: true },
-  cpm: { label: 'CPM', formaat: Formaat.EURO2, lagerIsBeter: true },
-  sessions: { label: 'Sessies', formaat: Formaat.GETAL },
-  users: { label: 'Gebruikers', formaat: Formaat.GETAL },
-  landingPageViews: { label: 'Landingspaginaweergaven', formaat: Formaat.GETAL },
-  formStarts: { label: 'Formulier gestart', formaat: Formaat.GETAL },
+  spend: {
+    label: 'Advertentie-uitgaven', formaat: Formaat.EURO, richtingNeutraal: true,
+    uitleg: 'Wat er in de geselecteerde periode aan advertenties is uitgegeven. Meer of minder uitgeven is op zichzelf niet goed of slecht.',
+  },
+  impressions: {
+    label: 'Impressies', formaat: Formaat.GETAL,
+    uitleg: 'Het aantal keren dat een advertentie is vertoond.',
+  },
+  clicks: {
+    label: 'Klikken', formaat: Formaat.GETAL,
+    uitleg: 'Het aantal keren dat er op een advertentie is geklikt.',
+  },
+  ctr: {
+    label: 'Doorklikratio', kort: 'CTR', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel vertoningen dat tot een klik leidde.',
+  },
+  cpc: {
+    label: 'Kosten per klik', kort: 'CPC', formaat: Formaat.EURO2, lagerIsBeter: true,
+    uitleg: 'De gemiddelde prijs die voor één klik is betaald.',
+  },
+  cpm: {
+    label: 'Kosten per duizend vertoningen', kort: 'CPM', formaat: Formaat.EURO2, lagerIsBeter: true,
+    uitleg: 'Wat duizend vertoningen kosten. Een stijging betekent dat dezelfde zichtbaarheid duurder wordt.',
+  },
+  sessions: {
+    label: 'Sessies', formaat: Formaat.GETAL,
+    uitleg: 'Bezoeken aan de website, gemeten door Google Analytics 4.',
+  },
+  users: {
+    label: 'Websitegebruikers', formaat: Formaat.GETAL,
+    uitleg: 'Unieke bezoekers van de website in deze periode.',
+  },
+  landingPageViews: {
+    label: 'Landingspaginaweergaven', formaat: Formaat.GETAL,
+    uitleg: 'Hoe vaak de landingspagina daadwerkelijk is geladen na een klik.',
+  },
+  formStarts: {
+    label: 'Formulier gestart', formaat: Formaat.GETAL,
+    uitleg: 'Hoe vaak iemand aan een formulier begon zonder het per se af te ronden.',
+  },
 
-  leads: { label: 'Leads', formaat: Formaat.GETAL },
-  cpl: { label: 'Kosten per lead', formaat: Formaat.EURO2, lagerIsBeter: true },
-  qualifiedLeads: { label: 'Gekwalificeerde leads', formaat: Formaat.GETAL },
-  cpql: { label: 'Kosten per gekwalificeerde lead', formaat: Formaat.EURO2, lagerIsBeter: true },
-  appointments: { label: 'Afspraken', formaat: Formaat.GETAL },
-  quotes: { label: 'Offertes', formaat: Formaat.GETAL },
-  customers: { label: 'Klanten', formaat: Formaat.GETAL },
-  leadNaarKlant: { label: 'Lead naar klant', formaat: Formaat.PROCENT },
-  kwalificatieratio: { label: 'Kwalificatieratio', formaat: Formaat.PROCENT },
-  pipelineValue: { label: 'Pipelinewaarde', formaat: Formaat.EURO },
+  leads: {
+    label: 'Leads', formaat: Formaat.GETAL,
+    uitleg: 'Aanvragen die als lead tellen. Welke conversies dat zijn, is per klant ingesteld.',
+  },
+  cpl: {
+    label: 'Kosten per lead', kort: 'CPL', formaat: Formaat.EURO2, lagerIsBeter: true,
+    uitleg: 'De advertentie-uitgaven gedeeld door het aantal leads.',
+  },
+  qualifiedLeads: {
+    label: 'Gekwalificeerde leads', formaat: Formaat.GETAL,
+    uitleg: 'Leads die na beoordeling in het CRM als serieuze aanvraag zijn bestempeld.',
+  },
+  cpql: {
+    label: 'Kosten per gekwalificeerde lead', kort: 'CPQL', formaat: Formaat.EURO2, lagerIsBeter: true,
+    uitleg: 'Wat een bruikbare aanvraag werkelijk kost, na beoordeling in het CRM.',
+  },
+  appointments: {
+    label: 'Afspraken', formaat: Formaat.GETAL,
+    uitleg: 'Afspraken of offertes die uit de aanvragen zijn voortgekomen.',
+  },
+  quotes: { label: 'Offertes', formaat: Formaat.GETAL, uitleg: 'Uitgebrachte offertes.' },
+  customers: {
+    label: 'Klanten', formaat: Formaat.GETAL,
+    uitleg: 'Aanvragen die volgens het CRM klant zijn geworden.',
+  },
+  leadNaarKlant: {
+    label: 'Lead naar klant', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel leads dat uiteindelijk klant werd.',
+  },
+  kwalificatieratio: {
+    label: 'Kwalificatieratio', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel leads dat na beoordeling gekwalificeerd bleek.',
+  },
+  pipelineValue: {
+    label: 'Pipelinewaarde', formaat: Formaat.EURO,
+    uitleg: 'De verwachte waarde van de openstaande aanvragen volgens het CRM.',
+  },
 
-  revenue: { label: 'Omzet', formaat: Formaat.EURO },
-  roas: { label: 'ROAS', formaat: Formaat.RATIO },
-  purchases: { label: 'Transacties', formaat: Formaat.GETAL },
-  cpa: { label: 'Kosten per transactie', formaat: Formaat.EURO2, lagerIsBeter: true },
-  aov: { label: 'Gemiddelde orderwaarde', formaat: Formaat.EURO2 },
-  conversieratio: { label: 'Conversieratio', formaat: Formaat.PROCENT },
-  productViews: { label: 'Productweergaven', formaat: Formaat.GETAL },
-  addToCarts: { label: 'Toevoegingen aan winkelwagen', formaat: Formaat.GETAL },
-  checkouts: { label: 'Checkouts gestart', formaat: Formaat.GETAL },
-  winkelwagenratio: { label: 'Winkelwagenratio', formaat: Formaat.PROCENT },
-  checkoutratio: { label: 'Checkoutratio', formaat: Formaat.PROCENT },
-  aankoopratio: { label: 'Aankoopratio', formaat: Formaat.PROCENT },
+  revenue: {
+    label: 'Omzet', formaat: Formaat.EURO,
+    uitleg: 'De omzet die in deze periode via de website is gerealiseerd.',
+  },
+  roas: {
+    label: 'Rendement op advertentie-uitgaven', kort: 'ROAS', formaat: Formaat.RATIO,
+    uitleg: 'Omzet gedeeld door advertentiekosten. 4× betekent vier euro omzet per euro advertentiekosten.',
+  },
+  purchases: {
+    label: 'Transacties', formaat: Formaat.GETAL,
+    uitleg: 'Het aantal afgeronde bestellingen.',
+  },
+  cpa: {
+    label: 'Kosten per transactie', kort: 'CPA', formaat: Formaat.EURO2, lagerIsBeter: true,
+    uitleg: 'Advertentie-uitgaven gedeeld door het aantal bestellingen.',
+  },
+  aov: {
+    label: 'Gemiddelde orderwaarde', kort: 'AOV', formaat: Formaat.EURO2,
+    uitleg: 'De omzet gedeeld door het aantal bestellingen.',
+  },
+  conversieratio: {
+    label: 'Conversieratio', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel sessies dat tot een aankoop of aanvraag leidde.',
+  },
+  productViews: {
+    label: 'Productweergaven', formaat: Formaat.GETAL,
+    uitleg: 'Hoe vaak een productpagina is bekeken.',
+  },
+  addToCarts: {
+    label: 'Toevoegingen aan winkelwagen', formaat: Formaat.GETAL,
+    uitleg: 'Hoe vaak een product in de winkelwagen is gelegd.',
+  },
+  checkouts: {
+    label: 'Checkouts gestart', formaat: Formaat.GETAL,
+    uitleg: 'Hoe vaak iemand aan het afrekenen begon.',
+  },
+  winkelwagenratio: {
+    label: 'Winkelwagenratio', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel productweergaven dat tot een toevoeging aan de winkelwagen leidde.',
+  },
+  checkoutratio: {
+    label: 'Checkoutratio', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel winkelwagens waarmee het afrekenen is gestart.',
+  },
+  aankoopratio: {
+    label: 'Aankoopratio', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel gestarte checkouts dat tot een bestelling leidde.',
+  },
 
-  secondaryConversions: { label: 'Secundaire conversies', formaat: Formaat.GETAL },
-  conversies: { label: 'Conversies', formaat: Formaat.GETAL },
+  reach: {
+    label: 'Bereikte personen per dag', formaat: Formaat.GETAL,
+    uitleg: 'Het aantal unieke personen dat per dag is bereikt, opgeteld over de periode. Het unieke bereik over de hele periode is lager en wordt niet op dagniveau gemeten.',
+  },
+  frequentie: {
+    label: 'Gemiddelde frequentie', formaat: Formaat.RATIO, lagerIsBeter: true,
+    uitleg: 'Hoe vaak een bereikte persoon de advertentie gemiddeld per dag zag. Een oplopende frequentie betekent meer herhaling bij dezelfde mensen.',
+  },
+  videoStarts: {
+    label: 'Videostarts', formaat: Formaat.GETAL,
+    uitleg: 'Hoe vaak een video is gestart.',
+  },
+  videoCompletions: {
+    label: 'Volledig bekeken video’s', formaat: Formaat.GETAL,
+    uitleg: 'Hoe vaak een video tot het einde is bekeken.',
+  },
+  videoVoltooiing: {
+    label: 'Videovoltooiing', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel gestarte video’s dat volledig is bekeken.',
+  },
+  gemKijktijd: {
+    label: 'Gemiddelde kijktijd', formaat: Formaat.GETAL,
+    uitleg: 'De gemiddelde kijktijd per videostart, in seconden.',
+  },
+  engagements: {
+    label: 'Interacties', formaat: Formaat.GETAL,
+    uitleg: 'Reacties, opslagacties, doorklikken en andere interacties met de advertentie.',
+  },
+  engagementRatio: {
+    label: 'Interactieratio', formaat: Formaat.PROCENT,
+    uitleg: 'Het aandeel vertoningen dat tot een interactie leidde.',
+  },
+  brandedSearchClicks: {
+    label: 'Klikken op merkzoekwoorden', formaat: Formaat.GETAL,
+    uitleg: 'Zoekopdrachten op de merknaam die tot een klik leidden. Een indirecte aanwijzing voor merkbekendheid.',
+  },
+  kostenPerBereik: {
+    label: 'Kosten per duizend bereikte personen', formaat: Formaat.EURO2, lagerIsBeter: true,
+    uitleg: 'Wat het kost om duizend personen te bereiken.',
+  },
+
+  secondaryConversions: {
+    label: 'Secundaire conversies', formaat: Formaat.GETAL,
+    uitleg: 'Acties die interesse laten zien maar nog geen aanvraag zijn.',
+  },
+  conversies: {
+    label: 'Conversies', formaat: Formaat.GETAL,
+    uitleg: 'Het aantal conversies binnen het gekozen conversietype.',
+  },
 };
 
 export function metriekMeta(key) {
@@ -78,6 +227,21 @@ export function metriekMeta(key) {
 
 export function lagerIsBeter(key) {
   return METRIEK_META[key]?.lagerIsBeter === true;
+}
+
+/**
+ * Het label zoals het op het scherm hoort te staan.
+ * Een afkorting staat er alleen bij wanneer die bestaat, en nooit in plaats van
+ * de volledige naam.
+ */
+export function metriekLabel(key, { metAfkorting = true } = {}) {
+  const meta = metriekMeta(key);
+  return metAfkorting && meta.kort ? `${meta.label} (${meta.kort})` : meta.label;
+}
+
+/** De uitleg bij een metriek, voor tooltips en toegankelijke omschrijvingen. */
+export function metriekUitleg(key) {
+  return metriekMeta(key).uitleg ?? '';
 }
 
 /* ---------------------------------------------------------------

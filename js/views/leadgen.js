@@ -14,10 +14,12 @@
 
 import { lineChart, barChart, funnelChart } from '../charts.js';
 import {
-  fmt, esc, kpi, kpiMetriek, tabel, figure, renderBudget,
-  doelRij, doelVoortgang, trackingBadge, badge,
+  fmt, esc, kpi, kpiMetriek, tabel, figure, renderBudget, ontbrekendeCel, metriekKolom,
+  doelRij, doelVoortgang, badge,
 } from './components.js';
+import { renderInzichten } from './insight-cards.js';
 import { toonKorteDatum, toonBereik } from '../filters/period.js';
+import { LABELS } from '../terminology.js';
 
 const cf0 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const nf = new Intl.NumberFormat('nl-NL');
@@ -44,14 +46,12 @@ const vgl = (d) => (d.vergelijkingActief ? d.vergelijking.label.toLowerCase() : 
    --------------------------------------------------------------- */
 
 export function renderLeadgenClient(dashboard, verhaal) {
-  if (!dashboard.heeftData) {
-    return renderKop(dashboard) + renderGeenData(dashboard);
-  }
+  if (!dashboard.heeftData) return renderGeenData(dashboard);
 
   return `
-    ${renderKop(dashboard)}
     ${renderMeldingen(dashboard)}
     ${renderKerncijfers(dashboard)}
+    ${renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd in de aanvragen' })}
     ${renderBudget(dashboard)}
     ${renderDoelen(dashboard)}
     ${renderFunnel(dashboard)}
@@ -62,22 +62,6 @@ export function renderLeadgenClient(dashboard, verhaal) {
     ${renderWebsitegedrag(dashboard)}
     ${renderGoogleBusinessProfile(dashboard)}
   `;
-}
-
-function renderKop(dashboard) {
-  const { client, periode, profiel } = dashboard;
-  return `<header class="page-head">
-    <h1>${esc(client.name)}</h1>
-    <p>
-      Leadgeneratie · ${esc(client.accountmanager)} · ${esc(client.land)} ·
-      ${esc(toonBereik(periode.startDate, periode.endDate))}
-    </p>
-    <div class="head-badges">
-      ${trackingBadge(client.trackingStatus)}
-      ${badge(`Data health ${client.dataHealth} procent`, client.dataHealth >= 80 ? 'ok' : client.dataHealth >= 65 ? 'middel' : 'hoog')}
-      ${profiel?.laatsteSync ? badge(`Laatste synchronisatie ${new Date(profiel.laatsteSync).toLocaleDateString('nl-NL')}`, 'muted') : ''}
-    </div>
-  </header>`;
 }
 
 /** Getoond wanneer de filterselectie geen enkele rij oplevert. */
@@ -501,12 +485,7 @@ export function renderLeadgenKlantview(dashboard, verhaal) {
   const { client, totalen, deltas, periode } = dashboard;
   const label = vgl(dashboard);
 
-  if (!dashboard.heeftData) {
-    return `<header class="page-head">
-      <h1>${esc(client.name)}</h1>
-      <p>${esc(toonBereik(periode.startDate, periode.endDate))}</p>
-    </header>${renderGeenData(dashboard)}`;
-  }
+  if (!dashboard.heeftData) return renderGeenData(dashboard);
 
   const lijst = (titel, items) => `
     <section class="card">
@@ -520,11 +499,6 @@ export function renderLeadgenKlantview(dashboard, verhaal) {
     ['leads', 'gekwalificeerdeLeads', 'afspraken', 'cpl'].includes(d.kpi));
 
   return `
-    <header class="page-head">
-      <h1>${esc(client.name)}</h1>
-      <p>Resultaten van ${esc(toonBereik(periode.startDate, periode.endDate))}</p>
-    </header>
-
     ${renderMeldingen(dashboard)}
 
     <div class="kpi-row">
@@ -573,13 +547,29 @@ export function renderLeadgenKlantview(dashboard, verhaal) {
       'Advertentiekanalen en Google Analytics 4'
     )}
 
-    ${lijst('Wat ging goed', verhaal?.goed)}
-    ${lijst('Wat aandacht nodig heeft', verhaal?.aandacht)}
-    ${verhaal?.meetbeperkingen?.length ? lijst('Wat we niet kunnen meten', verhaal.meetbeperkingen) : ''}
+    ${renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd', toonAanvullend: false })}
+    ${renderMeetbeperkingen(verhaal)}
+
     ${lijst('Wat ik deze periode deed', verhaal?.gedaan)}
     ${lijst('Wat ik hierna ga doen', verhaal?.volgende)}
     ${lijst('Wat ik van je nodig heb', verhaal?.vanKlant)}
   `;
+}
+
+/** Wat er binnen deze periode niet te meten viel, in gewone taal. */
+function renderMeetbeperkingen(verhaal) {
+  const beperkingen = verhaal?.meetbeperkingen ?? [];
+  if (!beperkingen.length) return '';
+
+  return `<section class="card" id="meetbeperkingen">
+    <h2>Wat we niet kunnen meten</h2>
+    <ul class="verhaal-lijst">
+      ${beperkingen.map((b) => `<li>
+        <strong>${esc(b.titel)}</strong>
+        <span class="muted klein">${esc(b.samenvatting)}</span>
+      </li>`).join('')}
+    </ul>
+  </section>`;
 }
 
 /* ---------------------------------------------------------------

@@ -112,7 +112,7 @@ test.describe('Filterstate', () => {
     await login(page, ACCOUNTS.admin);
 
     await page.evaluate(() => {
-      localStorage.setItem('aizy.filters.u-max', '{dit is geen json');
+      localStorage.setItem('aizy.filters.u-enrico', '{dit is geen json');
     });
     await ga(page, '#/agency/overview?period=bestaat-niet&channels=hackerskanaal&conv=onzin', { wacht: 800 });
 
@@ -144,7 +144,7 @@ test.describe('Filterstate', () => {
     await zetPeriode(page, 'last_7_days');
     expect((await filterState(page)).periode).toBe('last_7_days');
 
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     const f = await filterState(page);
     expect(f.periode).toBe('last_30_days');
   });
@@ -249,7 +249,7 @@ test.describe('Periodeberekeningen', () => {
 
 test.describe('Tenantisolatie van filters', () => {
   test('een medewerker ziet alleen kanalen van toegewezen klanten', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     const f = await filterState(page);
 
     // Vitaalpunt en Havenkwartier hebben geen LinkedIn Ads; dat kanaal hoort
@@ -277,7 +277,7 @@ test.describe('Tenantisolatie van filters', () => {
   });
 
   test('een onbevoegd kanaal in de URL wordt verwijderd en gemeld', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     await ga(page, '#/agency/overview?channels=google_ads,linkedin_ads', { wacht: 800 });
 
     const f = await filterState(page);
@@ -286,7 +286,7 @@ test.describe('Tenantisolatie van filters', () => {
   });
 
   test('een onbevoegde klant-id in de URL blijft geweigerd, ook met filters erbij', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     await ga(page, '#/agency/clients/meridiaan?period=last_7_days', { wacht: 700 });
 
     await expect(page.getByRole('heading', { name: 'Geen toegang' })).toBeVisible();
@@ -294,7 +294,7 @@ test.describe('Tenantisolatie van filters', () => {
   });
 
   test('agencytotalen bevatten alleen toegankelijke klanten, ook na filteren', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     await ga(page, '#/agency/overview');
 
     const dertig = await kpiWaarde(page, 'Advertentie-uitgaven');
@@ -311,7 +311,7 @@ test.describe('Tenantisolatie van filters', () => {
   });
 
   test('de filterbalk lekt geen klantnamen', async ({ page }) => {
-    await login(page, ACCOUNTS.medewerkerSanne);
+    await login(page, ACCOUNTS.medewerker);
     const balk = await page.locator('.filterbalk-wrap').innerHTML();
     for (const naam of ['Meridiaan', 'Tafelwerk', 'Draadloos', 'Kaap Noord', 'Noordlicht', 'Vitaalpunt']) {
       expect(balk).not.toContain(naam);
@@ -361,7 +361,7 @@ test.describe('Filters sturen de data aan', () => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients/vitaalpunt');
 
-    const kaart = page.locator('.kpi').filter({ has: page.locator('.kpi-label', { hasText: /^Kosten per lead$/ }) }).first();
+    const kaart = page.locator('.kpi[data-label="Kosten per lead"]').first();
     await expect(kaart).toContainText('vorige periode');
 
     await zetVergelijking(page, 'none');
@@ -377,9 +377,9 @@ test.describe('Filters sturen de data aan', () => {
 
     for (const preset of ['last_7_days', 'last_90_days', 'last_month']) {
       await zetPeriode(page, preset);
-      const kaart = page.locator('.kpi').filter({ has: page.locator('.kpi-label', { hasText: /^Gekwalificeerde leads$/ }) }).first();
+      const kaart = page.locator('.kpi[data-label="Gekwalificeerde leads"]').first();
       await expect(kaart, `${preset} maakt van null een nul`).toContainText('Onvoldoende data');
-      await expect(kaart).not.toContainText(/^0$/);
+      await expect(kaart.locator('.kpi-value')).not.toHaveText('0');
     }
   });
 
@@ -431,7 +431,7 @@ test.describe('Filters sturen de data aan', () => {
     await page.selectOption('#contextSelect', 'vitaalpunt');
     await page.waitForTimeout(900);
 
-    const blok = page.locator('.card').filter({ has: page.getByRole('heading', { name: 'Wat aandacht nodig heeft' }) });
+    const blok = page.locator('#inzichten');
     const dertig = await blok.textContent();
 
     await zetPeriode(page, 'last_7_days');
@@ -445,8 +445,7 @@ test.describe('Filters sturen de data aan', () => {
     await page.selectOption('#contextSelect', 'havenkwartier');
     await page.waitForTimeout(900);
 
-    const blok = page.locator('.card').filter({ has: page.getByRole('heading', { name: 'Wat we niet kunnen meten' }) });
-    await expect(blok).toContainText('Klantconversies zijn niet meetbaar');
+    await expect(page.locator('#meetbeperkingen')).toContainText('Klantconversies zijn niet meetbaar');
   });
 
   test('de conversiescope stuurt de conversiecijfers aan', async ({ page }) => {
