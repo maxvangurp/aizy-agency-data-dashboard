@@ -136,7 +136,9 @@ const CATALOGUS = {
     ],
     tips: ['Vergelijk altijd met de vorige periode; een absoluut getal zegt weinig zonder richting.'],
     navActions: ['open-campagnes', 'open-budgetten'],
-    insight: (c) => `Je bekijkt de kanaalprestaties over ${c.periodeLabel}.`,
+    insight: (c) => c.summary?.spend != null
+      ? `Je bekijkt de kanaalprestaties over ${c.periodeLabel}: ${euro(c.summary.spend)} advertentie-uitgaven over ${c.summary.klantenTotaal ?? 0} klanten.`
+      : `Je bekijkt de kanaalprestaties over ${c.periodeLabel}.`,
   },
 
   'agency-channel': {
@@ -161,7 +163,9 @@ const CATALOGUS = {
     ],
     tips: ['Sorteer op rendement om snel de uitschieters te vinden.'],
     navActions: ['open-budgetten', 'open-conversies'],
-    insight: (c) => `Je bekijkt de campagnes over ${c.periodeLabel}.`,
+    insight: (c) => c.summary?.spend != null
+      ? `Je bekijkt de campagnes over ${c.periodeLabel} met ${euro(c.summary.spend)} totale uitgaven.`
+      : `Je bekijkt de campagnes over ${c.periodeLabel}.`,
   },
 
   'agency-budgets': {
@@ -177,7 +181,9 @@ const CATALOGUS = {
     ],
     tips: ['Kijk naar pacing, niet alleen naar het totaal: het tempo voorspelt het einde van de maand.'],
     navActions: ['open-campagnes', 'maak-actie'],
-    insight: (c) => `Je bekijkt de budgetbewaking over ${c.periodeLabel}.`,
+    insight: (c) => (c.summary?.spend != null && c.summary?.budget)
+      ? `Je bekijkt de budgetbewaking over ${c.periodeLabel}: ${euro(c.summary.spend)} van ${euro(c.summary.budget)} besteed (${c.summary.pacing ?? '—'}% pacing).`
+      : `Je bekijkt de budgetbewaking over ${c.periodeLabel}.`,
   },
 
   'agency-conversions': {
@@ -187,7 +193,9 @@ const CATALOGUS = {
     suggestedQuestions: ['Wat betekent een gekwalificeerde lead?', 'Welk kanaal levert de meeste conversies?', 'Hoe kies ik het conversietype?'],
     tips: ['Het conversietype bepaalt de meetlat; kies het bewust voordat je vergelijkt.'],
     navActions: ['open-campagnes'],
-    insight: (c) => `Je bekijkt de conversies over ${c.periodeLabel}.`,
+    insight: (c) => (c.summary?.leads != null || c.summary?.aankopen != null)
+      ? `Je bekijkt de conversies over ${c.periodeLabel}: ${c.summary.leads ?? 0} leads en ${c.summary.aankopen ?? 0} aankopen.`
+      : `Je bekijkt de conversies over ${c.periodeLabel}.`,
   },
 
   'agency-actions': {
@@ -289,7 +297,9 @@ const CATALOGUS = {
     ],
     tips: ['Los eerst een meetprobleem op dat een conclusie raakt; anders stuur je op ruis.'],
     navActions: ['open-integraties'],
-    insight: (c) => `Je bekijkt de datakwaliteit over ${c.periodeLabel}.`,
+    insight: (c) => c.summary?.dekkingProblemen != null
+      ? `Je bekijkt de datakwaliteit over ${c.periodeLabel}: ${c.summary.dekkingProblemen} klanten met onvolledige dekking, ${c.summary.trackingProblemen ?? 0} met een trackingprobleem.`
+      : `Je bekijkt de datakwaliteit over ${c.periodeLabel}.`,
   },
 
   'agency-integrations': {

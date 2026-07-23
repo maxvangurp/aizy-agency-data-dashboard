@@ -3324,3 +3324,15 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 @media (min-width: 900px) {
   body:has(.detailpaneel.is-open) .toast-regio { right: calc(var(--space-4) + 440px); }
 }
+
+/* Signaal-herkomstchip op actiekaarten (bord/agenda): maakt de koppeling
+   signaal → actie zichtbaar vanuit het actiecentrum, zodat Signalen, Acties en
+   Planning als één werkmanagementsysteem aanvoelen. */
+.kaart-signaalchip {
+  display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  background: var(--accent-soft); border: 0; border-radius: 999px;
+  padding: 2px 8px; cursor: pointer;
+}
+.kaart-signaalchip:hover { text-decoration: underline; }
+.kaart-signaalchip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

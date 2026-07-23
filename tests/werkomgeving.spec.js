@@ -233,6 +233,17 @@ test.describe('Actiecentrum', () => {
     await page.waitForTimeout(400);
     await expect(page.locator('.toast')).toContainText('opgeslagen');
   });
+
+  test('een actie toont zijn herkomstsignaal op het bord en opent het', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/actions?tab=bord', { wacht: 600 });
+    // Acties die uit een signaal komen, tonen de koppeling ook op de kaart.
+    const chip = page.locator('.kaart-signaalchip').first();
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await page.waitForTimeout(400);
+    await expect(page.locator('.detailpaneel.is-open')).toBeVisible();
+  });
 });
 
 /* ---------------------------------------------------------------

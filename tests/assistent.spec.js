@@ -105,6 +105,15 @@ test.describe('Aizy-assistent — context en antwoorden', () => {
     await expect(laatsteAntwoord(page)).toContainText('zichtbare gegevens');
   });
 
+  test('een samenvatting op Budgetten gebruikt echte budget- en pacingcijfers', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/budgets', { wacht: 400 });
+    await openAssistent(page);
+    await stelVraag(page, 'Vat deze pagina samen');
+    await expect(laatsteAntwoord(page)).toContainText('pacing');
+    await expect(laatsteAntwoord(page)).toContainText('besteed');
+  });
+
   test('een onbekende vraag geeft een eerlijke fallback zonder verzonnen antwoord', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await openAssistent(page);

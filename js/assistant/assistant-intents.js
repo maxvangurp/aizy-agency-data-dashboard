@@ -123,6 +123,19 @@ function antwoordSamenvatting(context, hulp) {
   } else if (context.pageType === 'agency-portfolio' || context.pageType === 'agency-clients') {
     if (s.aandacht != null) cijfers.push({ label: 'Aandacht nodig', waarde: String(s.aandacht) });
     if (s.klantenTotaal != null) cijfers.push({ label: 'Klanten', waarde: String(s.klantenTotaal) });
+  } else if (context.pageType === 'agency-budgets') {
+    if (s.spend != null) cijfers.push({ label: 'Besteed', waarde: euro(s.spend) });
+    if (s.budget != null) cijfers.push({ label: 'Budget', waarde: euro(s.budget) });
+    if (s.pacing != null) cijfers.push({ label: 'Pacing', waarde: `${s.pacing}%` });
+  } else if (context.pageType === 'agency-channels' || context.pageType === 'agency-campaigns') {
+    if (s.spend != null) cijfers.push({ label: 'Uitgaven', waarde: euro(s.spend) });
+    if (s.aandacht != null) cijfers.push({ label: 'Aandacht nodig', waarde: String(s.aandacht) });
+  } else if (context.pageType === 'agency-conversions') {
+    if (s.leads != null) cijfers.push({ label: 'Leads', waarde: String(s.leads) });
+    if (s.aankopen != null) cijfers.push({ label: 'Aankopen', waarde: String(s.aankopen) });
+  } else if (context.pageType === 'agency-dataquality') {
+    if (s.dekkingProblemen != null) cijfers.push({ label: 'Onvolledige dekking', waarde: String(s.dekkingProblemen) });
+    if (s.trackingProblemen != null) cijfers.push({ label: 'Trackingproblemen', waarde: String(s.trackingProblemen) });
   }
 
   return {
@@ -158,7 +171,13 @@ function antwoordPrioritering(context, hulp) {
       break;
     case 'agency-budgets':
       tekst = 'Kijk eerst naar de klanten met de grootste pacing-afwijking; die dreigen als eerste over of onder budget uit te komen.';
+      if (s.pacing != null) tekst += ` De portefeuille zit nu op ${s.pacing}% van het budget.`;
       acties.push('open-campagnes');
+      break;
+    case 'agency-dataquality':
+      tekst = 'Los eerst een meetprobleem op dat een conclusie raakt; pas daarna de rest. Onbetrouwbare data stuurt anders je hele analyse.';
+      if (s.dekkingProblemen) tekst += ` ${s.dekkingProblemen} klanten hebben onvolledige dekking.`;
+      acties.push('open-integraties');
       break;
     default:
       tekst = `${hulp.tips[0] ?? 'Begin bij wat de meeste impact heeft.'}`;

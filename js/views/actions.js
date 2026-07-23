@@ -126,7 +126,7 @@ export function actiesDefinitie({ klanten, medewerkers, pagina = 'acties' }) {
         sorteerbaar: false,
         waarde: (a) => (a.signaalId ? 'ja' : 'nee'),
         cel: (a) => (a.signaalId
-          ? `<button type="button" class="link-klein" data-signaalpaneel="${esc(a.signaalId)}">Signaal openen</button>`
+          ? `<button type="button" class="link-klein" data-signaalpaneel="${esc(a.signaalId)}">Volgt signaal ↗</button>`
           : '<span class="muted klein">Geen</span>'),
       },
       {
@@ -272,6 +272,7 @@ function renderKaart(actie, magBewerken) {
       ${badge(actie.prioriteitTerm.kort, actie.prioriteitTerm.variant)}
       ${actie.deadline ? badge(`Deadline ${toonKorteDatum(actie.deadline)}`, actie.verlopen ? 'hoog' : 'muted') : ''}
     </div>
+    ${actie.signaalId ? `<button type="button" class="link-klein kaart-signaalchip" data-signaalpaneel="${esc(actie.signaalId)}">Volgt signaal ↗</button>` : ''}
     <p class="kanban-eigenaar muted klein">${esc(actie.verantwoordelijkeNaam)}</p>
     ${magBewerken ? `<div class="kanban-verplaats">
       <label class="visueel-verborgen" for="verplaats-${esc(actie.id)}">Status van ${esc(actie.titel)} wijzigen</label>
@@ -349,6 +350,7 @@ function renderAgendaItem(actie, magBewerken) {
       <button type="button" class="link agenda-item-titel" data-actiepaneel="${esc(actie.id)}">${esc(actie.titel)}</button>
     </div>
     <p class="muted klein">${esc(actie.klantNaam)} · ${esc(actie.statusTerm.kort)}</p>
+    ${actie.signaalId ? `<button type="button" class="link-klein kaart-signaalchip" data-signaalpaneel="${esc(actie.signaalId)}">Volgt signaal ↗</button>` : ''}
     ${magBewerken ? `<div class="agenda-item-knoppen">
       <button type="button" class="icoonknop klein" data-actie-dag="${esc(actie.id)}" data-richting="vorige"
         aria-label="${esc(actie.titel)} een dag eerder plannen">◀</button>

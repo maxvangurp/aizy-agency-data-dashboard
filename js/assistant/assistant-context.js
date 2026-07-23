@@ -14,7 +14,7 @@
 import { can, Permission } from '../auth/permissions.js';
 import { isAgencyGebruiker } from '../auth/domain.js';
 import { toonBereik } from '../filters/period.js';
-import { getAccessibleClientSummaries } from '../data/repository.js';
+import { getAccessibleClientSummaries, getAgencyOverview } from '../data/repository.js';
 import { getWerkSignalen, getToegankelijkeActies, actieSamenvatting } from '../data/work-repository.js';
 import { SignaalStatus } from '../model/signals.js';
 
@@ -72,6 +72,30 @@ function bouwSamenvatting(user, pageType, { filters, clientId, clientName }) {
         actiesVerlopen: sam.verlopen.length,
         actiesVandaag: sam.vandaag.length,
         actiesWachtOpKlant: sam.wachtOpKlant.length,
+      };
+    }
+
+    // De agency-brede performance- en analysepagina's delen één aggregatie.
+    const PERFORMANCE = [
+      'agency-channels', 'agency-channel', 'agency-campaigns', 'agency-budgets',
+      'agency-conversions', 'agency-dataquality', 'agency-insights', 'agency-reports',
+    ];
+    if (PERFORMANCE.includes(pageType)) {
+      const o = getAgencyOverview(user, filters);
+      return {
+        klantenTotaal: o.aantalKlanten,
+        aandacht: o.aandachtNodig,
+        opKoers: o.opKoers,
+        spend: o.totaleSpend,
+        budget: o.totaalBudget,
+        pacing: o.pacing != null ? Math.round(o.pacing) : null,
+        leads: o.leadgen?.leads ?? null,
+        gemCpl: o.leadgen?.gemiddeldeCpl != null ? Math.round(o.leadgen.gemiddeldeCpl * 100) / 100 : null,
+        aankopen: o.ecommerce?.aankopen ?? null,
+        gemRoas: o.ecommerce?.gemiddeldeRoas != null ? Math.round(o.ecommerce.gemiddeldeRoas * 10) / 10 : null,
+        dekkingProblemen: o.onvolledigeDekking,
+        trackingProblemen: o.trackingProblemen,
+        openSignalen: o.openSignalen,
       };
     }
   } catch {
