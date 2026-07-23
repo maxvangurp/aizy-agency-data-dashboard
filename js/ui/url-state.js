@@ -39,6 +39,8 @@ export const UiSleutel = {
   ERNST: 'ernst',
   MEDEWERKER: 'medewerker',
   SOORT: 'soort',
+  VERANTW: 'verantw',
+  OUDERDOM: 'ouderdom',
 };
 
 const UI_SLEUTELS = new Set(Object.values(UiSleutel));

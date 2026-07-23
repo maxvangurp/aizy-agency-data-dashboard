@@ -15,7 +15,7 @@ const N = (label, hash) => ({ label, type: 'nav', hash });
 
 const DEFINITIES = {
   'open-signalen': (c) => (c.permissions.zietSignalen ? N('Open signalen', '#/agency/signals') : null),
-  'toon-nieuw': (c) => (c.permissions.zietSignalen ? N('Toon nieuwe signalen', '#/agency/signals?tab=nieuw') : null),
+  'toon-nieuw': (c) => (c.permissions.zietSignalen ? N('Toon signalen met actie nodig', '#/agency/signals?tab=actie_nodig') : null),
   'open-acties': (c) => (c.permissions.isAgency ? N('Open acties', '#/agency/actions') : null),
   'open-planning': (c) => (c.permissions.zietPlanning ? N('Open planning', '#/agency/planning') : null),
   'open-budgetten': (c) => (c.permissions.isAgency ? N('Open budgetten', '#/agency/budgets') : null),

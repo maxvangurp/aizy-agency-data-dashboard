@@ -36,7 +36,7 @@
 
 import { lees, schrijf, nu } from './store.js';
 import {
-  maakAanActie, getActie, zetDatum,
+  maakAanActie, getActie, zetDatum, wijzigActie, voegOpmerkingToe,
   ActieStatus, ActiePrioriteit, ActieSoort,
 } from './actions.js';
 import { maakAanPlanningsitem, ItemBron } from './planning.js';
@@ -121,6 +121,42 @@ export const Resultaat = {
   VERVOLG: 'vervolgactie',
   HEROPENEN: 'heropenen',
 };
+
+/**
+ * De fase in het werkproces, zoals de Signalenpagina die groepeert:
+ * Actie nodig → Ingepland → Opgelost (en Genegeerd apart).
+ *
+ * "Nieuw" is bewust geen fase maar een eigenschap: een nog niet beoordeeld
+ * signaal valt onder "Actie nodig" met een subtiele badge. Zo blijft de workflow
+ * één rechte lijn in plaats van vier losse hokjes.
+ */
+export const SignaalFase = {
+  ACTIE_NODIG: 'actie_nodig',
+  INGEPLAND: 'ingepland',
+  OPGELOST: 'opgelost',
+  GENEGEERD: 'genegeerd',
+};
+
+export const SIGNAAL_FASEN = [
+  { key: SignaalFase.ACTIE_NODIG, kort: 'Actie nodig', variant: 'hoog', omschrijving: 'Beoordeeld noch ingepland; hier is een besluit nodig.' },
+  { key: SignaalFase.INGEPLAND, kort: 'Ingepland', variant: 'info', omschrijving: 'Er staat een geplande actie voor dit signaal.' },
+  { key: SignaalFase.OPGELOST, kort: 'Opgelost', variant: 'ok', omschrijving: 'Het onderliggende probleem is verholpen en gecontroleerd.' },
+  { key: SignaalFase.GENEGEERD, kort: 'Genegeerd', variant: 'muted', omschrijving: 'Bewust niet opgevolgd, met een reden erbij.' },
+];
+
+const FASE_TERM = new Map(SIGNAAL_FASEN.map((f) => [f.key, f]));
+
+export function signaalfaseTerm(key) {
+  return FASE_TERM.get(key) ?? { key, kort: 'Onbekend', variant: 'muted', omschrijving: '' };
+}
+
+/** Leidt de werkprocesfase af uit de opvolging en de geplande actie. */
+function bepaalFase(signaal) {
+  if (signaal.rawStatus === SignaalStatus.GENEGEERD) return SignaalFase.GENEGEERD;
+  if (signaal.rawStatus === SignaalStatus.OPGELOST) return SignaalFase.OPGELOST;
+  if (signaal.plannedAt) return SignaalFase.INGEPLAND;
+  return SignaalFase.ACTIE_NODIG;
+}
 
 /* ---------------------------------------------------------------
    Opvolging: lezen, migreren, schrijven
@@ -248,6 +284,10 @@ export function alleSignalen() {
       open: OPEN_STATUSSEN.has(status),
     };
     verrijkt.workflow = bepaalWorkflow(verrijkt);
+    verrijkt.fase = bepaalFase(verrijkt);
+    verrijkt.faseTerm = signaalfaseTerm(verrijkt.fase);
+    // "Nieuw" is een eigenschap: nog niet beoordeeld én nog geen actie.
+    verrijkt.isNieuw = rawStatus === SignaalStatus.NIEUW && !eigen.primaryActionId;
     return verrijkt;
   });
 }
@@ -519,6 +559,67 @@ export function maakActieVanSignaal(id, { verantwoordelijkeId = null, soort = nu
   });
 
   return { actie, nieuw: true, signaal: bijgewerkt };
+}
+
+/**
+ * Plant in één handeling een actie voor een signaal: maakt (of hergebruikt) de
+ * gekoppelde actie, past titel/verantwoordelijke/prioriteit/toelichting toe, zet
+ * de uitvoerdatum (waarmee de actie in Planning en in Mijn werk verschijnt) en
+ * brengt het signaal naar de fase "Ingepland". Nooit een dubbele actie.
+ *
+ * Dit is de handeling achter de knop "Actie inplannen" (alleen Performance Lead).
+ *
+ * @returns {{ok: boolean, reden?: string, actie?: object, signaal?: object, plannedAt?: string|null}}
+ */
+export function planActieVanSignaal(id, {
+  verantwoordelijkeId = null, datum = null, prioriteit = null, titel = null,
+  toelichting = null, aanPlanning = true, aanMijnWerk = true, auteurId = null,
+} = {}) {
+  const signaal = getSignaal(id);
+  if (!signaal) return { ok: false, reden: 'Dit signaal bestaat niet meer.' };
+
+  const eigenaar = aanMijnWerk ? (verantwoordelijkeId || null) : null;
+
+  // Actie hergebruiken of aanmaken — nooit een tweede voor hetzelfde signaal.
+  let actie;
+  if (signaal.primaryActionId) {
+    actie = getActie(signaal.primaryActionId);
+  } else {
+    const gemaakt = maakActieVanSignaal(id, { verantwoordelijkeId: eigenaar });
+    if (!gemaakt) return { ok: false, reden: 'De actie kon niet worden aangemaakt.' };
+    actie = gemaakt.actie;
+  }
+  if (!actie) return { ok: false, reden: 'De gekoppelde actie bestaat niet meer.' };
+
+  const patch = { verantwoordelijkeId: eigenaar };
+  if (titel && titel.trim()) patch.titel = titel.trim();
+  if (prioriteit && Object.values(ActiePrioriteit).includes(prioriteit)) patch.prioriteit = prioriteit;
+  wijzigActie(actie.id, patch);
+
+  // Toelichting als opmerking, zodat de reden bij de actie blijft staan.
+  if (toelichting && toelichting.trim()) {
+    voegOpmerkingToe(actie.id, { auteurId: auteurId ?? eigenaar, tekst: toelichting.trim() });
+  }
+
+  // De uitvoerdatum brengt de actie in Planning en in de agenda.
+  let plannedAt = null;
+  if (aanPlanning && datum) {
+    zetDatum(actie.id, datum);
+    plannedAt = datum;
+  }
+
+  const bijgewerkt = schrijfOpvolging(id, {
+    plannedAt,
+    verantwoordelijkeId: eigenaar ?? signaal.verantwoordelijkeId,
+    status: SignaalStatus.ACTIE_AANGEMAAKT,
+  }, {
+    type: 'ingepland',
+    tekst: plannedAt ? `Actie ingepland voor ${plannedAt}.` : 'Actie aangemaakt.',
+    actieId: actie.id,
+    medewerkerId: eigenaar,
+  });
+
+  return { ok: true, actie: getActie(actie.id), signaal: bijgewerkt, plannedAt };
 }
 
 /**

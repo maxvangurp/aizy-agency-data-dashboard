@@ -274,6 +274,95 @@ export function actieDetail({ actie, medewerkers, magBewerken, user }) {
    Signaaldetail
    --------------------------------------------------------------- */
 
+/**
+ * De planning-drawer: één plek om vanuit een signaal een actie in te plannen.
+ * Bovenaan de context van het signaal, eronder de inplanvelden. Alleen voor wie
+ * mag toewijzen (Performance Lead).
+ */
+export function signaalPlanning({ signaal, medewerkers = [], magPlannen, vandaag }) {
+  if (!signaal) {
+    return {
+      titel: 'Signaal niet gevonden',
+      inhoud: emptyState({ titel: 'Dit signaal bestaat niet', uitleg: 'Het valt buiten je selectie of toegang.' }),
+    };
+  }
+  if (!magPlannen) {
+    return {
+      titel: 'Inplannen',
+      ondertitel: `${signaal.klantNaam} · ${signaal.kanaalLabel}`,
+      inhoud: emptyState({
+        titel: 'Alleen de Performance Lead plant acties in',
+        uitleg: 'Je kunt de gekoppelde actie wel bekijken zodra die er is.',
+      }),
+    };
+  }
+
+  const actie = signaal.actie ?? null;
+  const standaardPrioriteit = actie?.prioriteit ?? (signaal.ernst === 'hoog' ? 'hoog' : 'middel');
+  const standaardTitel = actie?.titel ?? signaal.aanbeveling;
+
+  return {
+    titel: 'Actie inplannen',
+    ondertitel: `${signaal.klantNaam} · ${signaal.kanaalLabel}`,
+    inhoud: `
+      <section class="paneel-blok plan-samenvatting">
+        <h3>Signaal</h3>
+        <div class="paneel-labels">
+          ${badge(signaal.ernst === 'hoog' ? 'Hoge urgentie' : 'Gemiddelde urgentie', signaal.ernst === 'hoog' ? 'hoog' : 'middel')}
+          ${badge(signaal.faseTerm?.kort ?? 'Actie nodig', signaal.faseTerm?.variant ?? 'hoog')}
+        </div>
+        <p class="plan-titel">${esc(signaal.probleem)}</p>
+        <dl class="paneel-cijfers">
+          <div><dt>${esc(LABELS.klant)}</dt><dd>${esc(signaal.klantNaam)}</dd></div>
+          <div><dt>Kanaal</dt><dd>${esc(signaal.kanaalLabel)}</dd></div>
+          <div><dt>Voorgestelde actie</dt><dd>${esc(signaal.aanbeveling)}</dd></div>
+        </dl>
+      </section>
+
+      <form class="paneel-form" data-plan-actie-form="${esc(signaal.id)}" id="planActieForm">
+        <div class="veld">
+          <label for="planTitel">Titel van de actie</label>
+          <input type="text" id="planTitel" name="titel" maxlength="140" value="${esc(standaardTitel)}">
+        </div>
+        <div class="veld-rij">
+          <div class="veld">
+            <label for="planVerantwoordelijke">Verantwoordelijke medewerker</label>
+            <select id="planVerantwoordelijke" name="verantwoordelijkeId">
+              <option value="">Niet toegewezen</option>
+              ${medewerkers.map((m) => `<option value="${esc(m.id)}"${m.id === (actie?.verantwoordelijkeId ?? signaal.verantwoordelijkeId) ? ' selected' : ''}>${esc(m.displayName)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="veld">
+            <label for="planPrioriteit">${esc(LABELS.prioriteit)}</label>
+            <select id="planPrioriteit" name="prioriteit">
+              ${ACTIE_PRIORITEITEN.map((p) => `<option value="${esc(p.key)}"${p.key === standaardPrioriteit ? ' selected' : ''}>${esc(p.kort)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="veld">
+          <label for="planDatum">Uitvoerdatum of deadline</label>
+          <input type="date" id="planDatum" name="datum" value="${esc(actie?.startdatum ?? signaal.plannedAt ?? '')}" min="${esc(vandaag ?? '')}">
+        </div>
+        <div class="veld">
+          <label for="planToelichting">Toelichting (optioneel)</label>
+          <textarea id="planToelichting" name="toelichting" rows="2" placeholder="Wat moet er precies gebeuren?"></textarea>
+        </div>
+        <label class="checkbox">
+          <input type="checkbox" name="aanPlanning" checked>
+          <span>Toevoegen aan planning</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="aanMijnWerk" checked>
+          <span>Toevoegen aan Mijn werk van de medewerker</span>
+        </label>
+        <div class="form-acties">
+          <button type="submit" class="btn primary">Actie inplannen</button>
+          <button type="button" class="btn klein" data-paneel-sluit>Annuleren</button>
+        </div>
+      </form>`,
+  };
+}
+
 /** De werkstroom als stappenbalk: waar staat dit signaal in het proces. */
 function werkstroomStepper(workflow) {
   if (!workflow) return '';

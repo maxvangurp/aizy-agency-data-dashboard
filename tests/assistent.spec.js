@@ -128,9 +128,9 @@ test.describe('Aizy-assistent — context en antwoorden', () => {
     await ga(page, '#/agency/signals', { wacht: 400 });
     await openAssistent(page);
     await stelVraag(page, 'Waar moet ik eerst naar kijken?');
-    await page.locator('.assistent-acties a', { hasText: 'nieuwe signalen' }).first().click();
+    await page.locator('.assistent-acties a', { hasText: 'actie nodig' }).first().click();
     await page.waitForTimeout(300);
-    expect(page.url()).toContain('tab=nieuw');
+    expect(page.url()).toContain('tab=actie_nodig');
   });
 });
 

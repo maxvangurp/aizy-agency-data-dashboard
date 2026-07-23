@@ -14,11 +14,21 @@ async function openPaneel(page, tab, soort, id) {
   await ga(page, `#/agency/signals?tab=${tab}&panel=${soort}:${id}`, { wacht: 500 });
 }
 
-/** Zet een signaal om in een actie en geeft de nieuwe actie-id terug. */
+/** Plant vanuit een signaal een actie in (planning-drawer) en geeft de actie-id terug. */
 async function maakActie(page, signaalId) {
-  await page.locator(`.signaalkaart[data-signaal="${signaalId}"] [data-signaal-actie]`).click();
+  await page.locator(`.signaalkaart[data-signaal="${signaalId}"] [data-signaal-plan]`).click();
+  await page.waitForSelector('#planDatum');
+  await page.selectOption('#planVerantwoordelijke', { index: 1 }).catch(() => {});
+  await page.fill('#planDatum', '2026-07-25');
+  await page.locator('[data-plan-actie-form] button[type="submit"]').click();
   await page.waitForTimeout(500);
-  return page.evaluate(() => document.querySelector('.detailpaneel [data-actie-form]')?.getAttribute('data-actie-form'));
+  // Na inplannen staat het signaal onder "Ingepland"; de kaart toont nu de knop
+  // "Bekijk geplande actie" met de actie-id.
+  await ga(page, '#/agency/signals?tab=alle', { wacht: 400 });
+  return page.evaluate(
+    (id) => document.querySelector(`.signaalkaart[data-signaal="${id}"] [data-actiepaneel]`)?.getAttribute('data-actiepaneel'),
+    signaalId
+  );
 }
 
 /** Zet de status van een actie via het detailpaneel. */
@@ -35,16 +45,20 @@ async function eersteNieuwSignaal(page) {
 }
 
 test.describe('Gesloten werkproces', () => {
-  test('elk signaal toont een werkstroom met een duidelijke volgende stap', async ({ page }) => {
+  test('elke signaalkaart toont zijn fase en de eerstvolgende actie', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/signals?tab=alle', { wacht: 600 });
 
     const kaarten = await page.locator('.signaalkaart').count();
     expect(kaarten).toBeGreaterThan(0);
-    // Iedere kaart heeft een stappenbalk én een expliciete volgende stap.
-    expect(await page.locator('.signaalkaart .werkstroom').count()).toBe(kaarten);
-    const volgende = await page.locator('[data-volgende-stap]').first().textContent();
-    expect(volgende).toContain('Volgende stap');
+    // Iedere kaart heeft een conclusietitel en een fase in de werkstroom.
+    expect(await page.locator('.signaalkaart .signaalkaart-titel').count()).toBe(kaarten);
+    const fase = await page.locator('.signaalkaart').first().getAttribute('data-fase');
+    expect(['actie_nodig', 'ingepland', 'opgelost', 'genegeerd']).toContain(fase);
+
+    // Op "Actie nodig" biedt de Performance Lead precies één primaire actie: inplannen.
+    await ga(page, '#/agency/signals?tab=actie_nodig', { wacht: 400 });
+    await expect(page.locator('.signaalkaart [data-signaal-plan]').first()).toBeVisible();
   });
 
   test('een signaal doorloopt de volledige stroom tot en met oplossen', async ({ page }) => {
@@ -54,10 +68,9 @@ test.describe('Gesloten werkproces', () => {
     const signaalId = await eersteNieuwSignaal(page);
     expect(signaalId).toBeTruthy();
 
-    // Actie aanmaken vanuit het signaal.
+    // Actie inplannen vanuit het signaal (planning-drawer).
     const actieId = await maakActie(page, signaalId);
     expect(actieId).toBeTruthy();
-    await expect(page.locator('.toast')).toContainText('Actie aangemaakt');
 
     // De actie draagt het signaal en waarschuwt dat afronden niet automatisch sluit.
     await openPaneel(page, 'alle', 'actie', actieId);
@@ -101,18 +114,20 @@ test.describe('Gesloten werkproces', () => {
     expect(status).toBe('wacht-op-controle');
   });
 
-  test('een signaal krijgt geen tweede primaire actie bij nogmaals omzetten', async ({ page }) => {
+  test('een signaal krijgt geen tweede actie bij opnieuw inplannen', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     const signaalId = await eersteNieuwSignaal(page);
     await maakActie(page, signaalId);
 
-    // Nogmaals omzetten opent de bestaande actie in plaats van een tweede te maken.
     await openPaneel(page, 'alle', 'signaal', signaalId);
     await expect(page.locator('.detailpaneel .gekoppeld-lijst li')).toHaveCount(1);
-    // De kaartknop opent nu de gekoppelde actie (geen nieuwe aanmaak-toast).
-    await ga(page, '#/agency/signals?tab=alle', { wacht: 400 });
-    await page.locator(`.signaalkaart[data-signaal="${signaalId}"] [data-signaal-actie]`).click();
-    await page.waitForTimeout(400);
+
+    // Opnieuw inplannen via de planning-drawer hergebruikt de bestaande actie.
+    await ga(page, `#/agency/signals?tab=alle&panel=plan:${signaalId}`, { wacht: 400 });
+    await page.waitForSelector('#planDatum');
+    await page.fill('#planDatum', '2026-07-26');
+    await page.locator('[data-plan-actie-form] button[type="submit"]').click();
+    await page.waitForTimeout(500);
     await openPaneel(page, 'alle', 'signaal', signaalId);
     await expect(page.locator('.detailpaneel .gekoppeld-lijst li')).toHaveCount(1);
   });

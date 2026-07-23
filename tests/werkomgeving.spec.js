@@ -240,26 +240,32 @@ test.describe('Actiecentrum', () => {
    --------------------------------------------------------------- */
 
 test.describe('Signaalcentrum', () => {
-  test('een signaal omzetten naar een actie maakt precies één actie aan', async ({ page }) => {
+  test('een actie inplannen vanuit een signaal maakt precies één gekoppelde actie', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/signals', { wacht: 500 });
 
-    const eerste = page.locator('.signaalkaart').first();
-    await eerste.locator('[data-signaal-actie]').click();
+    const kaart = page.locator('.signaalkaart[data-fase="actie_nodig"]').first();
+    const sid = await kaart.getAttribute('data-signaal');
+    await kaart.locator('[data-signaal-plan]').click();
+    await page.waitForSelector('#planDatum');
+    await page.selectOption('#planVerantwoordelijke', { index: 1 });
+    await page.fill('#planDatum', '2026-07-25');
+    await page.locator('[data-plan-actie-form] button[type="submit"]').click();
     await page.waitForTimeout(500);
-    await expect(page.locator('.toast')).toContainText('Actie aangemaakt');
+    await expect(page.locator('.toast')).toContainText('ingepland');
 
-    // Nogmaals klikken maakt geen tweede actie maar opent de bestaande.
-    await ga(page, '#/agency/signals', { wacht: 400 });
-    const zelfde = page.locator('.signaalkaart').filter({ hasText: 'actie-aangemaakt' });
-    // De status van het signaal staat nu op actie-aangemaakt.
-    await expect(page.locator('.signaalkaart[data-status="actie-aangemaakt"]').first()).toBeVisible();
+    // Het signaal staat nu op Ingepland met precies één gekoppelde actie.
+    await ga(page, `#/agency/signals?tab=alle&panel=signaal:${sid}`, { wacht: 500 });
+    await expect(page.locator('.detailpaneel .gekoppeld-lijst li')).toHaveCount(1);
   });
 
-  test('een signaal negeren vraagt om een reden', async ({ page }) => {
+  test('een signaal negeren vraagt om een reden (via het overflowmenu)', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/signals', { wacht: 500 });
 
+    // Oplossen en negeren zitten niet meer als grote knoppen, maar in het menu.
+    await page.locator('.signaalkaart .kaart-overflow > summary').first().click();
+    await page.waitForTimeout(150);
     await page.locator('[data-signaal-negeren]').first().click();
     await page.waitForTimeout(300);
     await expect(page.locator('.negeer-form').first()).toBeVisible();
@@ -270,14 +276,30 @@ test.describe('Signaalcentrum', () => {
     await expect(page.locator('.toast')).toContainText('genegeerd');
   });
 
-  test('een signaal is toe te wijzen aan een medewerker', async ({ page }) => {
+  test('inplannen wijst het signaal toe aan een medewerker en toont dat op de kaart', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/signals', { wacht: 500 });
 
-    const eerste = page.locator('.signaalkaart').first();
-    await eerste.locator('[data-signaal-toewijzen]').selectOption({ index: 1 });
-    await page.waitForTimeout(400);
-    await expect(page.locator('.toast')).toContainText('toegewezen');
+    const kaart = page.locator('.signaalkaart[data-fase="actie_nodig"]').first();
+    const sid = await kaart.getAttribute('data-signaal');
+    await kaart.locator('[data-signaal-plan]').click();
+    await page.waitForSelector('#planDatum');
+    await page.selectOption('#planVerantwoordelijke', { index: 1 });
+    await page.fill('#planDatum', '2026-07-25');
+    await page.locator('[data-plan-actie-form] button[type="submit"]').click();
+    await page.waitForTimeout(500);
+    await expect(page.locator('.toast')).toContainText('toegewezen aan');
+
+    await ga(page, '#/agency/signals?tab=ingepland', { wacht: 500 });
+    await expect(page.locator(`.signaalkaart[data-signaal="${sid}"] [data-verantwoordelijke]`)).not.toHaveText('Niet toegewezen');
+  });
+
+  test('een medewerker zonder toewijsrecht ziet geen inplanknop', async ({ page }) => {
+    await login(page, ACCOUNTS.medewerker);
+    await ga(page, '#/agency/signals', { wacht: 500 });
+    // De launcher-/plancontrols zijn voorbehouden aan de Performance Lead.
+    await expect(page.locator('.signaalkaart').first()).toBeVisible();
+    await expect(page.locator('.signaalkaart [data-signaal-plan]')).toHaveCount(0);
   });
 });
 

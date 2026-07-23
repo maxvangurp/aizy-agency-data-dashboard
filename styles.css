@@ -1974,8 +1974,11 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
 
 /* ---------- Toast ---------- */
 
-.toast-regio { position: fixed; bottom: var(--space-4); right: var(--space-4); z-index: 100; display: grid; gap: 8px; max-width: min(360px, calc(100vw - 32px)); }
-.toast { background: var(--surface-raised); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 10px; animation: toast-in 0.18s ease; }
+/* Het toast-regio vangt zelf geen kliks af: alleen de toast (met zijn eigen
+   knoppen) is klikbaar. Zo blokkeert een melding nooit een knop eronder, zoals
+   de actieknop van een openstaande drawer. */
+.toast-regio { position: fixed; bottom: var(--space-4); right: var(--space-4); z-index: 100; display: grid; gap: 8px; max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.toast { background: var(--surface-raised); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 10px; animation: toast-in 0.18s ease; pointer-events: auto; }
 .toast-ok { border-left-color: var(--positief); }
 .toast-fout { border-left-color: var(--negatief); }
 .toast-info { border-left-color: var(--info); }
@@ -3212,4 +3215,112 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
     border-radius: 16px 16px 0 0; border-left: 0;
   }
   .assistent-launcher { right: 16px; bottom: 16px; }
+}
+
+/* =========================================================
+   SIGNALEN — herontwerp rond de workflow Actie nodig →
+   Ingepland → Opgelost. Compacte kaart met heldere hiërarchie,
+   één primaire actie en een overflowmenu.
+   ========================================================= */
+
+/* Compacte filterbalk. */
+.signaal-filterbalk {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.signaal-filtervelden { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: flex-end; min-width: 0; }
+.veld-compact { margin: 0; }
+.veld-compact select { min-width: 130px; height: 34px; }
+.signaal-filterinfo { display: flex; align-items: center; gap: var(--space-2); }
+
+/* De kaart: subtielere urgentieborder, meer lucht, duidelijke hiërarchie. */
+.signaallijst .signaalkaart {
+  border-left-width: 3px;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  gap: var(--space-2);
+}
+.signaalkaart.alert-hoog { border-left-color: rgba(188, 0, 0, 0.5); }
+.signaalkaart.alert-middel { border-left-color: rgba(255, 181, 71, 0.7); }
+.signaalkaart.fase-opgelost, .signaalkaart.fase-genegeerd { opacity: 0.86; }
+
+.signaalkaart-header { display: flex; align-items: flex-start; gap: var(--space-2); flex-wrap: wrap; }
+.signaalkaart-kenmerken { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.signaalkaart-klantregel {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  flex: 1; min-width: 0; margin-left: 4px;
+}
+.signaalkaart-klant { font-size: 15px; font-weight: 700; color: var(--ink); }
+.signaalkaart-kanaal { font-size: 13px; }
+.signaalkaart-ouderdom { white-space: nowrap; }
+
+.signaalkaart-titel { margin: 2px 0 0; font-size: 16px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
+
+.signaalkaart-blokken { display: grid; gap: var(--space-2); }
+.signaalkaart-waarom { font-size: 13px; }
+.signaalkaart-waarom > summary {
+  cursor: pointer; color: var(--ink-muted); font-weight: 600; font-size: 12px;
+  list-style: none; display: inline-flex; align-items: center; gap: 6px; padding: 2px 0;
+}
+.signaalkaart-waarom > summary::-webkit-details-marker { display: none; }
+.signaalkaart-waarom > summary::before { content: '▸'; font-size: 10px; transition: transform 0.15s ease; }
+.signaalkaart-waarom[open] > summary::before { transform: rotate(90deg); }
+.signaalkaart-waarom > p { margin: 4px 0 0; font-size: 13px; color: var(--ink-muted); }
+
+.signaalkaart-bloklabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-subtle); }
+.signaalkaart-blok > p { margin: 2px 0 0; font-size: 14px; }
+.signaalkaart-planning {
+  background: var(--surface-sunken); border-radius: var(--radius-sm);
+  padding: 8px var(--space-2); border: 1px solid var(--border);
+}
+.signaalkaart-plandata { display: flex; flex-wrap: wrap; gap: 6px var(--space-3); margin: 4px 0 0; }
+.signaalkaart-plandata > div { display: flex; align-items: baseline; gap: 6px; }
+.signaalkaart-plandata dt { font-size: 12px; color: var(--ink-subtle); }
+.signaalkaart-plandata dd { margin: 0; font-size: 13px; font-weight: 600; }
+
+.signaalkaart-voet {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 4px; padding-top: var(--space-2); border-top: 1px solid var(--border);
+}
+
+/* Overflowmenu (drie puntjes). */
+.kaart-overflow { position: relative; margin-left: auto; flex-shrink: 0; }
+.kaart-menu-knop {
+  list-style: none; cursor: pointer;
+  width: 30px; height: 30px; border-radius: 8px;
+  display: grid; place-items: center; font-size: 18px; line-height: 1;
+  color: var(--ink-muted); border: 1px solid transparent;
+}
+.kaart-menu-knop::-webkit-details-marker { display: none; }
+.kaart-menu-knop:hover { background: var(--surface-sunken); border-color: var(--border); }
+.kaart-overflow[open] .kaart-menu-knop { background: var(--surface-sunken); border-color: var(--border); }
+.kaart-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20;
+  min-width: 190px; display: grid; gap: 2px; padding: 6px;
+  background: var(--surface-raised); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-raised);
+}
+.kaart-menu-item {
+  text-align: left; border: 0; background: transparent; color: var(--ink);
+  padding: 8px 10px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.kaart-menu-item:hover { background: var(--surface-sunken); }
+
+/* Planning-drawer. */
+.plan-samenvatting { background: var(--surface-sunken); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); }
+.plan-titel { margin: 6px 0; font-weight: 700; }
+
+@media (max-width: 640px) {
+  .signaal-filtervelden { width: 100%; }
+  .veld-compact { flex: 1; }
+  .veld-compact select { min-width: 0; width: 100%; }
+  .signaalkaart-voet .btn { flex: 1; }
+}
+
+/* Wanneer een detaildrawer openstaat, schuiven meldingen naar links ervan, zodat
+   een toast nooit de actieknoppen van de drawer bedekt. Op smalle schermen dekt
+   de drawer het scherm en is verschuiven niet nodig. */
+@media (min-width: 900px) {
+  body:has(.detailpaneel.is-open) .toast-regio { right: calc(var(--space-4) + 440px); }
 }

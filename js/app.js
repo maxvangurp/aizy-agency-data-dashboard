@@ -58,7 +58,7 @@ import {
   queryVoor, AGENCY_SCOPE, klantScope,
 } from './filters/filter-store.js';
 import { kanaalLabel, ADVERTENTIEKANAAL_KEYS } from './filters/channels.js';
-import { DEMO_TODAY, toonBereik, plusDagen } from './filters/period.js';
+import { DEMO_TODAY, toonBereik, toonDatum, plusDagen } from './filters/period.js';
 import { dashboardtypeTerm, LABELS } from './terminology.js';
 
 import {
@@ -82,7 +82,7 @@ import { metriekOpbouwPaneel } from './ui/metric-breakdown.js';
 import { bindSlepen, registreerSleepdoel, bindKolombreedte, bindKolomvolgorde } from './ui/dnd.js';
 import * as grids from './ui/grid-controller.js';
 import { renderDataGrid } from './ui/data-grid.js';
-import { klantPreview, actieDetail, signaalDetail } from './ui/drawer.js';
+import { klantPreview, actieDetail, signaalDetail, signaalPlanning } from './ui/drawer.js';
 
 import { esc } from './views/components.js';
 import { renderAgencyTeam, renderMedewerkerDetail, renderAgencySettings } from './views/agency.js';
@@ -116,7 +116,7 @@ import {
 import {
   markeerBekeken, wijsSignaalToe, negeerSignaal, losSignaalOp, heropenSignaal,
   maakActieVanSignaal, planSignaalOpvolging, planResultaatcontrole, beoordeelResultaat,
-  SignaalStatus,
+  planActieVanSignaal, SignaalStatus,
 } from './model/signals.js';
 import { verplaatsItem, beginVanWeek } from './model/planning.js';
 import {
@@ -925,10 +925,16 @@ function paginaSignalen({ user, filters, tab, uiParams }) {
       tab: actiefTab,
       medewerkers: getToewijsbareMedewerkers(user),
       magVerwerken: can(user, Permission.MANAGE_SIGNALS),
-      filterKlant: uiParams.klant ?? '',
-      filterErnst: uiParams.ernst ?? '',
+      magPlannen: can(user, Permission.ASSIGN_ACTIONS),
       klanten: getAccessibleClients(user),
       negeerVoorId,
+      filters: {
+        klant: uiParams.klant ?? '',
+        ernst: uiParams.ernst ?? '',
+        kanaal: uiParams.kanaal ?? '',
+        verantw: uiParams.verantw ?? '',
+        ouderdom: uiParams.ouderdom ?? '',
+      },
     }),
   };
 }
@@ -1177,6 +1183,19 @@ function bouwDetailpaneel({ user, ctx, uiParams, omgeving }) {
     };
   }
 
+  if (gevraagd.soort === 'plan') {
+    const signaal = getWerkSignalen(user, null).find((s) => s.id === gevraagd.id) ?? null;
+    return {
+      open: true,
+      ...signaalPlanning({
+        signaal,
+        medewerkers: getToewijsbareMedewerkers(user),
+        magPlannen: can(user, Permission.ASSIGN_ACTIONS),
+        vandaag: DEMO_TODAY,
+      }),
+    };
+  }
+
   // Metriekopbouw: het eerste verdiepingsniveau van een KPI. De opbouw wordt
   // berekend binnen de actieve klant- of portefeuillecontext en dezelfde filters.
   if (gevraagd.soort === 'metric') {
@@ -1395,6 +1414,33 @@ async function onSubmit(e) {
     else toastFout(resultaat.reden ?? 'De resultaatcontrole kon niet worden ingepland.');
     return;
   }
+
+  const planActieForm = form.getAttribute('data-plan-actie-form');
+  if (planActieForm) {
+    e.preventDefault();
+    const user = getCurrentUser();
+    if (!can(user, Permission.ASSIGN_ACTIONS)) { toastFout('Alleen de Performance Lead kan een actie inplannen.'); return; }
+    const veld = (n) => form.querySelector(`[name="${n}"]`);
+    const verantwId = veld('verantwoordelijkeId')?.value || null;
+    const resultaat = planActieVanSignaal(planActieForm, {
+      titel: veld('titel')?.value ?? null,
+      verantwoordelijkeId: verantwId,
+      datum: veld('datum')?.value || null,
+      prioriteit: veld('prioriteit')?.value || null,
+      toelichting: veld('toelichting')?.value || null,
+      aanPlanning: veld('aanPlanning')?.checked !== false,
+      aanMijnWerk: veld('aanMijnWerk')?.checked !== false,
+      auteurId: user.id,
+    });
+    if (!resultaat.ok) { toastFout(resultaat.reden ?? 'De actie kon niet worden ingepland.'); return; }
+    const naam = getToewijsbareMedewerkers(user).find((m) => m.id === verantwId)?.displayName;
+    const datumTekst = resultaat.plannedAt ? toonDatum(resultaat.plannedAt) : null;
+    toast(datumTekst && naam
+      ? `De actie is ingepland voor ${datumTekst} en toegewezen aan ${naam}.`
+      : datumTekst ? `De actie is ingepland voor ${datumTekst}.` : 'De actie is aangemaakt.');
+    sluitPaneel();
+    return;
+  }
 }
 
 async function onClick(e) {
@@ -1502,6 +1548,18 @@ async function onClick(e) {
   if (el.dataset.actiepaneel) { openPaneel('actie', el.dataset.actiepaneel); return; }
   if (el.dataset.signaalpaneel) { openPaneel('signaal', el.dataset.signaalpaneel); return; }
   if (el.dataset.drill) { openMetriek(el.dataset.drill); return; }
+
+  /* --- Signalen: inplannen, filters, paneel sluiten --- */
+  if (el.dataset.signaalPlan) {
+    if (!can(getCurrentUser(), Permission.ASSIGN_ACTIONS)) { toastFout('Alleen de Performance Lead kan een actie inplannen.'); return; }
+    openPaneel('plan', el.dataset.signaalPlan);
+    return;
+  }
+  if (el.hasAttribute('data-paneel-sluit')) { sluitPaneel(); return; }
+  if (el.hasAttribute('data-signaal-filter-wissen')) {
+    navigeer(hashMetParams(window.location.hash, { klant: null, ernst: null, kanaal: null, verantw: null, ouderdom: null }));
+    return;
+  }
 
   /* --- Sprong-ankers van de samenvattingsstrip --- */
   if (el.dataset.spring) {
@@ -1985,7 +2043,7 @@ function onChange(e) {
     toast(el.value ? 'Signaal toegewezen.' : 'Toewijzing verwijderd.');
     return;
   }
-  if (d.signaalFilter) { gaNaarParam(d.signaalFilter === 'klant' ? 'klant' : 'ernst', el.value); return; }
+  if (d.signaalFilter) { gaNaarParam(d.signaalFilter, el.value || null); return; }
 
   /* Planning */
   if (d.planningGroep != null && el.hasAttribute('data-planning-groep')) { gaNaarParam(UiSleutel.GROEP, el.value); return; }
