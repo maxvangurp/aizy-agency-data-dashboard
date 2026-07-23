@@ -17,6 +17,8 @@ import { toonDatum, toonBereik, DATA_VOLLEDIG_TOT } from '../filters/period.js';
 import { dashboardtypeTerm, budgetstatusTerm, LABELS } from '../terminology.js';
 import { DekkingStatus, PacingStatus } from '../data/selectors.js';
 import { BusinessModel } from '../sample-data/shared.js';
+import { renderAssistentIntegratiekaart } from './assistant-settings.js';
+import { providerStatus } from '../assistant/assistant-controller.js';
 
 /* ---------------------------------------------------------------
    Campagnes
@@ -341,6 +343,11 @@ export function renderIntegraties({ overview }) {
   const bronKlanten = (key) => overview.samenvattingen.filter((s) => s.client.bronnen?.[key] === KanaalStatus.GEKOPPELD).length;
 
   return `
+    <section class="card-groep">
+      <h2 class="sectiekop">AI en automatisering</h2>
+      ${renderAssistentIntegratiekaart({ status: providerStatus() })}
+    </section>
+
     <section class="card">
       <h2>Advertentiekanalen</h2>
       <p class="muted">

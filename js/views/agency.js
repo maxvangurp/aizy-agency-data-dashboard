@@ -24,6 +24,9 @@ import { renderAvatar } from './context-header.js';
 import { renderPrioriteit } from './insight-cards.js';
 import { emptyState } from '../ui/states.js';
 import { dashboardtypeTerm, toegangsniveauTerm, accountstatusTerm, LABELS } from '../terminology.js';
+import { renderAssistentInstellingen } from './assistant-settings.js';
+import { leesVoorkeuren } from '../assistant/assistant-storage.js';
+import { providerStatus } from '../assistant/assistant-controller.js';
 
 /* ---------------------------------------------------------------
    Teambeheer
@@ -232,6 +235,8 @@ export function renderAgencySettings(user) {
         blijft staan.
       </p>
     </section>
+
+    ${renderAssistentInstellingen({ voorkeuren: leesVoorkeuren(user.id), status: providerStatus() })}
 
     <section class="card">
       <h2>Databronnen</h2>

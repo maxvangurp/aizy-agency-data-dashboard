@@ -69,6 +69,9 @@ import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
   renderPaginatabs, renderDetailpaneel, actieveTab,
 } from './ui/app-shell.js';
+import { renderAssistent } from './ui/assistant.js';
+import * as assistent from './assistant/assistant-controller.js';
+import { bouwAssistantContext } from './assistant/assistant-context.js';
 import { navigatieVoor, actiefItem, KANAALNAMEN, ANALYSE_TABS } from './ui/navigation.js';
 import { UiSleutel, leesUiParams, leesOverigeParams, combineerQuery, hashMetParam, hashMetParams, leesPaneel, paneelWaarde, bewaarScroll, leesScroll } from './ui/url-state.js';
 import { toast, toastFout } from './ui/toast.js';
@@ -356,6 +359,27 @@ function render() {
     detail: renderDetailpaneel(paneel ?? { open: false }),
   });
 
+  // De Aizy-assistent staat als aparte laag boven op de shell, zodat hij bij
+  // navigatie beschikbaar blijft en de shell niet hoeft te herstructureren.
+  const assistentContext = bouwAssistantContext({
+    user,
+    route,
+    params,
+    filters: FILTER_ROUTES.has(route.naam) ? ctx.resolved : ctx.resolved,
+    omgeving,
+    tab: uiParams[UiSleutel.TAB] ?? null,
+    clientId: scope.clientId ?? (omgeving === 'client' ? actieveKlantId : null),
+    clientName: (scope.clientId ?? actieveKlantId)
+      ? getClientById(user, scope.clientId ?? actieveKlantId)?.name ?? null
+      : null,
+    pagina,
+    openPaneel: leesPaneel(new URLSearchParams(uiParams).toString()),
+  });
+  assistent.zetContext(assistentContext);
+  assistent.zetVerversCallback(herrenderAssistent);
+  document.body.dataset.assistent = assistent.isVastgezet() ? 'vast' : 'los';
+  app().insertAdjacentHTML('beforeend', renderAssistent(assistentContext));
+
   pagina.teken?.();
   herstelPanelen();
 
@@ -365,6 +389,28 @@ function render() {
     document.querySelector('.werkgebied')?.scrollTo({ top: vorigeScroll });
   }
   laatstePad = pad;
+}
+
+/**
+ * Hertekent alleen de assistentlaag. De rest van de pagina blijft staan, zodat
+ * een vraag stellen niet de hele shell opnieuw opbouwt en de scroll behouden
+ * blijft. Deze functie draait uitsluitend bij een assistent-interactie, dus het
+ * invoerveld terugfocussen steelt nooit de aandacht van de rest van de pagina.
+ */
+function herrenderAssistent() {
+  const context = assistent.getContext();
+  document.body.dataset.assistent = assistent.isVastgezet() ? 'vast' : 'los';
+  const html = context ? renderAssistent(context) : '';
+  const bestaand = document.querySelector('.assistent-laag');
+  if (bestaand) {
+    if (html) bestaand.outerHTML = html;
+    else bestaand.remove();
+  } else if (html) {
+    app().insertAdjacentHTML('beforeend', html);
+  }
+  document.getElementById('assistentVraag')?.focus();
+  const gesprek = document.getElementById('assistentGesprek');
+  if (gesprek) gesprek.scrollTop = gesprek.scrollHeight;
 }
 
 function kanaalKeysVanKlant(user, clientId) {
@@ -1256,6 +1302,15 @@ function bindInteractie() {
 async function onSubmit(e) {
   const form = e.target;
 
+  if (form.hasAttribute('data-assistent-form')) {
+    e.preventDefault();
+    const veld = form.querySelector('[name="vraag"]');
+    const vraag = veld?.value ?? '';
+    if (veld) veld.value = '';
+    assistent.verstuur(vraag);
+    return;
+  }
+
   if (form.id === 'loginForm') {
     e.preventDefault();
     await verwerkLogin(form);
@@ -1345,6 +1400,34 @@ async function onSubmit(e) {
 async function onClick(e) {
   const el = e.target.closest('button, a');
   if (!el) return;
+
+  /* --- Aizy-assistent --- */
+  if (el.dataset.assistent) {
+    const a = el.dataset.assistent;
+    if (a === 'toggle') assistent.toggle();
+    else if (a === 'open') assistent.open();
+    else if (a === 'sluit') assistent.sluit();
+    else if (a === 'pin') assistent.zetPositie('vastgezet');
+    else if (a === 'unpin') assistent.zetPositie('zwevend');
+    else if (a === 'inklap') assistent.toggleInklap();
+    else if (a === 'nieuw') assistent.nieuwGesprek();
+    else if (a === 'wis') assistent.wisGeschiedenis();
+    return;
+  }
+  if (el.dataset.assistentVraag) { assistent.verstuur(el.dataset.assistentVraag); return; }
+  if (el.dataset.assistentInstelling) {
+    const i = el.dataset.assistentInstelling;
+    if (i === 'zichtbaar-aan') assistent.zetZichtbaar(true);
+    else if (i === 'zichtbaar-uit') assistent.zetZichtbaar(false);
+    else if (i === 'positie-zwevend') assistent.zetPositie('zwevend');
+    else if (i === 'positie-vastgezet') assistent.zetPositie('vastgezet');
+    else if (i === 'modus-demo') assistent.zetModus('demo');
+    else if (i === 'modus-extern') { assistent.zetModus('extern'); toast('De externe provider is voorbereid, maar nog niet beschikbaar. De demo blijft actief.', { variant: 'info' }); }
+    else if (i === 'wis') { assistent.wisGeschiedenis(); toast('Gespreksgeschiedenis gewist.'); }
+    return;
+  }
+  // De navigatielinks van de assistent zijn gewone ankers; die laten we los
+  // zodat de bestaande router de route opent (en de assistent open blijft).
 
   /* --- Inlogscherm --- */
   if (el.classList.contains('demo-account')) {
@@ -1996,7 +2079,21 @@ function zoekGlobaal(term) {
    --------------------------------------------------------------- */
 
 function onKeydown(e) {
+  // Sneltoets voor de assistent (⌘/Ctrl + Shift + A); ⌘/Ctrl + K blijft zoeken.
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+    e.preventDefault();
+    if (getCurrentUser()) assistent.toggle();
+    return;
+  }
+
   if (e.key !== 'Escape') return;
+
+  // Een zwevend, geopend assistentpaneel sluit met Escape; vastgezet blijft staan.
+  if (!assistent.isVastgezet() && assistent.isOpen()) {
+    assistent.sluit();
+    document.getElementById('assistentLauncher')?.focus();
+    return;
+  }
 
   const zoekResultaat = document.getElementById('zoekResultaat');
   if (zoekResultaat) { zoekResultaat.remove(); return; }

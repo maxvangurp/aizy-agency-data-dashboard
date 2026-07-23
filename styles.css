@@ -3049,3 +3049,167 @@ body[data-shell='app'] { overflow-x: hidden; }
 .paneel-form-inline { display: flex; align-items: flex-end; gap: var(--space-2); flex-wrap: wrap; }
 .paneel-form-inline .veld { margin: 0; flex: 1; min-width: 140px; }
 .beoordeel-form { margin-top: var(--space-2); display: grid; gap: var(--space-2); }
+
+/* =========================================================
+   AIZY-ASSISTENT — contextbewuste hulp op iedere pagina.
+   Launcher, zwevend paneel, vastgezette stand, berichten en
+   suggesties. Past binnen het designsysteem; subtiel accent,
+   rustige oppervlakken, geen chatbot-esthetiek.
+   ========================================================= */
+
+.assistent-laag { position: relative; z-index: 60; }
+
+/* ---------- Launcher ---------- */
+.assistent-launcher {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--aizy-gradient);
+  box-shadow: 0 8px 22px rgba(105, 53, 204, 0.35);
+  cursor: pointer;
+  z-index: 62;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.assistent-launcher:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(255, 71, 216, 0.38); }
+.assistent-launcher:focus-visible { outline: 2px solid var(--aizy-magenta-light); outline-offset: 3px; }
+.assistent-launcher.is-open { opacity: 0; pointer-events: none; }
+.assistent-indicator {
+  position: absolute; top: 4px; right: 4px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--aizy-cyan); border: 2px solid var(--surface);
+}
+
+/* ---------- Paneel ---------- */
+.assistent-paneel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 380px;
+  max-width: calc(100vw - 40px);
+  max-height: min(72vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-raised);
+  z-index: 63;
+  overflow: hidden;
+}
+.assistent-paneel.is-vastgezet {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  max-width: 40vw;
+  max-height: 100vh;
+  border-radius: 0;
+  border-left: 1px solid var(--border);
+}
+/* Vastgezet duwt de content in plaats van eroverheen te vallen. */
+body[data-assistent='vast'] .app-grid { padding-right: 360px; }
+
+.assistent-paneel.is-ingeklapt { max-height: none; }
+
+.assistent-kop {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-2); padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.assistent-titel { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.assistent-titel svg { color: var(--accent); }
+.assistent-kop-acties { display: flex; align-items: center; gap: 2px; }
+
+.assistent-contextbalk {
+  margin: 0; padding: 8px 12px; font-size: 12px; color: var(--ink-muted);
+  background: var(--surface-sunken); border-bottom: 1px solid var(--border);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.assistent-contextwissel {
+  margin: 0; padding: 6px 12px; font-size: 12px; font-weight: 600;
+  color: var(--accent); background: var(--accent-soft);
+}
+
+.assistent-gesprek { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+
+.assistent-start { display: grid; gap: 8px; }
+.assistent-begroeting { margin: 0; font-weight: 700; font-size: 15px; }
+.assistent-insight { margin: 0; font-size: 13px; color: var(--ink-muted); }
+
+.assistent-berichten { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.assistent-bericht { display: grid; gap: 4px; }
+.assistent-bericht.is-gebruiker { justify-items: end; }
+.assistent-bel {
+  max-width: 92%;
+  padding: 9px 12px; border-radius: 14px; font-size: 13px; line-height: 1.5;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+}
+.assistent-bel p { margin: 0; }
+.assistent-bericht.is-gebruiker .assistent-bel {
+  background: var(--aizy-gradient); color: #fff; border: 0; border-bottom-right-radius: 4px;
+}
+.assistent-bericht.is-assistent .assistent-bel { border-bottom-left-radius: 4px; }
+.assistent-moment { font-size: 10px; color: var(--ink-subtle); }
+
+.assistent-cijfers { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.assistent-cijfers > div {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 4px 8px; display: grid; gap: 0;
+}
+.assistent-cijfers dt { font-size: 10px; color: var(--ink-subtle); text-transform: uppercase; letter-spacing: 0.03em; }
+.assistent-cijfers dd { margin: 0; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.assistent-punten { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.assistent-punten li { font-size: 12px; }
+.assistent-beperking { margin: 8px 0 0; font-size: 11px; color: var(--ink-subtle); font-style: italic; }
+
+.assistent-acties { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.assistent-suggesties { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.assistent-chip {
+  border: 1px solid var(--border); background: var(--surface);
+  border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+  color: var(--ink); cursor: pointer; text-align: left;
+}
+.assistent-chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+.assistent-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.assistent-invoer {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  border-top: 1px solid var(--border); background: var(--surface);
+}
+.assistent-invoer input {
+  flex: 1; min-width: 0; height: 38px;
+  border: 1px solid var(--border); background: var(--surface-sunken);
+  border-radius: 999px; padding: 0 14px; font-size: 13px;
+}
+.assistent-invoer input:focus { border-color: var(--accent); outline: none; }
+.assistent-invoer .icoonknop { background: var(--aizy-gradient); color: #fff; border: 0; flex-shrink: 0; }
+
+/* Laadstate: drie rustige puntjes, geen lange kunstmatige vertraging. */
+.assistent-laadt { display: inline-flex; gap: 4px; }
+.assistent-laadt span {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--ink-subtle);
+  animation: assistentPuls 1s infinite ease-in-out;
+}
+.assistent-laadt span:nth-child(2) { animation-delay: 0.15s; }
+.assistent-laadt span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes assistentPuls { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+
+/* ---------- Mobiel: bottom sheet ---------- */
+@media (max-width: 768px) {
+  body[data-assistent] .app-grid { padding-right: 0; }
+  .assistent-paneel,
+  .assistent-paneel.is-vastgezet {
+    position: fixed; inset: auto 0 0 0;
+    width: 100%; max-width: 100%; height: auto; max-height: 85vh;
+    border-radius: 16px 16px 0 0; border-left: 0;
+  }
+  .assistent-launcher { right: 16px; bottom: 16px; }
+}
