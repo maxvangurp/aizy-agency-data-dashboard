@@ -189,6 +189,63 @@ test.describe('Responsieve shell', () => {
 });
 
 /* ---------------------------------------------------------------
+   Layout-herindeling en progressive disclosure
+   --------------------------------------------------------------- */
+
+test.describe('Layout-herindeling', () => {
+  test('de samenwerkingssectie toont drie kolommen naast een contactzijkaart', async ({ page }) => {
+    await login(page, ACCOUNTS.klantAdmin);
+    await ga(page, '#/client/report?tab=rapportages', { wacht: 600 });
+
+    await expect(page.locator('.samenwerk-kolom')).toHaveCount(3);
+    await expect(page.locator('.samenwerk-contact')).toHaveCount(1);
+    // De drie kolommen staan op desktop naast elkaar (gelijke bovenkant).
+    const tops = await page.locator('.samenwerk-kolom').evaluateAll(
+      (els) => els.map((e) => Math.round(e.getBoundingClientRect().top))
+    );
+    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(2);
+  });
+
+  test('op smal scherm stapelen de samenwerkingskolommen', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(page, ACCOUNTS.klantAdmin);
+    await ga(page, '#/client/report?tab=rapportages', { wacht: 600 });
+
+    const tops = await page.locator('.samenwerk-kolom').evaluateAll(
+      (els) => els.map((e) => Math.round(e.getBoundingClientRect().top))
+    );
+    // Gestapeld: de bovenkanten verschillen duidelijk.
+    expect(Math.max(...tops) - Math.min(...tops)).toBeGreaterThan(20);
+  });
+
+  test('een ingeklapte sectie houdt zijn titel als vindbare kop', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/clients/vitaalpunt', { wacht: 700 });
+
+    const uitklap = page.locator('.uitklap').first();
+    await expect(uitklap).toBeVisible();
+    // De titel is een kop (role=heading) en dus met een screenreader vindbaar.
+    const kop = uitklap.locator('.uitklap-titel');
+    await expect(kop).toHaveAttribute('role', 'heading');
+
+    // Openklappen toont de inhoud.
+    const openVoor = await uitklap.evaluate((el) => el.open);
+    await uitklap.locator('summary').click();
+    await page.waitForTimeout(200);
+    const openNa = await uitklap.evaluate((el) => el.open);
+    expect(openNa).toBe(!openVoor);
+  });
+
+  test('de funnel krijgt meer hoogte dan een compacte grafiek', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/clients/vitaalpunt', { wacht: 700 });
+    const funnelHoogte = await page.locator('#chart-lead-funnel')
+      .evaluate((el) => Math.round(el.parentElement.getBoundingClientRect().height));
+    expect(funnelHoogte).toBeGreaterThanOrEqual(300);
+  });
+});
+
+/* ---------------------------------------------------------------
    Thema's blijven leesbaar
    --------------------------------------------------------------- */
 

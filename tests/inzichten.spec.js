@@ -375,9 +375,9 @@ test.describe('Klantgerichte weergave', () => {
     await login(page, ACCOUNTS.klantAdmin);
     await ga(page, '#/client/report?tab=rapportages');
 
-    await expect(page.getByRole('heading', { name: 'Wat ik deze periode deed' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Wat ik hierna ga doen' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Wat ik van je nodig heb' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Wat Aizy deze periode deed' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Wat Aizy hierna gaat doen' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Wat wij van je nodig hebben' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Wat we niet kunnen meten' })).toBeVisible();
   });
 

@@ -84,8 +84,10 @@ test.describe('Hoveruitleg', () => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients/vitaalpunt', { wacht: 700 });
 
-    // Een kolomkop rechts in een brede tabel: de tooltip mag niet buiten beeld vallen.
-    await page.locator('[data-tip]').last().hover();
+    // De meest rechtse zichtbare KPI-uitleg: de tooltip mag niet buiten beeld
+    // vallen, ook niet vlak bij de rechterrand.
+    const zichtbaar = page.locator('.kpi-row').first().locator('[data-tip]').last();
+    await zichtbaar.hover();
     await page.waitForTimeout(300);
     const binnen = await page.locator('#aizyTooltip').evaluate((el) => {
       const r = el.getBoundingClientRect();

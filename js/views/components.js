@@ -238,6 +238,72 @@ export function metriekKolom(key, label = null) {
  * van de contrastwaarschuwing op enkele lichte reekskleuren: de waarden zijn
  * altijd ook zonder kleur af te lezen.
  */
+/**
+ * Semantische grafiekhoogtes.
+ *
+ * Niet elke grafiek verdient dezelfde hoogte. Een funnel met zeven stappen heeft
+ * verticale ruimte nodig om leesbaar te blijven; een compacte verdeling met een
+ * paar balken wordt juist rustiger met minder hoogte. Views kiezen hieruit in
+ * plaats van overal 260 te herhalen.
+ */
+export const ChartHoogte = {
+  compact: 200,
+  verdeling: 230,
+  trend: 270,
+  funnel: 320,
+  groot: 360,
+};
+
+/**
+ * Progressive-disclosure sectie.
+ *
+ * Ondersteunende of technische informatie hoeft niet altijd open te staan. Deze
+ * component vouwt een sectie in achter een duidelijke samenvattingsregel, zodat
+ * de belangrijkste informatie boven de vouw blijft en de pagina korter wordt —
+ * zonder iets te verbergen.
+ *
+ * @param {string} titel        de kop van de sectie
+ * @param {string} inhoud       de HTML die verschijnt bij openklappen
+ * @param {{open?: boolean, samenvatting?: string, id?: string}} opties
+ */
+export function uitklap(titel, inhoud, { open = false, samenvatting = '', id = null } = {}) {
+  // De titel draagt role="heading": ook ingeklapt blijft de sectie in de
+  // koppenstructuur staan en is hij met een screenreader en per rol te vinden.
+  return `<details class="uitklap card"${open ? ' open' : ''}${id ? ` id="${esc(id)}"` : ''}>
+    <summary class="uitklap-kop">
+      <span class="uitklap-titel" role="heading" aria-level="2">${esc(titel)}</span>
+      ${samenvatting ? `<span class="uitklap-samenvatting muted klein">${esc(samenvatting)}</span>` : ''}
+      <span class="uitklap-pijl" aria-hidden="true">▾</span>
+    </summary>
+    <div class="uitklap-inhoud">${inhoud}</div>
+  </details>`;
+}
+
+/**
+ * Samenwerkingssectie: drie gelijkwaardige kolommen met een contactzijkaart.
+ *
+ * "Wat is er gedaan", "wat komt hierna" en "wat is er van je nodig" horen bij
+ * elkaar en zijn even belangrijk; ze naast elkaar zetten leest sneller dan vier
+ * grote kaarten onder elkaar. De contactpersoon staat als compacte zijkaart
+ * ernaast. Op smalle schermen stapelt alles.
+ *
+ * @param {{titel: string, items: string[], leeg?: string, accent?: boolean}[]} kolommen
+ * @param {string} [contact] al opgemaakte HTML van de contactpersoon
+ */
+export function samenwerkingsGrid(kolommen, contact = '') {
+  const kolom = (k) => `<section class="samenwerk-kolom${k.accent ? ' is-accent' : ''}">
+    <h3>${esc(k.titel)}</h3>
+    ${k.items?.length
+      ? `<ul class="samenwerk-lijst">${k.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`
+      : `<p class="empty klein">${esc(k.leeg ?? 'Niets te melden voor deze periode.')}</p>`}
+  </section>`;
+
+  return `<div class="samenwerk-blok${contact ? ' met-contact' : ''}">
+    <div class="samenwerk-kolommen">${kolommen.map(kolom).join('')}</div>
+    ${contact ? `<aside class="samenwerk-contact">${contact}</aside>` : ''}
+  </div>`;
+}
+
 export function figure(id, titel, subtitel, tabelHtml, bron, hoogte = 260, { conclusie = null } = {}) {
   return `<figure class="chart-figure card">
     <figcaption>

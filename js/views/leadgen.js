@@ -15,7 +15,7 @@
 import { lineChart, barChart, funnelChart } from '../charts.js';
 import {
   fmt, esc, kpi, kpiMetriek, tabel, figure, renderBudget, ontbrekendeCel, metriekKolom,
-  doelRij, doelVoortgang, badge,
+  doelRij, doelVoortgang, badge, uitklap, ChartHoogte,
 } from './components.js';
 import { renderInzichten } from './insight-cards.js';
 import { toonKorteDatum, toonBereik } from '../filters/period.js';
@@ -166,7 +166,7 @@ function renderFunnel(dashboard) {
       'Percentage dat doorstroomt naar de volgende stap. De absolute aantallen staan in de tabelweergave.',
       tabelHtml,
       'Advertentiekanalen, Google Analytics 4 en CRM',
-      340
+      ChartHoogte.funnel
     )}
     <div class="banner banner-warning" role="note">
       <strong>Knelpunt</strong>
@@ -397,8 +397,9 @@ function renderWebsitegedrag(dashboard) {
   const label = vgl(dashboard);
   const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, drill: true, ...opties });
 
-  return `<section class="card">
-    <h2>Website en gebruikersgedrag</h2>
+  // Websitegedrag is verdiepende context onder de kerncijfers: standaard
+  // ingeklapt, zodat de belangrijkste informatie boven de vouw blijft.
+  return uitklap('Website en gebruikersgedrag', `
     <div class="kpi-row">
       ${m('users', { label: 'Gebruikers' })}
       ${kpi('Nieuwe gebruikers', fmt.getal(totalen.newUsers), 'binnen de geselecteerde periode')}
@@ -443,7 +444,7 @@ function renderWebsitegedrag(dashboard) {
       ${tabel(['Land', 'Gebruikers', 'Leads'], (v?.landen ?? []).map((l) => [esc(l.land), fmt.getal(l.gebruikers), fmt.getal(l.leads)]))}
     </div>
     <p class="muted note">Bron: Google Analytics 4. De verdelingen schalen mee met de geselecteerde periode.</p>
-  </section>`;
+  `, { samenvatting: 'Landingspagina’s, bron/medium, apparaten, regio’s en landen' });
 }
 
 function veiligRatio(teller, noemer) {
@@ -459,8 +460,7 @@ function renderGoogleBusinessProfile(dashboard) {
   const gbp = dashboard.profiel?.googleBusinessProfile;
   if (!gbp) return '';
 
-  return `<section class="card">
-    <h2>Lokale zichtbaarheid</h2>
+  return uitklap('Lokale zichtbaarheid', `
     ${!gbp.koppelingBeschikbaar
       ? `<div class="banner banner-info" role="note">
           <strong>Toekomstige koppeling</strong>
@@ -474,7 +474,7 @@ function renderGoogleBusinessProfile(dashboard) {
       ${kpi('Websiteklikken', fmt.getal(gbp.websiteklikken), 'in de geselecteerde periode')}
     </div>
     <p class="muted note">Bron: Google Business Profile, demodata.</p>
-  </section>`;
+  `, { samenvatting: 'Google Business Profile · demodata' });
 }
 
 /* ---------------------------------------------------------------

@@ -24,7 +24,7 @@ import { renderEcommerceClient, drawEcommerceCharts } from './ecommerce.js';
 import { renderAwarenessClient, drawAwarenessCharts } from './awareness.js';
 import { can, Permission } from '../auth/permissions.js';
 import { primaireRol } from '../auth/domain.js';
-import { fmt, esc, tabel, badge, ontbrekendeCel, metriekKolom } from './components.js';
+import { fmt, esc, tabel, badge, ontbrekendeCel, metriekKolom, samenwerkingsGrid, uitklap } from './components.js';
 import { renderContextheader, renderMedewerker } from './context-header.js';
 import { renderInzichten } from './insight-cards.js';
 import { toonBereik } from '../filters/period.js';
@@ -288,50 +288,56 @@ export function renderClientConversions({ dashboard, filterbalk = '' }) {
 
 export function renderClientReport({ dashboard, verhaal, filterbalk = '' }) {
   if (!dashboard) return null;
-  const { client, periode, vergelijking, vergelijkingActief } = dashboard;
 
-  const blok = (titel, items) => `
-    <section class="card">
-      <h2>${esc(titel)}</h2>
-      ${!items?.length
-        ? '<p class="empty">Niets te melden voor deze periode.</p>'
-        : `<ul class="verhaal-lijst">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`}
-    </section>`;
-
-  const ondertitel = vergelijkingActief
-    ? `${toonBereik(periode.startDate, periode.endDate)}, vergeleken met ${toonBereik(vergelijking.startDate, vergelijking.endDate)}.`
-    : `${toonBereik(periode.startDate, periode.endDate)}, zonder vergelijking.`;
+  // De drie samenwerkingsvragen — wat gedaan is, wat er hierna gebeurt en wat
+  // er van de klant nodig is — zijn even belangrijk en horen naast elkaar. De
+  // contactpersoon staat als compacte zijkaart ernaast.
+  const contact = renderContactpersoonKaart(dashboard);
+  const samenwerking = samenwerkingsGrid([
+    { titel: 'Wat Aizy deze periode deed', items: verhaal?.gedaan },
+    { titel: 'Wat Aizy hierna gaat doen', items: verhaal?.volgende, leeg: 'De vervolgstappen worden in het eerstvolgende overleg vastgelegd.' },
+    { titel: 'Wat wij van je nodig hebben', items: verhaal?.vanKlant, leeg: 'Op dit moment hebben we niets van je nodig.', accent: true },
+  ], contact);
 
   return `
-    ${klantKop(dashboard, { pagina: 'Rapportages', ondertitel })}
     ${filterbalk}
     ${verhaal ? renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd' }) : ''}
-    ${blok('Wat ik deze periode deed', verhaal?.gedaan)}
-    ${blok('Wat ik hierna ga doen', verhaal?.volgende)}
-    ${blok('Wat ik van je nodig heb', verhaal?.vanKlant)}
+    <section class="card">
+      <h2>Samenwerking deze periode</h2>
+      <p class="muted">Wat er is gedaan, wat er hierna gebeurt en wat wij van je nodig hebben — naast elkaar.</p>
+      ${samenwerking}
+    </section>
     ${renderMeetbeperkingen(verhaal)}
-    ${renderContactpersoon(dashboard)}
   `;
+}
+
+/** Compacte contactkaart voor in de samenwerkingssectie. */
+function renderContactpersoonKaart(dashboard) {
+  const persoon = dashboard.team?.primair;
+  if (!persoon) return '';
+  return `<h3>Je contactpersoon</h3>
+    ${renderMedewerker(persoon)}
+    <p class="muted klein">Vragen over deze rapportage kun je rechtstreeks aan ${esc(persoon.firstName)} stellen.</p>`;
 }
 
 function renderMeetbeperkingen(verhaal) {
   const beperkingen = verhaal?.meetbeperkingen ?? [];
   if (!beperkingen.length) {
-    return `<section class="card">
-      <h2>Wat we niet kunnen meten</h2>
-      <p class="empty">Alle bronnen leverden binnen deze periode volledige gegevens.</p>
-    </section>`;
+    // Geen beperkingen: dit is geruststellende, secundaire informatie en mag
+    // ingeklapt staan.
+    return uitklap('Wat we niet kunnen meten', '<p class="empty">Alle bronnen leverden binnen deze periode volledige gegevens.</p>', {
+      samenvatting: 'Alle bronnen compleet',
+    });
   }
 
-  return `<section class="card">
-    <h2>Wat we niet kunnen meten</h2>
-    <ul class="verhaal-lijst">
+  return uitklap('Wat we niet kunnen meten',
+    `<ul class="verhaal-lijst">
       ${beperkingen.map((b) => `<li>
         <strong>${esc(b.titel)}</strong>
         <span class="muted klein">${esc(b.samenvatting)}</span>
       </li>`).join('')}
-    </ul>
-  </section>`;
+    </ul>`,
+    { open: true, samenvatting: `${beperkingen.length} ${beperkingen.length === 1 ? 'beperking' : 'beperkingen'}` });
 }
 
 /* ---------------------------------------------------------------
