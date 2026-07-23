@@ -167,6 +167,7 @@ function kpiRij(dashboard, keys) {
   return `<div class="kpi-row">
     ${keys.map((k) => kpiMetriek(dashboard.totalen, k, dashboard.deltas, {
       vergelijkingLabel: dashboard.vergelijkingActief ? dashboard.vergelijking.label.toLowerCase() : 'de vorige periode',
+      drill: true,
     })).join('')}
   </div>`;
 }

@@ -87,7 +87,7 @@ function renderMeldingen(dashboard) {
 function renderKerncijfers(dashboard) {
   const { totalen, deltas } = dashboard;
   const label = vgl(dashboard);
-  const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, ...opties });
+  const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, drill: true, ...opties });
 
   return `<div class="kpi-row">
     ${m('spend', { label: 'Spend' })}
@@ -395,7 +395,7 @@ function renderWebsitegedrag(dashboard) {
   const { totalen, deltas } = dashboard;
   const v = dashboard.profiel?.verdelingen;
   const label = vgl(dashboard);
-  const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, ...opties });
+  const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, drill: true, ...opties });
 
   return `<section class="card">
     <h2>Website en gebruikersgedrag</h2>

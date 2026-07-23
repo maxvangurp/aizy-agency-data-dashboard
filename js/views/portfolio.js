@@ -34,6 +34,30 @@ import { dashboardtypeTerm, budgetstatusTerm, betrouwbaarheidTerm, Betrouwbaarhe
 import { DekkingStatus, PacingStatus } from '../data/selectors.js';
 import { SignaalStatus } from '../model/signals.js';
 import { ActieStatus } from '../model/actions.js';
+import { tipTekstAttrs } from '../ui/tooltip.js';
+
+/**
+ * De factoren achter de status van een klant, als uitlegbare tooltip.
+ * Een gekleurde badge zonder uitleg dwingt de lezer tot raden; deze popover
+ * toont de doelen, het budget, de meting en de openstaande signalen die de
+ * status bepaalden.
+ */
+export function statusUitlegAttr(s) {
+  const factoren = [];
+  const achter = (s.doelen ?? []).filter((d) => d.actueel != null && d.target != null && !doelGehaald(d));
+  if (achter.length) factoren.push(`${achter.length} van ${(s.doelen ?? []).filter((d) => d.actueel != null).length} doelen onder doel`);
+  else factoren.push('Alle meetbare doelen op of boven doel');
+  if (s.client.trackingStatus === 'probleem') factoren.push(`Meting onvolledig: datakwaliteit ${s.client.dataHealth} procent`);
+  if (s.budget?.status === PacingStatus.BOVEN_BUDGET) factoren.push('Budget boven planning');
+  if (s.budget?.status === PacingStatus.ONDER_BUDGET) factoren.push('Budget onder planning');
+  if ((s.openSignalen ?? 0) > 0) factoren.push(`${s.openSignalen} openstaand signaal`);
+  return tipTekstAttrs(`Waarom ${s.status.label.toLowerCase()}?`, factoren);
+}
+
+function doelGehaald(d) {
+  if (d.richting === 'binnen' || d.richting === 'lager') return d.actueel <= d.target;
+  return d.actueel >= d.target;
+}
 
 export const PORTEFEUILLE_TABS = [
   { key: 'overzicht', label: 'Overzicht' },
@@ -150,7 +174,8 @@ export function prioriteitenDefinitie({
         waarde: (s) => s.status.label,
         groepWaarde: (s) => s.status.label,
         groepeerbaar: true,
-        cel: (s) => `${badge(s.status.label, s.status.variant)}<br><span class="muted klein">${esc(s.status.reden)}</span>`,
+        cel: (s) => `<span ${statusUitlegAttr(s)}>${badge(s.status.label, s.status.variant)}</span>`
+          + `<br><span class="muted klein">${esc(s.status.reden)}</span>`,
       }),
       kolom('ernst', 'Ernst', {
         waarde: (s) => s.prioriteit.punten,

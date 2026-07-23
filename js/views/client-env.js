@@ -158,16 +158,23 @@ export function renderClientChannels({ dashboard, filterbalk = '' }) {
       : ['Kanaal', metriekKolom('spend'), metriekKolom('impressions'), metriekKolom('reach'),
         metriekKolom('frequentie'), metriekKolom('cpm')];
 
+  // De kanaalnaam is een cross-filter: een klik beperkt de hele pagina tot dit
+  // kanaal, zodat trend, tabel en inzichten meebewegen. De actieve selectie
+  // blijft zichtbaar in de contextbalk en is daar te wissen.
+  const kanaalCel = (k) => (k.channel
+    ? `<button type="button" class="link" data-kanaalfilter="${esc(k.channel)}" title="Toon alleen ${esc(k.label)}">${esc(k.label)}</button>`
+    : esc(k.label));
+
   const rij = (k) => (model === 'ecommerce'
-    ? [esc(k.label), fmt.euro(k.spend), fmt.getal(k.sessions), fmt.getal(k.purchases),
+    ? [kanaalCel(k), fmt.euro(k.spend), fmt.getal(k.sessions), fmt.getal(k.purchases),
       fmt.euro(k.revenue), k.roas == null ? ontbrekendeCel('onvoldoende_data') : fmt.ratio(k.roas),
       k.cpa == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro2(k.cpa)]
     : model === 'leadgen'
-      ? [esc(k.label), fmt.euro(k.spend), fmt.getal(k.clicks), fmt.getal(k.leads),
+      ? [kanaalCel(k), fmt.euro(k.spend), fmt.getal(k.clicks), fmt.getal(k.leads),
         k.cpl == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro2(k.cpl),
         k.qualifiedLeads == null ? ontbrekendeCel('niet_gekoppeld') : fmt.getal(k.qualifiedLeads),
         k.cpql == null ? ontbrekendeCel('niet_gekoppeld') : fmt.euro2(k.cpql)]
-      : [esc(k.label), fmt.euro(k.spend), fmt.getal(k.impressions),
+      : [kanaalCel(k), fmt.euro(k.spend), fmt.getal(k.impressions),
         k.reach == null ? ontbrekendeCel('niet_gemeten') : fmt.getal(k.reach),
         k.frequentie == null ? ontbrekendeCel('onvoldoende_data') : fmt.ratio(k.frequentie),
         k.cpm == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro2(k.cpm)]);

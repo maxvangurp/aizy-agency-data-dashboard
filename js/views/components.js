@@ -10,6 +10,7 @@
  */
 
 import { metriekMeta, Formaat, DeltaStatus } from '../data/metrics.js';
+import { heeftDrilldown } from '../data/metrics-catalog.js';
 import { PacingStatus } from '../data/selectors.js';
 import { ontbrekendTerm, budgetstatusTerm, KLANTSTATUSSEN } from '../terminology.js';
 
@@ -91,18 +92,27 @@ export function deltaTekst(delta, vergelijkingLabel = 'de vorige periode') {
  * in woorden, het percentage en waarmee vergeleken wordt.
  */
 export function kpi(label, waarde, sub = '', richting = 'neutraal', {
-  kort = null, uitleg = '', detail = null,
+  kort = null, uitleg = '', detail = null, tip = null, tipWaarde = null, tipVorig = null,
+  drill = null,
 } = {}) {
   const uitlegId = uitleg ? `kpi-${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-uitleg` : null;
 
-  return `<article class="card kpi" data-label="${esc(label)}"${uitleg ? ` aria-describedby="${esc(uitlegId)}"` : ''}>
-    <span class="kpi-label">
+  // De labeltekst wordt een tooltiptrigger wanneer er een metrieksleutel bij
+  // hoort: definitie, formule en cijfers komen dan uit de centrale catalogus.
+  const tipAttr = tip
+    ? `data-tip="${esc(tip)}" tabindex="0"${tipWaarde != null ? ` data-tip-waarde="${esc(tipWaarde)}"` : ''}${tipVorig != null ? ` data-tip-vorig="${esc(tipVorig)}"` : ''}`
+    : '';
+
+  return `<article class="card kpi${drill ? ' kpi-drilbaar' : ''}" data-label="${esc(label)}"${uitleg ? ` aria-describedby="${esc(uitlegId)}"` : ''}>
+    <span class="kpi-label${tip ? ' kpi-label-tip' : ''}"${tipAttr ? ` ${tipAttr}` : ''}>
       ${esc(label)}
-      ${kort ? `<abbr class="kpi-kort" title="${esc(uitleg || label)}">${esc(kort)}</abbr>` : ''}
+      ${kort ? `<abbr class="kpi-kort">${esc(kort)}</abbr>` : ''}
+      ${tip ? '<span class="kpi-info" aria-hidden="true">i</span>' : ''}
     </span>
     <span class="kpi-value">${esc(waarde)}</span>
     <span class="kpi-sub trend-${esc(richting)}">${esc(sub)}</span>
     ${uitleg ? `<span class="kpi-uitleg" id="${esc(uitlegId)}">${esc(uitleg)}</span>` : ''}
+    ${drill ? `<button type="button" class="kpi-drill" data-drill="${esc(drill)}">Bekijk opbouw <span aria-hidden="true">→</span></button>` : ''}
     ${detail ? `<a class="kpi-detail link-klein" href="${esc(detail.href)}">${esc(detail.tekst)}</a>` : ''}
   </article>`;
 }
@@ -118,15 +128,28 @@ export function kpi(label, waarde, sub = '', richting = 'neutraal', {
  */
 export function kpiMetriek(totalen, key, deltas, {
   label = null, leegTekst = 'Onvoldoende data', leegSub = 'Niet gemeten in deze periode',
-  vergelijkingLabel = 'de vorige periode', detail = null,
+  vergelijkingLabel = 'de vorige periode', detail = null, drill = false,
 } = {}) {
   const meta = metriekMeta(key);
   const waarde = totalen?.[key];
   const delta = deltas?.[key];
-  const opmaak = { kort: meta.kort ?? null, uitleg: meta.uitleg ?? '', detail };
+  const kanDrill = drill && heeftDrilldown(key);
+
+  // De uitleg blijft ook als vaste tekst op de kaart staan: essentiële
+  // informatie mag nooit alleen in een tooltip leven. De tooltip vult die uitleg
+  // aan met de formule, de cijfers en de bron.
+  const opmaak = {
+    kort: meta.kort ?? null,
+    uitleg: meta.uitleg ?? '',
+    detail,
+    tip: key,
+    tipWaarde: waarde == null ? null : formatteerMetriek(waarde, meta.formaat),
+    tipVorig: delta?.vorig == null ? null : formatteerMetriek(delta.vorig, meta.formaat),
+    drill: kanDrill ? key : null,
+  };
 
   if (waarde == null) {
-    return kpi(label ?? meta.label, leegTekst, leegSub, 'neutraal', opmaak);
+    return kpi(label ?? meta.label, leegTekst, leegSub, 'neutraal', { ...opmaak, drill: null });
   }
   return kpi(
     label ?? meta.label,
@@ -184,8 +207,14 @@ export function tabel(kolommen, rijen, { leegTekst = 'Geen gegevens beschikbaar.
   const kop = kolommen.map((k) => {
     const label = typeof k === 'string' ? k : k.label;
     const uitleg = typeof k === 'string' ? null : k.uitleg;
+    const key = typeof k === 'string' ? null : k.key;
+    // Een kolom met een metrieksleutel krijgt de rijke tooltip uit de catalogus;
+    // een kolom met alleen uitleg valt terug op een eenvoudige tekst-tooltip.
+    if (key) {
+      return `<th scope="col"><span class="kolom-tip" data-tip="${esc(key)}" tabindex="0">${esc(label)} <span class="kpi-info" aria-hidden="true">i</span></span></th>`;
+    }
     return uitleg
-      ? `<th scope="col"><span title="${esc(uitleg)}">${esc(label)}</span></th>`
+      ? `<th scope="col"><span class="kolom-tip" data-tip-text="${esc(uitleg)}" tabindex="0">${esc(label)}</span></th>`
       : `<th scope="col">${esc(label)}</th>`;
   }).join('');
 
@@ -195,10 +224,10 @@ export function tabel(kolommen, rijen, { leegTekst = 'Geen gegevens beschikbaar.
   </table>`;
 }
 
-/** Kolomkop uit de metriekmetadata, inclusief uitleg bij de afkorting. */
+/** Kolomkop uit de metriekmetadata, met de metrieksleutel voor de tooltip. */
 export function metriekKolom(key, label = null) {
   const meta = metriekMeta(key);
-  return { label: label ?? meta.label, uitleg: meta.uitleg ?? '' };
+  return { label: label ?? meta.label, uitleg: meta.uitleg ?? '', key };
 }
 
 /**

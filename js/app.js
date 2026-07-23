@@ -70,9 +70,12 @@ import {
   renderPaginatabs, renderDetailpaneel, actieveTab,
 } from './ui/app-shell.js';
 import { navigatieVoor, actiefItem, KANAALNAMEN, ANALYSE_TABS } from './ui/navigation.js';
-import { UiSleutel, leesUiParams, leesOverigeParams, combineerQuery, hashMetParam, leesPaneel, paneelWaarde, bewaarScroll, leesScroll } from './ui/url-state.js';
+import { UiSleutel, leesUiParams, leesOverigeParams, combineerQuery, hashMetParam, hashMetParams, leesPaneel, paneelWaarde, bewaarScroll, leesScroll } from './ui/url-state.js';
 import { toast, toastFout } from './ui/toast.js';
 import { emptyState } from './ui/states.js';
+import { bindTooltips } from './ui/tooltip.js';
+import { getMetriekOpbouw } from './data/breakdown.js';
+import { metriekOpbouwPaneel } from './ui/metric-breakdown.js';
 import { bindSlepen, registreerSleepdoel, bindKolombreedte, bindKolomvolgorde } from './ui/dnd.js';
 import * as grids from './ui/grid-controller.js';
 import { renderDataGrid } from './ui/data-grid.js';
@@ -167,6 +170,19 @@ function openPaneel(soort, id) {
 
 function sluitPaneel() {
   gaNaarParam(UiSleutel.PANEEL, null);
+}
+
+/**
+ * Opent de opbouw van een metriek in het detailpaneel.
+ * Op een agency-klantdetailpagina wordt de klant-id meegegeven, zodat de opbouw
+ * over die klant gaat en niet over de hele portefeuille.
+ */
+function openMetriek(metric) {
+  const pad = huidigPad();
+  const match = pad.match(/^\/agency\/clients\/([^/]+)$/);
+  const patch = { [UiSleutel.PANEEL]: paneelWaarde('metric', metric) };
+  if (match) patch.client = decodeURIComponent(match[1]);
+  navigeer(hashMetParams(window.location.hash, patch));
 }
 
 /* ---------------------------------------------------------------
@@ -1110,6 +1126,16 @@ function bouwDetailpaneel({ user, ctx, uiParams, omgeving }) {
     };
   }
 
+  // Metriekopbouw: het eerste verdiepingsniveau van een KPI. De opbouw wordt
+  // berekend binnen de actieve klant- of portefeuillecontext en dezelfde filters.
+  if (gevraagd.soort === 'metric') {
+    const clientId = omgeving === 'client'
+      ? getActieveKlantId() ?? primaireOrganisatieId(user)
+      : leesOverigeParams(parseQuery()).client ?? null;
+    const opbouw = getMetriekOpbouw(user, filters, gevraagd.id, { clientId });
+    return { open: true, ...metriekOpbouwPaneel(opbouw) };
+  }
+
   return null;
 }
 
@@ -1364,6 +1390,20 @@ async function onClick(e) {
   if (el.dataset.klantpaneel) { openPaneel('klant', el.dataset.klantpaneel); return; }
   if (el.dataset.actiepaneel) { openPaneel('actie', el.dataset.actiepaneel); return; }
   if (el.dataset.signaalpaneel) { openPaneel('signaal', el.dataset.signaalpaneel); return; }
+  if (el.dataset.drill) { openMetriek(el.dataset.drill); return; }
+
+  /* --- Cross-filtering op kanaal --- */
+  if (el.dataset.kanaalfilter) {
+    const huidig = getActieveFilters()?.filters.channels ?? [];
+    const alleen = [el.dataset.kanaalfilter];
+    // Klikken op het al enige geselecteerde kanaal heft de beperking op.
+    const doel = huidig.length === 1 && huidig[0] === el.dataset.kanaalfilter
+      ? getActieveFilters()?.toegestaneKanalen ?? alleen
+      : alleen;
+    pasFilterToe({ channels: doel });
+    toast(doel.length === 1 ? `Weergave beperkt tot ${kanaalLabel(doel[0])}.` : 'Kanaalfilter opgeheven.', { variant: 'info' });
+    return;
+  }
   if (el.dataset.klantomgeving) {
     if (setActieveKlantId(el.dataset.klantomgeving)) navigeer('#/client/overview');
     return;
@@ -2030,6 +2070,7 @@ async function init() {
   applyTheme();
   bindInteractie();
   bindSleepdoelen();
+  bindTooltips();
   grids.initGrids(render);
 
   // Iedere wijziging in de demo-opslag leidt tot één hertekening. Daardoor

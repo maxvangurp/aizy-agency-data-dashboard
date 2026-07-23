@@ -2264,3 +2264,70 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
    een expliciete display (grid/flex), die anders van het UA-standaardgedrag
    zou winnen en een ingeklapt formulier of paneel toch zou tonen. */
 [hidden] { display: none !important; }
+
+/* =========================================================
+   Metriekuitleg, tooltips en drill-down-opbouw.
+   ========================================================= */
+
+/* ---------- Tooltip ---------- */
+
+.tooltip {
+  position: absolute;
+  z-index: 200;
+  max-width: 300px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+  animation: tip-in 0.12s ease;
+}
+@keyframes tip-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+.tooltip[hidden] { display: none !important; }
+.tooltip-titel { font-weight: 700; margin: 0 0 4px; font-size: 13px; }
+.tooltip-regel { margin: 0 0 4px; }
+.tooltip-regel.muted { color: var(--ink-muted); }
+.tooltip-beperking { color: var(--waarschuwing); }
+.tooltip-cijfer { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 2px; }
+.tooltip-cijfer span { color: var(--ink-muted); }
+.tooltip-bron { margin: 6px 0 0; font-size: 11px; color: var(--ink-subtle); }
+
+/* ---------- Uitlegtriggers ---------- */
+
+.kpi-info {
+  display: inline-grid; place-items: center;
+  width: 14px; height: 14px; margin-left: 5px;
+  border-radius: 999px; border: 1px solid var(--border-strong);
+  font-size: 9px; font-weight: 700; font-style: normal;
+  color: var(--ink-subtle); vertical-align: middle;
+}
+.kpi-label-tip { cursor: help; }
+.kpi-label-tip:hover .kpi-info,
+.kpi-label-tip:focus-visible .kpi-info { border-color: var(--accent); color: var(--accent); }
+.kolom-tip { cursor: help; }
+[data-tip], [data-tip-text] { cursor: help; }
+.grid-sorteer[data-tip], .grid-sorteer[data-tip-text] { cursor: pointer; }
+
+/* ---------- Drilbare KPI ---------- */
+
+.kpi-drilbaar { position: relative; }
+.kpi-drill {
+  margin-top: 6px;
+  align-self: flex-start;
+  background: none; border: 0; padding: 0;
+  color: var(--accent); font-size: 12px; font-weight: 600;
+}
+.kpi-drill:hover { text-decoration: underline; }
+
+/* ---------- Opbouw in het detailpaneel ---------- */
+
+.opbouw-lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.opbouw-rij { display: grid; gap: 3px; }
+.opbouw-rij-kop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.opbouw-balk { background: var(--surface-sunken); border-radius: 999px; height: 6px; overflow: hidden; }
+.opbouw-balk > span { display: block; height: 100%; background: var(--aizy-gradient); }
+.bron-chip { font-size: 11px; color: var(--ink-subtle); cursor: help; border-bottom: 1px dotted var(--border-strong); }

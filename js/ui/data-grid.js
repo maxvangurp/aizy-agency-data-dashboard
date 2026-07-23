@@ -318,10 +318,15 @@ function renderKop(kolom, staat, grid) {
   const breedte = staat.breedtes[kolom.key];
   const vast = staat.vastgezet.includes(kolom.key);
 
+  // Een kolom met een metrieksleutel (tip) krijgt de rijke catalogustooltip,
+  // een kolom met alleen uitleg een eenvoudige tekst-tooltip.
+  const tipAttr = kolom.tip
+    ? `data-tip="${esc(kolom.tip)}"`
+    : kolom.uitleg ? `data-tip-text="${esc(kolom.uitleg)}"` : '';
+
   const inhoud = kolom.sorteerbaar === false
-    ? `<span${kolom.uitleg ? ` title="${esc(kolom.uitleg)}"` : ''}>${esc(kolom.label)}</span>`
-    : `<button type="button" class="grid-sorteer" data-grid-sorteer="${esc(grid)}" data-kolom="${esc(kolom.key)}"
-        ${kolom.uitleg ? `title="${esc(kolom.uitleg)}"` : ''}>
+    ? `<span${tipAttr ? ` ${tipAttr} tabindex="0"` : ''}>${esc(kolom.label)}</span>`
+    : `<button type="button" class="grid-sorteer" data-grid-sorteer="${esc(grid)}" data-kolom="${esc(kolom.key)}" ${tipAttr}>
         <span>${esc(kolom.label)}</span>
         <span class="sorteer-pijl" aria-hidden="true">${sortering === 'op' ? '↑' : sortering === 'af' ? '↓' : '↕'}</span>
       </button>`;

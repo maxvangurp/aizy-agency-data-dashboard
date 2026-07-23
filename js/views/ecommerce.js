@@ -47,7 +47,7 @@ export function renderEcommerceClient(dashboard, verhaal) {
   }
 
   const label = vgl(dashboard);
-  const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, ...opties });
+  const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, drill: true, ...opties });
 
   return `
     ${renderMeldingen(dashboard)}
