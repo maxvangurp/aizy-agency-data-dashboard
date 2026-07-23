@@ -2331,3 +2331,294 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
 .opbouw-balk { background: var(--surface-sunken); border-radius: 999px; height: 6px; overflow: hidden; }
 .opbouw-balk > span { display: block; height: 100%; background: var(--aizy-gradient); }
 .bron-chip { font-size: 11px; color: var(--ink-subtle); cursor: help; border-bottom: 1px dotted var(--border-strong); }
+
+/* =========================================================
+   VISUEEL SYSTEEM v2 — dashboardbrede afwerking.
+
+   Dit blok staat bewust achteraan zodat het als één samenhangend
+   systeem de losse, historisch gegroeide waarden overschrijft.
+   Het regelt tokens, typografie, contrast, hiërarchie, kaarten,
+   KPI's, tabellen, grafiekomgeving, inzichten, navigatie, drawers
+   en responsive ritme — zonder de structuur of functionaliteit te
+   wijzigen.
+   ========================================================= */
+
+:root {
+  /* Ononderbroken 4px-ritme, zodat spacing nooit een magische waarde is. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Layout */
+  --page-max-width: 1360px;
+  --page-padding-x: 28px;
+  --page-padding-y: 24px;
+  --section-gap: 20px;
+  --section-gap-compact: 12px;
+  --grid-gap: 16px;
+  --card-padding: 20px;
+  --card-padding-compact: 14px;
+  --control-height: 38px;
+  --content-reading-width: 68ch;
+
+  /* Typografische schaal */
+  --fs-page: 27px;
+  --fs-section: 18px;
+  --fs-card-title: 15px;
+  --fs-kpi: 28px;
+  --fs-kpi-primair: 34px;
+  --fs-body: 15px;
+  --fs-label: 12px;
+  --fs-micro: 12px;
+}
+
+/* Hogere contrastwaarden voor secundaire tekst: leesbaarheid mag niet louter
+   van een lagere opacity komen. */
+:root[data-theme='light'] {
+  --ink-muted: #4f495f;
+  --ink-subtle: #6a637d;
+  --border: #e2e5f0;
+  --border-strong: #c3c8db;
+  --shadow: 0 1px 2px rgba(22, 13, 39, 0.04), 0 6px 20px rgba(22, 13, 39, 0.05);
+  --shadow-raised: 0 2px 6px rgba(22, 13, 39, 0.07), 0 16px 40px rgba(22, 13, 39, 0.09);
+}
+:root[data-theme='dark'] {
+  --ink-muted: #bcb5d4;
+  --ink-subtle: #948daf;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-raised: 0 2px 8px rgba(0, 0, 0, 0.45), 0 20px 44px rgba(0, 0, 0, 0.38);
+}
+
+/* ---------- Basisritme ---------- */
+
+body { font-size: var(--fs-body); line-height: 1.5; }
+
+.page-root { padding: var(--page-padding-y) var(--page-padding-x); gap: var(--section-gap); max-width: var(--page-max-width); }
+.pagina-inhoud { gap: var(--section-gap); }
+
+/* Lange tekstuele analyse krijgt een leesbreedte; cijfers en tabellen niet. */
+.paginakop-sub,
+.verhaal-lijst,
+.lege-staat-uitleg,
+.card > p.muted { max-width: var(--content-reading-width); }
+
+/* ---------- Typografie ---------- */
+
+.paginakop h1 { font-size: var(--fs-page); font-weight: 700; letter-spacing: -0.025em; line-height: 1.15; }
+.paginakop-sub { font-size: var(--fs-body); color: var(--ink-muted); line-height: 1.45; }
+.card h2 { font-size: var(--fs-section); font-weight: 700; letter-spacing: -0.015em; }
+.card h3 { font-size: var(--fs-card-title); font-weight: 700; }
+.muted { color: var(--ink-muted); }
+.klein { font-size: var(--fs-micro); line-height: 1.4; }
+.eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-subtle); }
+
+/* ---------- Kaarten: één containment-systeem ---------- */
+
+.card {
+  padding: var(--card-padding);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+.card + .card { margin-top: 0; }
+.card h2 + .muted, .card h2 + p { margin-top: 4px; }
+
+/* Een sectie die geen eigen kaart nodig heeft (bijv. een rij KPI's) staat op de
+   pagina-achtergrond in plaats van in een tweede witte laag. */
+.kpi-row { margin: 0; }
+
+/* ---------- KPI's: drie duidelijke niveaus ---------- */
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--grid-gap);
+  align-items: stretch;
+}
+.kpi-row-5 { grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); }
+
+.card.kpi {
+  padding: var(--card-padding);
+  gap: 4px;
+  justify-content: flex-start;
+}
+.kpi-label {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.kpi-kort {
+  font-size: 11px; font-weight: 700; color: var(--ink-subtle);
+  text-decoration: none; letter-spacing: 0.02em;
+}
+.kpi-value {
+  font-size: var(--fs-kpi);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+.kpi-sub { font-size: 13px; color: var(--ink-muted); min-height: 1.2em; }
+.kpi-uitleg { font-size: 12px; line-height: 1.4; color: var(--ink-subtle); margin-top: 6px; }
+
+/* Primaire KPI: het belangrijkste bedrijfsresultaat krijgt meer gewicht. */
+.kpi-primair .kpi-value { font-size: var(--fs-kpi-primair); }
+.kpi-primair { border-left: 3px solid var(--accent); }
+
+/* Klikbare KPI en drill-affordance: subtiel maar herkenbaar. */
+.kpi-klikbaar, .kpi-drilbaar { transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease; }
+.kpi-klikbaar:hover, .kpi-drilbaar:hover { box-shadow: var(--shadow-raised); border-color: var(--border-strong); }
+.kpi-drill { margin-top: 8px; font-weight: 700; }
+.kpi-ingang { font-size: 12px; font-weight: 700; }
+
+/* ---------- Contextbalk: rustiger ritme ---------- */
+
+.contextbalk { padding: 10px var(--page-padding-x); gap: var(--space-3); }
+.contextknop { padding: 6px 12px; }
+.contextknop-label { font-size: 10px; letter-spacing: 0.04em; }
+.contextknop-waarde { font-size: 12px; font-weight: 700; }
+.contextbalk-filters { gap: 8px; }
+.zoekveld input { height: 34px; }
+
+/* ---------- Sidebar: leesbaarder, actief item minder schreeuwerig ---------- */
+
+.sidebar { padding: var(--space-4) var(--space-3); gap: var(--space-3); }
+.nav-groep-kop {
+  font-size: 10px; letter-spacing: 0.08em; color: var(--sidebar-ink-muted);
+  padding: 10px 10px 4px;
+}
+.nav-link { font-size: 14px; padding: 9px 11px; gap: 11px; border-radius: 10px; }
+.nav-link:hover { background: rgba(255, 255, 255, 0.09); color: #fff; }
+.nav-link.active {
+  background: linear-gradient(90deg, rgba(105, 53, 204, 0.95), rgba(255, 71, 216, 0.85));
+  color: #fff; font-weight: 600;
+  box-shadow: 0 4px 14px rgba(255, 71, 216, 0.28);
+}
+.nav-link.active .nav-icoon { opacity: 1; }
+.nav-icoon { opacity: 0.85; }
+.nav-klant-naam { font-size: 13px; }
+
+/* ---------- Tabellen: rustiger, uitgelijnd ---------- */
+
+.grid-tabel { font-size: 13px; }
+.grid-tabel thead th {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--ink-muted); text-transform: none;
+  background: var(--surface-sunken);
+}
+.grid-tabel td { line-height: 1.4; }
+.grid-tabel .uitlijn-rechts, .grid-tabel td.uitlijn-rechts, .grid-tabel th.uitlijn-rechts { text-align: right; font-variant-numeric: tabular-nums; }
+.table-scroll table { font-size: 13px; }
+.table-scroll thead th { font-size: 11px; color: var(--ink-muted); font-weight: 700; }
+.table-scroll td { line-height: 1.45; }
+
+/* ---------- Grafiekomgeving ---------- */
+
+.chart-figure { padding: var(--card-padding); }
+.chart-conclusie { font-size: 15px; }
+.chart-figure figcaption h3 { font-size: var(--fs-card-title); }
+.chart-source { font-size: 11px; color: var(--ink-subtle); }
+.chart-table summary { font-size: 12px; }
+
+/* ---------- Doelbalken: scanbaar ---------- */
+
+.goal { display: grid; gap: 5px; }
+.goal-head { font-size: 13px; }
+.goal-head strong { font-size: 14px; }
+.progress { height: 9px; border-radius: 999px; background: var(--surface-sunken); }
+.progress > span { border-radius: 999px; }
+.progress > span.is-ok { background: var(--positief); }
+.progress > span.is-behind { background: var(--accent); }
+.goal > .muted { font-size: 12px; line-height: 1.45; }
+
+/* ---------- Inzichten: duidelijke hiërarchie ---------- */
+
+.inzicht-kaart.is-dominant { border-left: 3px solid var(--accent); }
+.inzicht-kaart.is-dominant .inzicht-titel { font-size: 16px; }
+.inzicht-titel { font-size: 14px; font-weight: 700; }
+.inzicht-samenvatting { font-size: 13px; line-height: 1.5; color: var(--ink-muted); max-width: var(--content-reading-width); }
+.inzicht-zekerheid { font-size: 11px; }
+
+/* ---------- Badges en controls ---------- */
+
+.badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.01em; }
+.btn { min-height: var(--control-height); border-radius: 10px; font-weight: 600; }
+.btn.klein { min-height: 30px; }
+.veld select, .veld input, .grid-zoekveld, .grid-filter select { min-height: var(--control-height); }
+
+/* ---------- Drawer: rustiger ---------- */
+
+.detailpaneel { width: clamp(360px, 34vw, 440px); }
+.detailpaneel-kop h2 { font-size: 18px; }
+.paneel-blok h3 { font-size: 12px; letter-spacing: 0.04em; }
+.paneel-cijfers dd { font-weight: 700; }
+
+/* ---------- Werkvolgorde / prioriteit ---------- */
+
+.werkvolgorde-item { padding: var(--space-4) var(--space-4) var(--space-4) 48px; border-radius: var(--radius-sm); }
+.prioriteit-redenen { font-size: 13px; line-height: 1.5; }
+
+/* ---------- Focus: één zichtbare stijl ---------- */
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* ---------- Responsive ritme ---------- */
+
+@media (max-width: 1280px) {
+  :root { --page-padding-x: 22px; }
+}
+@media (max-width: 1024px) {
+  :root { --page-padding-x: 18px; --fs-page: 25px; }
+  .kpi-row { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+}
+@media (max-width: 768px) {
+  :root { --page-padding-x: 14px; --page-padding-y: 16px; --fs-page: 23px; --fs-kpi: 25px; --fs-kpi-primair: 29px; }
+  .contextbalk { padding: 8px 14px; }
+  .kpi-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}
+@media (max-width: 480px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .paginakop h1 { font-size: 22px; }
+}
+
+/* Vangnet: op smalle schermen blijft elke tabel horizontaal bruikbaar zonder de
+   pagina te laten overlopen, ook een tabel die niet in een scroll-wrapper staat. */
+@media (max-width: 640px) {
+  .pagina-inhoud table:not(.grid-tabel) {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+}
+
+/* Voorkom dat een grid-/flexkind of een grafiek-canvas de pagina laat overlopen:
+   flex- en gridkinderen mogen krimpen (min-width:0) en een canvas blijft binnen
+   zijn container. */
+.werkgebied, .main, .pagina-inhoud, .page-root { min-width: 0; }
+.chart-canvas, .chart-canvas canvas, .card canvas { max-width: 100%; }
+
+/* Sluitstuk tegen horizontale pagina-overloop: het echte scrollgebied is
+   .werkgebied, dus de body zelf hoeft nooit horizontaal te scrollen. Wide
+   content (tabellen, grafieken) scrolt binnen zijn eigen container. */
+body[data-shell='app'] { overflow-x: hidden; }
+
+/* Het contentspoor van de shell moet kunnen krimpen: een 1fr-gridspoor heeft
+   standaard min-width:auto (min-content), waardoor niet-inkrimpbare inhoud de
+   shell breder dan het scherm kan maken. minmax(0,1fr) lost dat op. */
+.app-grid { grid-template-columns: var(--nav-breedte, 244px) minmax(0, 1fr); }
+.app-grid.nav-compact { grid-template-columns: 72px minmax(0, 1fr); }
+
+/* De drill-knop en de contextknoppen tonen hun focus ook bij programmatische
+   focus, zodat de affordance onder alle omstandigheden zichtbaar is. */
+.kpi-drill:focus, .contextknop:focus { outline: 2px solid var(--accent); outline-offset: 2px; }

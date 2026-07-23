@@ -126,7 +126,7 @@ function baseOptions(p, { stacked = false, horizontal = false, valueFormatter } 
  * als bedragen weergegeven.
  */
 function buildScales(p, { stacked, horizontal, valueFormatter }) {
-  const tickFont = { family: "'Plus Jakarta Sans', sans-serif", size: 11 };
+  const tickFont = { family: "'Plus Jakarta Sans', sans-serif", size: 12 };
 
   const categorieAs = {
     stacked,

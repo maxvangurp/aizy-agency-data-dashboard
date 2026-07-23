@@ -90,8 +90,8 @@ function renderKerncijfers(dashboard) {
   const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, drill: true, ...opties });
 
   return `<div class="kpi-row">
+    ${m('leads', { label: 'Totaal aantal leads', primair: true })}
     ${m('spend', { label: 'Spend' })}
-    ${m('leads', { label: 'Totaal aantal leads' })}
     ${m('qualifiedLeads', { label: 'Gekwalificeerde leads', leegSub: 'Geen CRM-koppeling' })}
     ${m('cpl', { label: 'Kosten per lead' })}
     ${m('cpql', { label: 'Kosten per gekwalificeerde lead', leegSub: 'Geen CRM-koppeling' })}

@@ -53,7 +53,7 @@ export function renderEcommerceClient(dashboard, verhaal) {
     ${renderMeldingen(dashboard)}
 
     <div class="kpi-row">
-      ${m('revenue', { label: 'Omzet' })}
+      ${m('revenue', { label: 'Omzet', primair: true })}
       ${m('purchases', { label: 'Aankopen' })}
       ${m('roas', { label: 'ROAS' })}
       ${m('cpa', { label: 'Kosten per aankoop' })}

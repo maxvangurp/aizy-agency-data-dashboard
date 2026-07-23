@@ -93,7 +93,7 @@ export function deltaTekst(delta, vergelijkingLabel = 'de vorige periode') {
  */
 export function kpi(label, waarde, sub = '', richting = 'neutraal', {
   kort = null, uitleg = '', detail = null, tip = null, tipWaarde = null, tipVorig = null,
-  drill = null,
+  drill = null, primair = false,
 } = {}) {
   const uitlegId = uitleg ? `kpi-${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-uitleg` : null;
 
@@ -103,7 +103,7 @@ export function kpi(label, waarde, sub = '', richting = 'neutraal', {
     ? `data-tip="${esc(tip)}" tabindex="0"${tipWaarde != null ? ` data-tip-waarde="${esc(tipWaarde)}"` : ''}${tipVorig != null ? ` data-tip-vorig="${esc(tipVorig)}"` : ''}`
     : '';
 
-  return `<article class="card kpi${drill ? ' kpi-drilbaar' : ''}" data-label="${esc(label)}"${uitleg ? ` aria-describedby="${esc(uitlegId)}"` : ''}>
+  return `<article class="card kpi${primair ? ' kpi-primair' : ''}${drill ? ' kpi-drilbaar' : ''}" data-label="${esc(label)}"${uitleg ? ` aria-describedby="${esc(uitlegId)}"` : ''}>
     <span class="kpi-label${tip ? ' kpi-label-tip' : ''}"${tipAttr ? ` ${tipAttr}` : ''}>
       ${esc(label)}
       ${kort ? `<abbr class="kpi-kort">${esc(kort)}</abbr>` : ''}
@@ -128,7 +128,7 @@ export function kpi(label, waarde, sub = '', richting = 'neutraal', {
  */
 export function kpiMetriek(totalen, key, deltas, {
   label = null, leegTekst = 'Onvoldoende data', leegSub = 'Niet gemeten in deze periode',
-  vergelijkingLabel = 'de vorige periode', detail = null, drill = false,
+  vergelijkingLabel = 'de vorige periode', detail = null, drill = false, primair = false,
 } = {}) {
   const meta = metriekMeta(key);
   const waarde = totalen?.[key];
@@ -146,6 +146,7 @@ export function kpiMetriek(totalen, key, deltas, {
     tipWaarde: waarde == null ? null : formatteerMetriek(waarde, meta.formaat),
     tipVorig: delta?.vorig == null ? null : formatteerMetriek(delta.vorig, meta.formaat),
     drill: kanDrill ? key : null,
+    primair,
   };
 
   if (waarde == null) {
