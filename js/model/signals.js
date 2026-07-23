@@ -164,7 +164,7 @@ function bepaalFase(signaal) {
 
 function laadOpvolging() {
   const ruw = lees(SLEUTEL, VERSIE, null);
-  return ruw && typeof ruw === 'object' && !Array.isArray(ruw) ? ruw : {};
+  return ruw && typeof ruw === 'object' && !Array.isArray(ruw) ? ruw : seedOpvolging();
 }
 
 function bewaarOpvolging(opvolging) {
@@ -193,6 +193,69 @@ function standaardOpvolging() {
     resolutionNote: null,
     timeline: [],
     gewijzigdOp: null,
+  };
+}
+
+/**
+ * De opvolging waarmee de demo begint.
+ *
+ * Zonder deze seed staat élk signaal in "Actie nodig" en zijn de tabbladen
+ * Ingepland en Opgelost bij het openen leeg. Dan toont de pagina het werkproces
+ * pas nadat iemand handmatig heeft ingepland. Met een paar vooraf ingevulde
+ * signalen laat de pagina meteen de volledige stroom zien.
+ *
+ * De koppelingen wijzen naar bestaande seed-acties (js/model/actions.js), die
+ * hun signaal-id én een startdatum al dragen. `bepaalFase` leidt daaruit af:
+ * een gekoppelde actie met startdatum → Ingepland; een opgeloste opvolging →
+ * Opgelost. Alle drie de signalen vallen binnen de standaardperiode.
+ *
+ * Elke aanroep geeft een verse kopie, zodat schrijfacties nooit de seed muteren.
+ */
+function seedOpvolging() {
+  return {
+    // Ingepland: budget-signaal, actie in uitvoering bij Benito.
+    'alert-1': {
+      status: SignaalStatus.ACTIE_AANGEMAAKT,
+      verantwoordelijkeId: 'u-benito',
+      linkedActionIds: ['act-seed-1'],
+      primaryActionId: 'act-seed-1',
+      bekekenOp: '2026-07-09T09:00:00.000Z',
+      reviewedAt: '2026-07-09T09:00:00.000Z',
+      timeline: [
+        { op: '2026-07-09T09:00:00.000Z', type: 'beoordeeld', tekst: 'Signaal beoordeeld.' },
+        { op: '2026-07-09T09:10:00.000Z', type: 'ingepland', tekst: 'Actie ingepland en toegewezen aan Benito Perez.', actieId: 'act-seed-1' },
+      ],
+    },
+    // Ingepland: schaalkans, actie gepland bij Jip.
+    'alert-6': {
+      status: SignaalStatus.ACTIE_AANGEMAAKT,
+      verantwoordelijkeId: 'u-jip',
+      linkedActionIds: ['act-seed-6'],
+      primaryActionId: 'act-seed-6',
+      bekekenOp: '2026-07-16T10:00:00.000Z',
+      reviewedAt: '2026-07-16T10:00:00.000Z',
+      timeline: [
+        { op: '2026-07-16T10:00:00.000Z', type: 'beoordeeld', tekst: 'Signaal beoordeeld.' },
+        { op: '2026-07-16T10:05:00.000Z', type: 'ingepland', tekst: 'Actie ingepland en toegewezen aan Jip van Leest.', actieId: 'act-seed-6' },
+      ],
+    },
+    // Opgelost: brede zoekwoorden gepauzeerd, resultaat gecontroleerd.
+    'alert-8': {
+      status: SignaalStatus.OPGELOST,
+      verantwoordelijkeId: 'u-jip',
+      linkedActionIds: ['act-seed-8'],
+      primaryActionId: 'act-seed-8',
+      bekekenOp: '2026-07-10T09:30:00.000Z',
+      reviewedAt: '2026-07-10T09:30:00.000Z',
+      resolvedAt: '2026-07-18T15:00:00.000Z',
+      resolutionType: Resultaat.OPGELOST,
+      resolutionNote: 'Brede zoekwoorden gepauzeerd; kosten per lead terug op niveau.',
+      timeline: [
+        { op: '2026-07-10T09:30:00.000Z', type: 'beoordeeld', tekst: 'Signaal beoordeeld.' },
+        { op: '2026-07-10T09:35:00.000Z', type: 'ingepland', tekst: 'Actie ingepland en toegewezen aan Jip van Leest.', actieId: 'act-seed-8' },
+        { op: '2026-07-18T15:00:00.000Z', type: 'opgelost', tekst: 'Resultaat gecontroleerd en opgelost: kosten per lead terug op niveau.' },
+      ],
+    },
   };
 }
 
@@ -731,7 +794,7 @@ function soortVoorKanaal(kanaal) {
   return ActieSoort.OPTIMALISATIE;
 }
 
-/** Zet alle opvolging terug naar de uitgangssituatie. */
+/** Zet alle opvolging terug naar de uitgangssituatie (inclusief de demo-seed). */
 export function herstelSignalen() {
-  bewaarOpvolging({});
+  bewaarOpvolging(seedOpvolging());
 }
