@@ -178,6 +178,9 @@ function maakItem(ruw) {
     starttijd: ruw.starttijd ?? '09:00',
     duurMinuten: Number(ruw.duurMinuten) || 60,
     actieId: ruw.actieId ?? null,
+    // Het signaal waar dit item bij hoort (bijvoorbeeld een resultaatcontrole),
+    // zodat de planning terug te lopen is naar het signaal dat hem veroorzaakte.
+    signaalId: ruw.signaalId ?? null,
     // Voorbereid op een latere koppeling. Zolang die er niet is, blijft dit
     // overal leeg en wordt er nergens een gesynchroniseerde agenda gesuggereerd.
     externeBron: ruw.externeBron ?? { provider: null, agendaId: null, externeId: null, richting: null },
@@ -217,6 +220,9 @@ function actieAlsItem(actie) {
     starttijd: null,
     duurMinuten: null,
     actieId: actie.id,
+    // De actie kent haar signaal; zo is een gepland werkblok terug te lopen naar
+    // het signaal dat het veroorzaakte.
+    signaalId: actie.signaalId ?? null,
     status: actie.status,
     prioriteit: actie.prioriteit,
     deadline: actie.deadline,

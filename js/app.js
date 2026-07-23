@@ -112,7 +112,8 @@ import {
 } from './model/actions.js';
 import {
   markeerBekeken, wijsSignaalToe, negeerSignaal, losSignaalOp, heropenSignaal,
-  maakActieVanSignaal, SignaalStatus,
+  maakActieVanSignaal, planSignaalOpvolging, planResultaatcontrole, beoordeelResultaat,
+  SignaalStatus,
 } from './model/signals.js';
 import { verplaatsItem, beginVanWeek } from './model/planning.js';
 import {
@@ -1122,7 +1123,11 @@ function bouwDetailpaneel({ user, ctx, uiParams, omgeving }) {
     const signaal = getWerkSignalen(user, null).find((s) => s.id === gevraagd.id) ?? null;
     return {
       open: true,
-      ...signaalDetail({ signaal, magVerwerken: can(user, Permission.MANAGE_SIGNALS) }),
+      ...signaalDetail({
+        signaal,
+        magVerwerken: can(user, Permission.MANAGE_SIGNALS),
+        medewerkers: getToewijsbareMedewerkers(user),
+      }),
     };
   }
 
@@ -1311,6 +1316,29 @@ async function onSubmit(e) {
     } else {
       toastFout('Geef een reden op voordat je een signaal negeert.');
     }
+    return;
+  }
+
+  const planForm = form.getAttribute('data-plan-form');
+  if (planForm) {
+    e.preventDefault();
+    if (!can(getCurrentUser(), Permission.MANAGE_SIGNALS)) { toastFout('Je account mag signalen niet verwerken.'); return; }
+    const datum = form.querySelector('[name="datum"]').value;
+    const resultaat = planSignaalOpvolging(planForm, datum);
+    if (resultaat.ok) toast(`Opvolging ingepland op ${datum}.`);
+    else toastFout(resultaat.reden ?? 'De opvolging kon niet worden ingepland.');
+    return;
+  }
+
+  const controleForm = form.getAttribute('data-controle-form');
+  if (controleForm) {
+    e.preventDefault();
+    if (!can(getCurrentUser(), Permission.MANAGE_SIGNALS)) { toastFout('Je account mag signalen niet verwerken.'); return; }
+    const datum = form.querySelector('[name="datum"]').value;
+    const resultaat = planResultaatcontrole(controleForm, { datum, medewerkerId: getCurrentUser().id });
+    if (resultaat.ok) toast(`Resultaatcontrole ingepland op ${datum}.`);
+    else toastFout(resultaat.reden ?? 'De resultaatcontrole kon niet worden ingepland.');
+    return;
   }
 }
 
@@ -1696,7 +1724,8 @@ function verwerkActieWijziging(id, form) {
 function verwerkSignaalKlik(el) {
   const d = el.dataset;
   const user = getCurrentUser();
-  if (!d.signaalBekeken && !d.signaalActie && !d.signaalNegeren && !d.signaalOplossen && !d.signaalHeropen) {
+  if (!d.signaalBekeken && !d.signaalActie && !d.signaalNegeren && !d.signaalOplossen
+    && !d.signaalHeropen && !d.signaalBeoordeel) {
     return false;
   }
   if (!can(user, Permission.MANAGE_SIGNALS)) {
@@ -1704,9 +1733,26 @@ function verwerkSignaalKlik(el) {
     return true;
   }
 
-  if (d.signaalBekeken) { markeerBekeken(d.signaalBekeken); toast('Signaal gemarkeerd als bekeken.'); return true; }
+  if (d.signaalBekeken) { markeerBekeken(d.signaalBekeken); toast('Signaal beoordeeld.'); return true; }
   if (d.signaalOplossen) { losSignaalOp(d.signaalOplossen); toast('Signaal gemarkeerd als opgelost.'); return true; }
   if (d.signaalHeropen) { heropenSignaal(d.signaalHeropen); toast('Signaal heropend.'); return true; }
+
+  if (d.signaalBeoordeel) {
+    const notitie = el.closest('form')?.querySelector('[name="notitie"]')?.value ?? null;
+    const resultaat = beoordeelResultaat(d.signaalBeoordeel, { uitkomst: el.dataset.uitkomst, notitie, verantwoordelijkeId: user.id });
+    if (!resultaat.ok) { toastFout(resultaat.reden ?? 'De beoordeling kon niet worden verwerkt.'); return true; }
+    if (resultaat.actie) {
+      toast(`Vervolgactie aangemaakt: ${resultaat.actie.titel}`, {
+        actie: { label: 'Naar het actiecentrum', hash: '#/agency/actions' },
+      });
+      openPaneel('actie', resultaat.actie.id);
+    } else if (el.dataset.uitkomst === 'heropenen') {
+      toast('Signaal heropend: het resultaat was nog niet voldoende.');
+    } else {
+      toast('Resultaat gecontroleerd en signaal opgelost.');
+    }
+    return true;
+  }
   if (d.signaalNegeren) {
     negeerVoorId = negeerVoorId === d.signaalNegeren ? null : d.signaalNegeren;
     render();

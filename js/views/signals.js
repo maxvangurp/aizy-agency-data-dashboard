@@ -105,11 +105,34 @@ function renderSignaal(signaal, { medewerkers, magVerwerken, negeerOpen }) {
       ${signaal.actie ? `<div><dt>Gekoppelde actie</dt><dd>
         <button type="button" class="link" data-actiepaneel="${esc(signaal.actie.id)}">${esc(signaal.actie.titel)}</button>
       </dd></div>` : ''}
+      ${signaal.plannedAt ? `<div><dt>Ingepland op</dt><dd>${esc(toonDatum(signaal.plannedAt))}</dd></div>` : ''}
+      ${signaal.nextReviewAt ? `<div><dt>Resultaatcontrole</dt><dd>${esc(toonDatum(signaal.nextReviewAt))}</dd></div>` : ''}
       ${signaal.reden ? `<div><dt>Reden van negeren</dt><dd>${esc(signaal.reden)}</dd></div>` : ''}
     </dl>
 
+    ${renderWorkflow(signaal)}
+
     ${magVerwerken ? renderActies(signaal, medewerkers, negeerOpen) : ''}
   </li>`;
+}
+
+/**
+ * De procespositie op de kaart: een compacte stappenbalk plus de eerstvolgende
+ * concrete stap. Zo is in één oogopslag te zien waar het signaal staat en wat er
+ * moet gebeuren, zonder de kaart te openen.
+ */
+function renderWorkflow(signaal) {
+  const wf = signaal.workflow;
+  if (!wf) return '';
+  return `<div class="signaalkaart-workflow">
+    <ol class="werkstroom werkstroom-compact" aria-label="Werkstroom">
+      ${wf.stappen.map((s) => `<li class="werkstroom-stap is-${esc(s.status)}" title="${esc(s.label)}">
+        <span class="werkstroom-punt" aria-hidden="true"></span>
+        <span class="visueel-verborgen">${esc(s.label)}: ${esc(s.status)}</span>
+      </li>`).join('')}
+    </ol>
+    <p class="signaalkaart-volgende" data-volgende-stap><strong>Volgende stap:</strong> ${esc(wf.volgendeStap.tekst)}</p>
+  </div>`;
 }
 
 function renderActies(signaal, medewerkers, negeerOpen) {

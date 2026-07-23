@@ -234,9 +234,10 @@ export function actieDetail({ actie, medewerkers, magBewerken, user }) {
       ${velden}
 
       ${actie.signaal ? `<section class="paneel-blok">
-        <h3>Gekoppeld signaal</h3>
+        <h3>Volgt signaal op</h3>
         <p>${esc(actie.signaal.probleem)}</p>
-        <p class="muted klein">${esc(actie.signaal.oorzaak)}</p>
+        <p class="muted klein">Deze actie afronden lost het signaal niet vanzelf op — het resultaat wordt eerst gecontroleerd.</p>
+        ${actie.signaal.workflow ? `<p class="muted klein">Volgende stap voor het signaal: ${esc(actie.signaal.workflow.volgendeStap.tekst)}</p>` : ''}
         <button type="button" class="link-klein" data-signaalpaneel="${esc(actie.signaal.id)}">Signaal openen</button>
       </section>` : ''}
 
@@ -273,7 +274,26 @@ export function actieDetail({ actie, medewerkers, magBewerken, user }) {
    Signaaldetail
    --------------------------------------------------------------- */
 
-export function signaalDetail({ signaal, magVerwerken }) {
+/** De werkstroom als stappenbalk: waar staat dit signaal in het proces. */
+function werkstroomStepper(workflow) {
+  if (!workflow) return '';
+  return `<ol class="werkstroom" aria-label="Werkstroom van dit signaal">
+    ${workflow.stappen.map((s) => `<li class="werkstroom-stap is-${esc(s.status)}"
+      ${s.status === 'huidig' ? 'aria-current="step"' : ''}>
+      <span class="werkstroom-punt" aria-hidden="true"></span>
+      <span class="werkstroom-label">${esc(s.label)}</span>
+    </li>`).join('')}
+  </ol>`;
+}
+
+/** Één regel in de activiteitentijdlijn. */
+function tijdlijnMoment(op) {
+  const d = new Date(op);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+export function signaalDetail({ signaal, magVerwerken, medewerkers = [] }) {
   if (!signaal) {
     return {
       titel: 'Signaal niet gevonden',
@@ -284,6 +304,69 @@ export function signaalDetail({ signaal, magVerwerken }) {
     };
   }
 
+  const wf = signaal.workflow;
+  const heeftActie = Boolean(signaal.primaryActionId);
+  const wachtOpControle = signaal.status === SignaalStatus.WACHT_OP_CONTROLE;
+  const afgehandeld = [SignaalStatus.OPGELOST, SignaalStatus.GENEGEERD].includes(signaal.status);
+  const acties = signaal.actiesVerrijkt ?? (signaal.actie ? [signaal.actie] : []);
+  const tijdlijn = signaal.tijdlijn ?? [];
+
+  // De directe knop bij de volgende stap. Plannen/controleren/beoordelen gebeurt
+  // via de formulieren eronder; die stappen krijgen hier geen losse knop.
+  const stapKnop = () => {
+    if (!magVerwerken || !wf) return '';
+    switch (wf.volgendeStap.actie) {
+      case 'beoordelen':
+        return `<button type="button" class="btn klein primary" data-signaal-bekeken="${esc(signaal.id)}">Beoordeel dit signaal</button>`;
+      case 'actie-maken':
+        return `<button type="button" class="btn klein primary" data-signaal-actie="${esc(signaal.id)}">Maak een actie aan</button>`;
+      case 'uitvoeren':
+        return signaal.primaryActionId
+          ? `<button type="button" class="btn klein" data-actiepaneel="${esc(signaal.primaryActionId)}">Open de actie</button>`
+          : '';
+      case 'heropenen':
+        return `<button type="button" class="btn klein" data-signaal-heropen="${esc(signaal.id)}">Heropenen</button>`;
+      default:
+        return '';
+    }
+  };
+
+  const planForm = magVerwerken && heeftActie && !afgehandeld
+    ? `<form class="paneel-form paneel-form-inline" data-plan-form="${esc(signaal.id)}">
+        <div class="veld">
+          <label for="planDatum-${esc(signaal.id)}">Opvolging inplannen op</label>
+          <input type="date" id="planDatum-${esc(signaal.id)}" name="datum" value="${esc(signaal.plannedAt ?? '')}">
+        </div>
+        <button type="submit" class="btn klein">${signaal.plannedAt ? 'Datum bijwerken' : 'Actie inplannen'}</button>
+      </form>`
+    : '';
+
+  const controleBlok = magVerwerken && wachtOpControle
+    ? `<section class="paneel-blok verwerk-blok">
+        <h3>Resultaat controleren</h3>
+        <p class="muted klein">De gekoppelde actie is uitgevoerd. Het signaal sluit pas wanneer jij het resultaat beoordeelt — dat gebeurt bewust en nooit automatisch.</p>
+        <form class="paneel-form paneel-form-inline" data-controle-form="${esc(signaal.id)}">
+          <div class="veld">
+            <label for="controleDatum-${esc(signaal.id)}">Resultaatcontrole inplannen op</label>
+            <input type="date" id="controleDatum-${esc(signaal.id)}" name="datum" value="${esc(signaal.nextReviewAt ?? '')}">
+          </div>
+          <button type="submit" class="btn klein">Controle inplannen</button>
+        </form>
+        <form class="beoordeel-form" data-beoordeel-form="${esc(signaal.id)}">
+          <div class="veld">
+            <label for="beoordeelNotitie-${esc(signaal.id)}">Uitkomst (optioneel)</label>
+            <input type="text" id="beoordeelNotitie-${esc(signaal.id)}" name="notitie"
+              placeholder="Bijvoorbeeld: kosten per lead terug op niveau">
+          </div>
+          <div class="actie-groep">
+            <button type="button" class="btn klein primary" data-signaal-beoordeel="${esc(signaal.id)}" data-uitkomst="opgelost">Opgelost</button>
+            <button type="button" class="btn klein" data-signaal-beoordeel="${esc(signaal.id)}" data-uitkomst="vervolgactie">Vervolgactie maken</button>
+            <button type="button" class="btn klein" data-signaal-beoordeel="${esc(signaal.id)}" data-uitkomst="heropenen">Nog niet opgelost</button>
+          </div>
+        </form>
+      </section>`
+    : '';
+
   return {
     titel: signaal.probleem,
     ondertitel: `${signaal.klantNaam} · ${signaal.kanaalLabel}`,
@@ -292,6 +375,13 @@ export function signaalDetail({ signaal, magVerwerken }) {
         ${badge(signaal.ernst === 'hoog' ? 'Hoge urgentie' : 'Gemiddelde urgentie', signaal.ernst === 'hoog' ? 'hoog' : 'middel')}
         ${badge(signaal.statusTerm.kort, signaal.statusTerm.variant)}
       </div>
+
+      <section class="paneel-blok">
+        <h3>Werkstroom</h3>
+        ${werkstroomStepper(wf)}
+        ${wf ? `<p class="volgende-stap-tekst"><strong>Volgende stap:</strong> ${esc(wf.volgendeStap.tekst)}</p>` : ''}
+        ${stapKnop()}
+      </section>
 
       <section class="paneel-blok">
         <h3>${esc(LABELS.bewijs)}</h3>
@@ -309,22 +399,51 @@ export function signaalDetail({ signaal, magVerwerken }) {
           <div><dt>Ontstaan op</dt><dd>${esc(toonDatum(signaal.startdatum))}</dd></div>
           <div><dt>Openstaand</dt><dd>${signaal.ouderdomDagen ?? 0} dagen</dd></div>
           <div><dt>${esc(LABELS.verantwoordelijke)}</dt><dd>${esc(signaal.verantwoordelijkeNaam)}</dd></div>
+          ${signaal.plannedAt ? `<div><dt>Ingepland</dt><dd>${esc(toonDatum(signaal.plannedAt))}</dd></div>` : ''}
+          ${signaal.nextReviewAt ? `<div><dt>Resultaatcontrole</dt><dd>${esc(toonDatum(signaal.nextReviewAt))}</dd></div>` : ''}
           ${signaal.reden ? `<div><dt>Reden van negeren</dt><dd>${esc(signaal.reden)}</dd></div>` : ''}
+          ${signaal.resolutionNote ? `<div><dt>Uitkomst</dt><dd>${esc(signaal.resolutionNote)}</dd></div>` : ''}
         </dl>
       </section>
 
-      ${signaal.actie ? `<section class="paneel-blok">
-        <h3>Gekoppelde actie</h3>
-        <button type="button" class="link" data-actiepaneel="${esc(signaal.actie.id)}">${esc(signaal.actie.titel)}</button>
-        <p class="muted klein">Er kan maar één actie per signaal bestaan, zodat het bord niet vol dubbel werk komt te staan.</p>
-      </section>` : ''}`,
+      <section class="paneel-blok">
+        <h3>Gekoppelde acties</h3>
+        ${acties.length
+          ? `<ul class="gekoppeld-lijst">
+              ${acties.map((a) => `<li>
+                <button type="button" class="link" data-actiepaneel="${esc(a.id)}">${esc(a.titel)}</button>
+                ${a.statusTerm ? badge(a.statusTerm.kort, a.statusTerm.variant) : ''}
+                ${a.id === signaal.primaryActionId ? '<span class="muted klein">primair</span>' : ''}
+              </li>`).join('')}
+            </ul>
+            <p class="muted klein">Een afgeronde actie lost dit signaal niet vanzelf op: het resultaat wordt eerst gecontroleerd.</p>`
+          : `<p class="muted klein">Nog geen actie. Maak er een aan om dit signaal op te volgen.</p>`}
+      </section>
+
+      ${planForm ? `<section class="paneel-blok verwerk-blok"><h3>Inplannen</h3>${planForm}</section>` : ''}
+      ${controleBlok}
+
+      <section class="paneel-blok">
+        <h3>Activiteit</h3>
+        <ul class="tijdlijn">
+          ${tijdlijn.length
+            ? tijdlijn.map((e) => `<li>
+                <span class="tijdlijn-moment">${esc(tijdlijnMoment(e.op))}</span>
+                <span>${e.actorNaam ? `<strong>${esc(e.actorNaam)}</strong> ` : ''}${esc(e.tekst)}</span>
+              </li>`).join('')
+            : '<li><span></span><span class="muted">Nog geen activiteit vastgelegd.</span></li>'}
+        </ul>
+      </section>`,
     voettekst: magVerwerken
       ? `${signaal.status === SignaalStatus.NIEUW
-        ? `<button type="button" class="btn klein" data-signaal-bekeken="${esc(signaal.id)}">Markeren als bekeken</button>`
-        : ''}
-        <button type="button" class="btn primary" data-signaal-actie="${esc(signaal.id)}">
-          ${signaal.actie ? 'Gekoppelde actie openen' : 'Omzetten naar actie'}
-        </button>
+          ? `<button type="button" class="btn klein" data-signaal-bekeken="${esc(signaal.id)}">Markeren als bekeken</button>`
+          : ''}
+        ${!heeftActie
+          ? `<button type="button" class="btn primary" data-signaal-actie="${esc(signaal.id)}">Omzetten naar actie</button>`
+          : `<button type="button" class="btn klein" data-actiepaneel="${esc(signaal.primaryActionId)}">Gekoppelde actie openen</button>`}
+        ${afgehandeld
+          ? `<button type="button" class="btn klein" data-signaal-heropen="${esc(signaal.id)}">Heropenen</button>`
+          : `<button type="button" class="btn klein" data-signaal-oplossen="${esc(signaal.id)}">Markeren als opgelost</button>`}
         <a class="btn klein" href="#/agency/clients/${esc(signaal.klantId)}">Open klant</a>`
       : '',
   };

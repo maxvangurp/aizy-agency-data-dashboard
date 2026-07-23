@@ -221,7 +221,8 @@ function renderItem(item, magVerplaatsen, { compact = false } = {}) {
         <span class="badge badge-${esc(item.bronTerm.variant)}" title="${esc(item.bronTerm.omschrijving)}">${esc(item.bronTerm.kort)}</span>
         ${badge(item.soortTerm.kort, 'muted')}
       </div>
-      <p class="muted klein">${esc(item.medewerkerNaam)}</p>`}
+      <p class="muted klein">${esc(item.medewerkerNaam)}</p>
+      ${item.signaal ? `<button type="button" class="link-klein" data-signaalpaneel="${esc(item.signaal.id)}">Volgt signaal op ↗</button>` : ''}`}
     ${sleepbaarheid ? `<div class="agenda-item-knoppen">
       <button type="button" class="icoonknop klein" data-plan-dag="${esc(item.id)}" data-richting="vorige"
         aria-label="${esc(item.titel)} een dag eerder plannen">◀</button>

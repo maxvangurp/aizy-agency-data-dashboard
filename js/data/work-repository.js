@@ -19,7 +19,7 @@ import { isVoor, isNa, DEMO_TODAY } from '../filters/period.js';
 import {
   alleActies, getActie, ActieStatus, actiestatusTerm, actieprioriteitTerm, actiesoortTerm,
 } from '../model/actions.js';
-import { alleSignalen, signaalstatusTerm, SignaalStatus } from '../model/signals.js';
+import { alleSignalen, signaalstatusTerm, signaalTijdlijn, SignaalStatus } from '../model/signals.js';
 import { allePlanningsitems, itembronTerm, ItemBron } from '../model/planning.js';
 
 const ALLE_CLIENT_IDS = SAMPLE_CLIENTS.map((c) => c.id);
@@ -210,6 +210,15 @@ export function getWerkSignalen(user, filters = null, { klantId = null } = {}) {
     .map((s) => {
       const klant = klantOpId(s.klantId);
       const verantwoordelijke = gebruikerOpId(s.verantwoordelijkeId);
+      // De tijdlijn krijgt namen: de gebruiker leest "Berry plaatste …", niet een id.
+      const tijdlijn = signaalTijdlijn(s).map((e) => ({
+        ...e,
+        actorNaam: e.auteurId
+          ? gebruikerOpId(e.auteurId)?.displayName ?? null
+          : e.medewerkerId
+            ? gebruikerOpId(e.medewerkerId)?.displayName ?? null
+            : null,
+      }));
       return {
         ...s,
         klant,
@@ -219,6 +228,8 @@ export function getWerkSignalen(user, filters = null, { klantId = null } = {}) {
         verantwoordelijkeNaam: verantwoordelijke?.displayName ?? 'Niet toegewezen',
         statusTerm: signaalstatusTerm(s.status),
         ouderdomDagen: dagenTussen(s.startdatum, DEMO_TODAY),
+        actiesVerrijkt: (s.acties ?? []).map(verrijkActie),
+        tijdlijn,
       };
     })
     .sort((a, b) => {
@@ -259,6 +270,10 @@ export function getPlanning(user, { van, tot, medewerkerId = null, klantId = nul
   const isKlantgebruiker = !isAgencyGebruiker(user);
   const alleenEigen = isAgencyGebruiker(user) && !can(user, Permission.VIEW_ALL_PLANNING);
 
+  // Eén keer opzoeken, zodat een item met een signaalkoppeling zijn signaal kan
+  // tonen zonder per item de hele lijst opnieuw te lezen.
+  const signaalById = new Map(alleSignalen().map((s) => [s.id, s]));
+
   return allePlanningsitems()
     .filter((i) => !i.klantId || toegestaan.has(i.klantId))
     .filter((i) => !van || i.datum >= van)
@@ -275,6 +290,9 @@ export function getPlanning(user, { van, tot, medewerkerId = null, klantId = nul
     .map((i) => {
       const klant = klantOpId(i.klantId);
       const medewerker = gebruikerOpId(i.medewerkerId);
+      // Een signaalkoppeling is intern: een klantgebruiker krijgt hem niet, ook
+      // niet als een resultaatcontrole toevallig een klantafspraak is.
+      const signaal = i.signaalId && !isKlantgebruiker ? signaalById.get(i.signaalId) ?? null : null;
       return {
         ...i,
         klant,
@@ -284,6 +302,8 @@ export function getPlanning(user, { van, tot, medewerkerId = null, klantId = nul
         bronTerm: itembronTerm(i.bron),
         soortTerm: actiesoortTerm(i.soort),
         verplaatsbaar: i.bron !== ItemBron.EXTERN,
+        signaal,
+        signaalProbleem: signaal?.probleem ?? null,
       };
     });
 }
