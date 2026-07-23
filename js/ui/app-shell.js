@@ -27,7 +27,7 @@ import { esc, badge } from '../views/components.js';
 import { ICONEN } from './navigation.js';
 import { renderAvatar, renderIdentiteit } from '../views/context-header.js';
 import { toegangsniveauTerm, omgevingTerm, LABELS } from '../terminology.js';
-import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, DEMO_TODAY } from '../filters/period.js';
+import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, DEMO_TODAY, STANDAARD_PERIODE, STANDAARD_VERGELIJKING } from '../filters/period.js';
 import { CONVERSIE_SCOPE_LABELS } from '../filters/filter-context.js';
 import { KANAAL_STATUS_LABELS, KANAAL_STATUS_VARIANT, KanaalStatus } from '../filters/channels.js';
 
@@ -116,8 +116,10 @@ function renderNavGroep(groep, { actief, compact, open }) {
           <a href="${esc(i.hash)}" class="nav-link${isActief ? ' active' : ''}"
             ${isActief ? 'aria-current="page"' : ''}
             title="${esc(i.label)}" data-nav="${esc(i.pad)}">
-            ${icoon(i.icoon)}
+            <span class="nav-icoon-box" aria-hidden="true">${icoon(i.icoon)}</span>
             <span class="nav-link-tekst">${esc(i.label)}</span>
+            ${i.aantal != null ? `<span class="nav-badge" aria-hidden="true">${esc(String(i.aantal))}</span>
+              <span class="visueel-verborgen">${i.aantal} openstaand</span>` : ''}
           </a>
         </li>`;
       }).join('')}
@@ -209,28 +211,42 @@ function renderFilterknoppen(filters, kanalen, conversieOpties) {
       ? `Alle kanalen (${kanalen.length})`
       : kanaalNamen.length === 1 ? kanaalNamen[0] : `${kanaalNamen.length} van ${kanalen.length} kanalen`;
 
+  // Het aantal filters dat afwijkt van de standaard, voor een compacte badge.
+  const actief = [
+    periode.preset !== STANDAARD_PERIODE,
+    vergelijking.mode !== STANDAARD_VERGELIJKING,
+    kanalen.length > 0 && !alleGekozen,
+  ].filter(Boolean).length;
+
   return `<div class="contextbalk-filters">
-    <button type="button" class="contextknop" id="filterToggle"
-      aria-expanded="false" aria-controls="filterPaneel">
-      <span class="contextknop-label">Periode</span>
-      <span class="contextknop-waarde">${esc(toonBereik(periode.startDate, periode.endDate))}</span>
+    <div class="filtergroep" role="group" aria-label="Analysefilters">
+      <button type="button" class="contextknop" id="filterToggle"
+        aria-expanded="false" aria-controls="filterPaneel">
+        <span class="contextknop-label">Periode</span>
+        <span class="contextknop-waarde">${esc(toonBereik(periode.startDate, periode.endDate).replace(' tot en met ', ' – '))}</span>
+      </button>
+      <button type="button" class="contextknop" id="filterToggleVergelijking"
+        aria-expanded="false" aria-controls="filterPaneel">
+        <span class="contextknop-label">Vergelijking</span>
+        <span class="contextknop-waarde">${esc(vergelijking.mode === 'none' ? 'Geen' : vergelijking.label)}</span>
+      </button>
+      <button type="button" class="contextknop" id="filterToggleKanalen"
+        aria-expanded="false" aria-controls="filterPaneel">
+        <span class="contextknop-label">Kanalen</span>
+        <span class="contextknop-waarde">${esc(kanaalTekst)}</span>
+      </button>
+      ${conversieOpties.length > 1 ? `<button type="button" class="contextknop" id="filterToggleConversie"
+        aria-expanded="false" aria-controls="filterPaneel">
+        <span class="contextknop-label">Conversies</span>
+        <span class="contextknop-waarde">${esc(CONVERSIE_SCOPE_LABELS[filters.conversionScope] ?? filters.conversionScope)}</span>
+      </button>` : ''}
+    </div>
+    <button type="button" class="filter-reset${actief ? ' is-actief' : ''}" id="filterReset"
+      title="Alle filters terugzetten naar de standaard">
+      <span aria-hidden="true">↺</span>
+      <span class="filter-reset-tekst">Filters resetten</span>
+      ${actief ? `<span class="filter-reset-badge" aria-hidden="true">${actief}</span>` : ''}
     </button>
-    <button type="button" class="contextknop" id="filterToggleVergelijking"
-      aria-expanded="false" aria-controls="filterPaneel">
-      <span class="contextknop-label">Vergelijking</span>
-      <span class="contextknop-waarde">${esc(vergelijking.mode === 'none' ? 'Geen' : vergelijking.label)}</span>
-    </button>
-    <button type="button" class="contextknop" id="filterToggleKanalen"
-      aria-expanded="false" aria-controls="filterPaneel">
-      <span class="contextknop-label">Kanalen</span>
-      <span class="contextknop-waarde">${esc(kanaalTekst)}</span>
-    </button>
-    ${conversieOpties.length > 1 ? `<button type="button" class="contextknop" id="filterToggleConversie"
-      aria-expanded="false" aria-controls="filterPaneel">
-      <span class="contextknop-label">Conversies</span>
-      <span class="contextknop-waarde">${esc(CONVERSIE_SCOPE_LABELS[filters.conversionScope] ?? filters.conversionScope)}</span>
-    </button>` : ''}
-    <button type="button" class="btn klein" id="filterReset">Filters resetten</button>
   </div>`;
 }
 

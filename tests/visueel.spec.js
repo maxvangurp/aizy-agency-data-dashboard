@@ -362,3 +362,66 @@ test.describe('Thema-afwerking', () => {
     });
   }
 });
+
+/* ---------------------------------------------------------------
+   Navigatieshell: topbar en sidebar als één samenhangend systeem
+   --------------------------------------------------------------- */
+
+test.describe('Navigatieshell', () => {
+  test('elke navigatie-link deelt exact dezelfde iconenkolom', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    const boxes = await page.locator('.nav-link .nav-icoon-box').evaluateAll(
+      (els) => els.map((e) => Math.round(e.getBoundingClientRect().width))
+    );
+    expect(boxes.length).toBeGreaterThan(3);
+    // Eén vaste iconenkolom → alle boxen even breed.
+    expect(Math.max(...boxes) - Math.min(...boxes)).toBeLessThanOrEqual(1);
+  });
+
+  test('de topbar-bediening deelt één consistente hoogte', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    const hoogtes = await page.evaluate(() => {
+      const sel = ['.filtergroep', '.zoekveld input', '#meldingenKnop', '.accountknop', '.klantkiezer select'];
+      return sel
+        .map((s) => document.querySelector(s))
+        .filter(Boolean)
+        .map((el) => Math.round(el.getBoundingClientRect().height));
+    });
+    expect(hoogtes.length).toBeGreaterThanOrEqual(4);
+    // Alle controls op dezelfde hoogte (± subpixelafronding).
+    expect(Math.max(...hoogtes) - Math.min(...hoogtes)).toBeLessThanOrEqual(2);
+  });
+
+  test('de filterknoppen zitten gebundeld in één gesegmenteerde control', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    const groep = page.locator('.filtergroep');
+    await expect(groep).toBeVisible();
+    await expect(groep.locator('#filterToggle')).toHaveCount(1);
+    await expect(groep.locator('#filterToggleVergelijking')).toHaveCount(1);
+    // De groep heeft één gedeelde omranding (geen losse blokken).
+    const rand = await groep.evaluate((el) => getComputedStyle(el).borderTopStyle);
+    expect(rand).not.toBe('none');
+  });
+
+  test('het actieve item houdt dezelfde rijhoogte als een inactief item', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    const [actief, inactief] = await page.evaluate(() => {
+      const h = (el) => Math.round(el.getBoundingClientRect().height);
+      const a = document.querySelector('.nav-link.active');
+      const i = [...document.querySelectorAll('.nav-link')].find((el) => !el.classList.contains('active'));
+      return [h(a), h(i)];
+    });
+    expect(Math.abs(actief - inactief)).toBeLessThanOrEqual(1);
+  });
+
+  test('de bovenbalk blijft één regel bij 1280 zonder horizontale overloop', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await login(page, ACCOUNTS.admin);
+    const hoogte = await page.locator('.contextbalk').evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    expect(hoogte).toBeLessThanOrEqual(64);
+    const overloop = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+    );
+    expect(overloop).toBe(false);
+  });
+});

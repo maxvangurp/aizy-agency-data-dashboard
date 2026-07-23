@@ -205,32 +205,8 @@ h1, h2, h3 {
   color: var(--sidebar-ink-muted);
 }
 
-.nav {
-  display: grid;
-  gap: 4px;
-}
-
-.nav button {
-  background: transparent;
-  border: 0;
-  color: var(--sidebar-ink-muted);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  text-align: left;
-  font-weight: 500;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.nav button:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--sidebar-ink);
-}
-
-.nav button.active {
-  background: var(--aizy-gradient);
-  color: #fff;
-  font-weight: 600;
-}
+/* De navigatie-items (.nav / .nav-groep / .nav-link) worden volledig gedefinieerd
+   in het geconsolideerde NAVIGATIESHELL-blok onderaan dit bestand. */
 
 .main {
   padding: var(--space-4);
@@ -890,19 +866,6 @@ code {
   min-height: 100vh;
 }
 
-.sidebar .nav a {
-  display: block;
-  color: var(--sidebar-ink-muted);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-weight: 500;
-  font-size: 14px;
-  text-decoration: none;
-}
-
-.sidebar .nav a:hover { background: rgba(255, 255, 255, 0.07); color: var(--sidebar-ink); }
-.sidebar .nav a.active { background: var(--aizy-gradient); color: #fff; font-weight: 600; }
-
 .topbar-links, .topbar-rechts {
   display: flex;
   align-items: center;
@@ -924,21 +887,8 @@ code {
   font-weight: 600;
 }
 
-/* ---------- Contextbalk ---------- */
-
-.contextbalk {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  padding: 10px var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  border: 1px solid var(--border);
-  font-size: 13px;
-}
-
-.contextbalk button { margin-left: auto; }
+/* De contextbalk (bovenbalk) wordt volledig gedefinieerd in het
+   NAVIGATIESHELL-blok onderaan dit bestand. */
 
 /* ---------- Accountmenu ---------- */
 
@@ -1779,151 +1729,21 @@ code {
 }
 .pagina-inhoud { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
 
-/* ---------- Zijnavigatie ---------- */
+/* ---------- Shell-structuur ---------- */
+/* De visuele definitie van de zijnavigatie en de bovenbalk staat gebundeld in
+   het NAVIGATIESHELL-blok onderaan dit bestand. Hier blijft alleen wat de
+   scrollcontainer en de sticky-context bepaalt. */
 
 .sidebar {
   background: var(--sidebar-bg);
   color: var(--sidebar-ink);
-  padding: var(--space-3) var(--space-2);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   overflow-y: auto;
   position: sticky;
   top: 0;
   height: 100vh;
 }
-
-.sidebar .brand { position: relative; padding: 0 6px var(--space-2); }
-.nav-inklap {
-  margin-left: auto;
-  background: rgba(255,255,255,0.08);
-  border: 0;
-  color: var(--sidebar-ink);
-  border-radius: 8px;
-  width: 26px; height: 26px;
-  display: grid; place-items: center;
-  font-size: 13px;
-}
-.nav-inklap:hover { background: rgba(255,255,255,0.16); }
-
-.nav-klant {
-  background: rgba(255,255,255,0.06);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  margin: 0 4px var(--space-1);
-  display: grid; gap: 1px;
-}
-.nav-klant-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sidebar-ink-muted); }
-.nav-klant-naam { font-size: 13px; font-weight: 700; color: #fff; }
-.nav-klant-compact { display: grid; place-items: center; }
-.nav-klant-initiaal {
-  width: 34px; height: 34px; border-radius: 9px;
-  background: var(--aizy-gradient); color: #fff;
-  display: grid; place-items: center; font-size: 12px; font-weight: 700;
-}
-
-.nav { display: grid; gap: 2px; }
-.nav-groep { display: grid; }
-.nav-groep-kop {
-  background: transparent; border: 0; color: var(--sidebar-ink-muted);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
-  font-weight: 700;
-}
-.nav-groep-kop:hover { color: var(--sidebar-ink); }
-.nav-groep-pijl { font-size: 10px; }
-.nav-lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.nav-lijst[hidden] { display: none; }
-
-.nav-link {
-  display: flex; align-items: center; gap: 10px;
-  color: var(--sidebar-ink-muted);
-  border-radius: var(--radius-sm);
-  padding: 9px 10px;
-  font-weight: 500; font-size: 14px;
-  text-decoration: none;
-}
-.nav-link:hover { background: rgba(255,255,255,0.08); color: var(--sidebar-ink); }
-.nav-link.active { background: var(--aizy-gradient); color: #fff; font-weight: 600; }
-.nav-icoon { width: 18px; height: 18px; flex-shrink: 0; }
-
-/* Ingeklapte navigatie: alleen iconen, groepskoppen als scheidingslijn. */
-.nav-compact .brand-tekst,
-.nav-compact .nav-groep-titel,
-.nav-compact .nav-groep-pijl,
-.nav-compact .nav-link-tekst,
-.nav-compact .nav-klant-label,
-.nav-compact .nav-klant-naam { display: none; }
-.nav-compact .nav-groep-kop { justify-content: center; padding: 6px 0 2px; }
-.nav-compact .nav-link { justify-content: center; padding: 10px 0; }
-.nav-compact .brand { justify-content: center; }
-.nav-compact .nav-inklap { position: absolute; top: -2px; right: -2px; }
-
-/* ---------- Bovenbalk ---------- */
-
-.contextbalk {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  padding: 10px var(--space-4);
-  background: var(--surface);
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 30;
-  font-size: 13px;
-}
-.contextbalk button { margin-left: 0; }
-.contextbalk-links, .contextbalk-rechts { display: flex; align-items: center; gap: var(--space-2); }
-.contextbalk-rechts { margin-left: auto; }
-.contextbalk-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-
-.contextknop {
-  display: inline-grid; text-align: left;
-  background: var(--surface-sunken); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 5px 10px; line-height: 1.15;
-}
-.contextknop:hover { border-color: var(--border-strong); }
-.contextknop-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-subtle); }
-.contextknop-waarde { font-size: 12px; font-weight: 600; }
-
-.klantkiezer select {
-  border: 1px solid var(--border); background: var(--surface-sunken);
-  border-radius: var(--radius-sm); padding: 6px 10px; font-size: 13px; font-weight: 600;
-  max-width: 220px;
-}
-
-.zoekveld { position: relative; }
-.zoekveld input {
-  border: 1px solid var(--border); background: var(--surface-sunken);
-  border-radius: 999px; padding: 7px 14px; font-size: 13px; width: 180px;
-}
-.zoekveld input:focus { width: 240px; }
-
-.icoonknop {
-  position: relative; background: var(--surface-sunken); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); width: 34px; height: 34px; display: grid; place-items: center; font-size: 15px;
-}
-.icoonknop.klein { width: 26px; height: 26px; font-size: 12px; border-radius: 7px; }
-.icoonknop:hover { border-color: var(--border-strong); }
-.icoonknop:disabled { opacity: 0.4; cursor: not-allowed; }
-.meldingteller {
-  position: absolute; top: -6px; right: -6px; background: var(--negatief); color: #fff;
-  border-radius: 999px; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px;
-  display: grid; place-items: center; padding: 0 4px;
-}
-
-.filterbalk-wrap {
-  flex-basis: 100%;
-  margin-top: var(--space-2);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-}
-
-.menuknop { display: none; }
 
 /* ---------- Paginakop ---------- */
 
@@ -2481,32 +2301,9 @@ body { font-size: var(--fs-body); line-height: 1.5; }
 .kpi-drill { margin-top: 8px; font-weight: 700; }
 .kpi-ingang { font-size: 12px; font-weight: 700; }
 
-/* ---------- Contextbalk: rustiger ritme ---------- */
-
-.contextbalk { padding: 10px var(--page-padding-x); gap: var(--space-3); }
-.contextknop { padding: 6px 12px; }
-.contextknop-label { font-size: 10px; letter-spacing: 0.04em; }
-.contextknop-waarde { font-size: 12px; font-weight: 700; }
-.contextbalk-filters { gap: 8px; }
-.zoekveld input { height: 34px; }
-
-/* ---------- Sidebar: leesbaarder, actief item minder schreeuwerig ---------- */
-
-.sidebar { padding: var(--space-4) var(--space-3); gap: var(--space-3); }
-.nav-groep-kop {
-  font-size: 10px; letter-spacing: 0.08em; color: var(--sidebar-ink-muted);
-  padding: 10px 10px 4px;
-}
-.nav-link { font-size: 14px; padding: 9px 11px; gap: 11px; border-radius: 10px; }
-.nav-link:hover { background: rgba(255, 255, 255, 0.09); color: #fff; }
-.nav-link.active {
-  background: linear-gradient(90deg, rgba(105, 53, 204, 0.95), rgba(255, 71, 216, 0.85));
-  color: #fff; font-weight: 600;
-  box-shadow: 0 4px 14px rgba(255, 71, 216, 0.28);
-}
-.nav-link.active .nav-icoon { opacity: 1; }
-.nav-icoon { opacity: 0.85; }
-.nav-klant-naam { font-size: 13px; }
+/* De contextbalk en de zijnavigatie worden volledig in het NAVIGATIESHELL-blok
+   onderaan gedefinieerd; de oude losse ritme-/actiefregels zijn daarin
+   opgegaan. */
 
 /* ---------- Tabellen: rustiger, uitgelijnd ---------- */
 
@@ -2684,65 +2481,379 @@ body[data-shell='app'] { overflow-x: hidden; }
    Staat achteraan zodat het als samenhangend systeem wint.
    ========================================================= */
 
-:root { --topbar-height: 60px; }
+/* =========================================================
+   NAVIGATIESHELL — topbalk en zijnavigatie als één samenhangend
+   ontwerp. Dit blok is de enige plek waar de bovenbalk en de nav
+   visueel worden gedefinieerd; het vervangt de eerdere losse
+   shell-regels (v3/v4) die hier stonden. Alles staat op tokens,
+   zodat hoogte, ritme en uitlijning op één plek te sturen zijn.
+   ========================================================= */
 
-/* ---------- Sidebar-kop en topbalk op één doorlopende lijn ---------- */
+:root {
+  --topbar-height: 60px;
+  /* Eén gedeelde maat voor élke bediening in de topbalk. */
+  --topbar-control-h: 36px;
+  --topbar-control-radius: 10px;
+  --topbar-gap: 8px;          /* binnen een zone */
+  --topbar-zone-gap: 16px;    /* tussen de drie zones */
 
-.sidebar { padding: 0 var(--space-3) var(--space-4); gap: var(--space-2); }
+  /* Zijnavigatie: iconenkolom, ritme en uitlijning. */
+  --nav-icon-box: 22px;       /* vaste iconencontainer — bepaalt de uitlijning */
+  --nav-icon-size: 18px;
+  --nav-item-h: 38px;
+  --nav-item-gap: 3px;
+  --nav-item-radius: 10px;
+  --nav-item-pad-x: 10px;     /* linkerinspring; groepslabel deelt deze */
+  --nav-icon-label-gap: 11px;
+  --nav-group-gap: 14px;      /* tussen groepen: meer dan tussen items */
+  --nav-group-label-gap: 4px;
+  --sidebar-pad-x: 14px;
+}
+
+/* ---------- Zijnavigatie ---------- */
+
+.sidebar { padding: 0 var(--sidebar-pad-x) var(--space-4); gap: 0; }
 
 /* De brand-rij is exact even hoog als de topbalk en heeft een full-bleed
    onderrand, zodat de scheidingslijn onder de sidebar-kop naadloos doorloopt in
-   de onderrand van de contextbalk. */
+   de onderrand van de contextbalk (één horizontale lijn over de hele shell). */
 .sidebar .brand {
+  position: relative;
   height: var(--topbar-height);
   min-height: var(--topbar-height);
   flex-shrink: 0;
+  display: flex;
   align-items: center;
-  margin: 0 calc(-1 * var(--space-3)) var(--space-3);
-  padding: 0 var(--space-3);
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--sidebar-pad-x)) var(--space-3);
+  padding: 0 var(--sidebar-pad-x);
   border-bottom: 1px solid rgba(255, 255, 255, 0.10);
 }
-/* De sidebar-kop en de klantcontext krimpen nooit; alleen de navigatie scrolt. */
-.sidebar .nav-klant { flex-shrink: 0; }
-.sidebar .nav { flex-shrink: 1; }
-.brand-title { font-size: 15px; line-height: 1.1; }
-.brand-sub { font-size: 11px; }
+.brand-mark { width: 34px; height: 34px; border-radius: 10px; }
+.brand-mark svg { width: 18px; height: 18px; }
+.brand-tekst { min-width: 0; }
+.brand-title { font-size: 15px; line-height: 1.1; font-weight: 700; }
+.brand-sub { font-size: 11px; color: var(--sidebar-ink-muted); }
 
-/* De contextbalk krijgt dezelfde vaste hoogte en blijft op desktop op één regel;
-   de filtergroep krimpt/scrolt in plaats van te wrappen. */
+.nav-inklap {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.08);
+  border: 0;
+  color: var(--sidebar-ink);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.nav-inklap:hover { background: rgba(255, 255, 255, 0.16); }
+.nav-inklap:focus-visible { outline: 2px solid var(--aizy-magenta-light); outline-offset: 2px; }
+
+/* De actieve klant. Krimpt niet mee met de scroll; alleen de nav scrolt. */
+.nav-klant {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: var(--nav-item-radius);
+  padding: 8px var(--nav-item-pad-x);
+  margin: 0 0 var(--nav-group-gap);
+  display: grid;
+  gap: 1px;
+}
+.nav-klant-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sidebar-ink-muted); }
+.nav-klant-naam { font-size: 13px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-klant-compact { display: grid; place-items: center; padding: 8px 0; }
+.nav-klant-initiaal {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: var(--aizy-gradient); color: #fff;
+  display: grid; place-items: center; font-size: 12px; font-weight: 700;
+}
+
+/* Meer lucht tussen groepen dan tussen items, voor een rustig verticaal ritme. */
+.nav { display: flex; flex-direction: column; gap: var(--nav-group-gap); flex-shrink: 1; }
+.nav-groep { display: flex; flex-direction: column; gap: var(--nav-group-label-gap); }
+
+/* Het groepslabel begint op dezelfde linkerlijn als de items; de chevron hugt
+   het label in plaats van los rechts te zweven. */
+.nav-groep-kop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 4px var(--nav-item-pad-x);
+  color: var(--sidebar-ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.nav-groep-kop:hover { color: var(--sidebar-ink); }
+.nav-groep-kop:focus-visible { outline: 2px solid var(--aizy-magenta-light); outline-offset: 2px; border-radius: 6px; }
+.nav-groep-titel { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-groep-pijl { width: 12px; text-align: center; font-size: 9px; opacity: 0.7; flex-shrink: 0; }
+
+.nav-lijst { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--nav-item-gap); }
+.nav-lijst[hidden] { display: none; }
+
+/* Elk item deelt exact dezelfde structuur: een vaste iconenkolom, een label dat
+   afkapt en een optionele badge. Daardoor staan icoon en tekst overal op één
+   verticale lijn en houdt elk item dezelfde hoogte. */
+.nav-link {
+  display: grid;
+  grid-template-columns: var(--nav-icon-box) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--nav-icon-label-gap);
+  min-height: var(--nav-item-h);
+  padding: 0 var(--nav-item-pad-x);
+  border-radius: var(--nav-item-radius);
+  color: var(--sidebar-ink-muted);
+  font-weight: 500;
+  font-size: 14px;
+  text-decoration: none;
+  position: relative;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-icoon-box {
+  width: var(--nav-icon-box);
+  height: var(--nav-icon-box);
+  flex: 0 0 var(--nav-icon-box);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-icoon { width: var(--nav-icon-size); height: var(--nav-icon-size); display: block; opacity: 0.82; }
+.nav-link-tekst { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
+
+.nav-link:hover { background: rgba(255, 255, 255, 0.07); color: var(--sidebar-ink); }
+.nav-link:hover .nav-icoon { opacity: 1; }
+.nav-link:focus-visible { outline: 2px solid var(--aizy-magenta-light); outline-offset: -2px; }
+
+/* Actief: herkenbaar maar rustiger dan de oude volvlakke gradient. Een zachte
+   getinte achtergrond plus een smalle accentbalk links, tekst en icoon helder. */
+.nav-link.active {
+  background: linear-gradient(90deg, rgba(105, 53, 204, 0.40), rgba(255, 71, 216, 0.22));
+  color: #fff;
+  font-weight: 600;
+}
+.nav-link.active .nav-icoon { opacity: 1; }
+.nav-link.active::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--aizy-magenta-light), var(--aizy-magenta));
+}
+
+/* Badge in de derde kolom: rechts uitgelijnd, verschuift de tekst niet. */
+.nav-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+.nav-link.active .nav-badge { background: rgba(255, 255, 255, 0.30); }
+
+/* Ingeklapte navigatie: alleen iconen, dezelfde iconencontainer, gecentreerd. */
+.nav-compact .brand-tekst,
+.nav-compact .nav-groep-titel,
+.nav-compact .nav-groep-pijl,
+.nav-compact .nav-link-tekst,
+.nav-compact .nav-badge,
+.nav-compact .nav-klant-label,
+.nav-compact .nav-klant-naam { display: none; }
+.nav-compact .nav-link { grid-template-columns: 1fr; justify-items: center; padding: 0; }
+.nav-compact .nav-link.active::before { display: none; }
+.nav-compact .nav-groep-kop { justify-content: center; padding: 4px 0; }
+.nav-compact .brand { justify-content: center; }
+.nav-compact .nav-inklap { position: absolute; top: 2px; right: 2px; margin: 0; }
+
+/* ---------- Bovenbalk: drie zones op één vaste regel ---------- */
+
 .contextbalk {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--topbar-zone-gap);
   height: var(--topbar-height);
   min-height: var(--topbar-height);
   padding: 0 var(--page-padding-x);
-  flex-wrap: nowrap;
-  gap: var(--space-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  font-size: 13px;
 }
-.contextbalk-links, .contextbalk-rechts { flex-shrink: 0; }
-.contextbalk-filters {
+
+/* Zone 1 (context) en zone 3 (algemene bediening) houden hun maat; zone 2
+   (filters) krimpt als de ruimte tekortschiet. */
+.contextbalk-links, .contextbalk-rechts { display: flex; align-items: center; gap: var(--topbar-gap); flex-shrink: 0; }
+.contextbalk-rechts { margin-left: auto; }
+.contextbalk-filters { display: flex; align-items: center; gap: var(--topbar-gap); min-width: 0; flex-shrink: 1; }
+
+/* De filterknoppen vormen samen één gesegmenteerde control in plaats van losse
+   blokken: één omranding, interne scheidingslijntjes. */
+.filtergroep {
+  display: flex;
+  align-items: stretch;
   min-width: 0;
-  flex-shrink: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
-  /* Subtiele scheiding tussen context, filters en algemene bediening. */
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  padding: 0 var(--space-3);
-  margin: 0 4px;
+  height: var(--topbar-control-h);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--topbar-control-radius);
+  overflow: hidden;
 }
-.contextbalk-filters::-webkit-scrollbar { display: none; }
+.contextknop {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 12px;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+}
+.contextknop:first-child { border-left: 0; }
+.contextknop:hover { background: var(--accent-soft); }
+.contextknop-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-subtle); line-height: 1; }
+.contextknop-waarde { font-size: 12px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ---------- Nav: één strakke verticale uitlijning ---------- */
+/* Filters resetten is een secundaire actie: een compacte icoonknop met tooltip,
+   pas geaccentueerd wanneer er daadwerkelijk van de standaard is afgeweken. */
+.filter-reset {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--topbar-control-h);
+  min-width: var(--topbar-control-h);
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--topbar-control-radius);
+  color: var(--ink-muted);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.filter-reset:hover { background: var(--surface-sunken); color: var(--ink); border-color: var(--border); }
+.filter-reset.is-actief { color: var(--accent); }
+/* De tekst blijft in de DOM voor toegankelijkheid, maar de knop toont standaard
+   alleen het reseticoon; de tooltip (title) draagt de betekenis. */
+.filter-reset-tekst { display: none; }
+.filter-reset-badge:not(:empty) { position: absolute; top: -5px; right: -5px; }
+.filter-reset-badge {
+  min-width: 16px; height: 16px; padding: 0 4px;
+  display: inline-grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink);
+  border-radius: 999px; font-size: 10px; font-weight: 700;
+}
 
-.nav-groep-kop { padding: 10px var(--space-3) 4px; }
-.nav-link { padding: 9px var(--space-3); gap: 11px; border-radius: 10px; }
-.nav-icoon { width: 18px; height: 18px; }
-/* Actief item exact even hoog als inactief: geen springende rijen. */
-.nav-link.active { padding: 9px var(--space-3); }
-.nav-klant { margin: 0 0 var(--space-2); padding: 8px var(--space-3); border-radius: 10px; }
+/* Zone 1: omgeving + klantkiezer. */
+.klantkiezer select {
+  height: var(--topbar-control-h);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  border-radius: var(--topbar-control-radius);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 160px;
+  cursor: pointer;
+}
+.klantkiezer select:hover { border-color: var(--border-strong); }
 
-/* Het uitklapbare filterpaneel en de correctiemelding horen niet in de vaste
-   60px-rij van de topbalk, anders worden ze platgedrukt. Ze vallen als
-   dropdown uit onder de balk zonder de hoogte te beïnvloeden. */
+/* Zone 3: zoeken, meldingen, profiel — één rustige groep, gelijke hoogtes. */
+.zoekveld { position: relative; display: flex; align-items: center; width: 180px; }
+.zoekveld input {
+  height: var(--topbar-control-h);
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  border-radius: 999px;
+  padding: 0 14px 0 36px;
+  font-size: 13px;
+  transition: border-color 0.16s ease;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23857f99" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>');
+  background-repeat: no-repeat;
+  background-position: 12px center;
+}
+.zoekveld input:focus { border-color: var(--accent); outline: none; }
+
+.icoonknop {
+  position: relative;
+  height: var(--topbar-control-h);
+  width: var(--topbar-control-h);
+  display: grid;
+  place-items: center;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--topbar-control-radius);
+  font-size: 15px;
+  cursor: pointer;
+}
+.icoonknop.klein { width: 26px; height: 26px; font-size: 12px; border-radius: 7px; }
+.icoonknop:hover { border-color: var(--border-strong); background: var(--accent-soft); }
+.icoonknop:disabled { opacity: 0.4; cursor: not-allowed; }
+.meldingteller {
+  position: absolute; top: -5px; right: -5px;
+  background: var(--negatief); color: #fff;
+  border-radius: 999px; font-size: 10px; font-weight: 700;
+  min-width: 16px; height: 16px;
+  display: grid; place-items: center; padding: 0 4px;
+  border: 2px solid var(--surface);
+}
+
+.accountknop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--topbar-control-h);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 0 12px 0 4px;
+  cursor: pointer;
+}
+.accountknop:hover { border-color: var(--accent); }
+.accountknop-tekst { display: flex; flex-direction: column; line-height: 1.15; text-align: left; min-width: 0; }
+.accountknop-naam { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16ch; }
+.accountknop-rol { font-size: 11px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16ch; }
+
+.menuknop {
+  height: var(--topbar-control-h);
+  min-width: var(--topbar-control-h);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  border-radius: var(--topbar-control-radius);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* Het uitklapbare filterpaneel en de correctiemelding vallen als dropdown uit
+   onder de balk, zodat ze de vaste 60px-rij niet platdrukken. */
 .contextbalk > .filterbalk-wrap,
 .contextbalk > #filterCorrecties {
   position: absolute;
@@ -2759,13 +2870,41 @@ body[data-shell='app'] { overflow-x: hidden; }
 /* Het detailpaneel sluit exact onder de topbalk aan. */
 .detailpaneel { height: calc(100vh - var(--topbar-height)); top: var(--topbar-height); }
 
+/* ---------- Responsief gedrag van de bovenbalk ---------- */
+
+/* De filters houden voorrang. Zodra de ruimte krapper wordt, krimpt het profiel
+   tot alleen de avatar zodat de analysefilters leesbaar blijven. */
+@media (max-width: 1300px) {
+  .accountknop { padding: 0 4px; }
+  .accountknop-tekst { display: none; }
+}
+
+/* Onder ~1100px is er te weinig ruimte voor alle segmenten. De periode blijft
+   prominent en volledig leesbaar; de secundaire filters (vergelijking, kanalen,
+   conversies) verplaatsen naar het uitklapbare filterpaneel achter de knop. Hun
+   actieve aantal blijft zichtbaar via de badge op de resetknop. */
+@media (max-width: 1100px) {
+  .filtergroep #filterToggleVergelijking,
+  .filtergroep #filterToggleKanalen,
+  .filtergroep #filterToggleConversie { display: none; }
+}
+
 @media (max-width: 768px) {
-  /* Op mobiel mag de contextbalk weer wrappen; de sidebar is dan een lade. De
-     groepen mogen dan wél krimpen, anders duwt de account-/zoekgroep de pagina
-     breder dan het scherm. */
-  .contextbalk { flex-wrap: wrap; height: auto; min-height: var(--topbar-height); }
+  /* De contextbalk mag wrappen naar twee regels; de sidebar is dan een lade. */
+  .contextbalk {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--topbar-height);
+    padding: 8px var(--space-3);
+    gap: var(--topbar-gap);
+  }
   .contextbalk-links, .contextbalk-rechts { flex-shrink: 1; min-width: 0; }
-  .contextbalk-filters { border: 0; padding: 0; margin: 0; overflow-x: visible; }
+  .contextbalk-filters { order: 3; flex-basis: 100%; }
+  .filtergroep { flex: 1; }
+  .zoekveld { flex: 1; }
+  .zoekveld input, .zoekveld input:focus { width: 100%; }
+  /* Profiel toont op smal alleen de avatar. */
+  .accountknop-tekst { display: none; }
 }
 
 /* ---------- A. Getallen rechts uitgelijnd in gewone tabellen ---------- */
