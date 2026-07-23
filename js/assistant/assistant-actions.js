@@ -25,6 +25,9 @@ const DEFINITIES = {
   'open-datakwaliteit': (c) => (c.permissions.isAgency ? N('Open datakwaliteit', '#/agency/dataquality') : null),
   'open-inzichten': (c) => (c.permissions.isAgency ? N('Open inzichten', '#/agency/insights') : null),
   'open-integraties': (c) => (c.permissions.isAgency ? N('Open integraties', '#/agency/integrations') : null),
+  'maak-rapportage': (c) => (c.environment === 'client'
+    ? N('Rapportage maken', '#/client/report?tab=rapportages')
+    : N('Rapportage maken', '#/agency/reports')),
   'open-assistent-instellingen': (c) => (c.permissions.isAgency
     ? N('Assistent-instellingen', '#/agency/settings?sectie=assistent')
     : N('Assistent-instellingen', '#/client/report')),

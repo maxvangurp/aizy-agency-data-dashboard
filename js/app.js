@@ -1005,6 +1005,11 @@ function bouwKlantpagina({ user, route, params, filters, tab, uiParams }) {
           : `Resultaten van ${toonBereik(dashboard.periode.startDate, dashboard.periode.endDate)}, zonder vergelijking.`,
         kruimelpad: [kruimel, { label: 'Overzicht' }],
         labels: [{ tekst: dashboardtypeTerm(dashboard.model).kort, variant: 'muted' }],
+        // Rapportage maken is een prominente vervolgstap vanuit het overzicht; de
+        // actieve klant en periode reizen mee via de globale filters.
+        acties: can(user, Permission.VIEW_CLIENT_REPORT)
+          ? '<a class="btn primary" href="#/client/report?tab=rapportages">Rapportage maken</a>'
+          : '',
         tabs: OVERZICHT_TABS,
         tabKey: actiefTab,
         inhoud: renderKlantOverzicht({

@@ -48,6 +48,9 @@ function renderBericht(bericht, context) {
     ? `<ul class="assistent-punten">${bericht.punten.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>`
     : '';
   const beperking = bericht.beperking ? `<p class="assistent-beperking">${esc(bericht.beperking)}</p>` : '';
+  const gebruikt = bericht.context
+    ? `<p class="assistent-contextgebruikt"><span class="assistent-contextlabel">Gebruikte context</span> ${esc(bericht.context)}</p>`
+    : '';
   const acties = renderActieknoppen(resolveActies(bericht.acties, context));
   const suggesties = bericht.suggesties?.length
     ? `<div class="assistent-suggesties">${bericht.suggesties.map((v) => `<button type="button" class="assistent-chip" data-assistent-vraag="${esc(v)}">${esc(v)}</button>`).join('')}</div>`
@@ -56,7 +59,7 @@ function renderBericht(bericht, context) {
   return `<li class="assistent-bericht is-assistent">
     <div class="assistent-bel">
       <p>${esc(bericht.tekst)}</p>
-      ${cijfers}${punten}${beperking}
+      ${cijfers}${punten}${beperking}${gebruikt}
     </div>
     ${acties}${suggesties}
     <span class="assistent-moment">${esc(moment(bericht.op))}</span>
@@ -142,9 +145,9 @@ export function renderAssistent(context) {
     ${assistent.isVastgezet() ? '' : `<button type="button" class="assistent-launcher${open ? ' is-open' : ''}"
       id="assistentLauncher" data-assistent="toggle"
       aria-expanded="${open ? 'true' : 'false'}" aria-controls="assistentPaneel"
-      title="Vraag Aizy">
+      title="Vraag over deze data">
       ${AI_ICOON}
-      <span class="visueel-verborgen">Vraag Aizy</span>
+      <span class="visueel-verborgen">Vraag over deze data</span>
       ${nieuwSuggestie && !open ? '<span class="assistent-indicator" aria-hidden="true"></span>' : ''}
     </button>`}
   </div>`;

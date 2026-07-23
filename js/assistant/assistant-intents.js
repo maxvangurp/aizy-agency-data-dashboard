@@ -142,7 +142,8 @@ function antwoordSamenvatting(context, hulp) {
     tekst,
     cijfers,
     beperking: 'Ik gebruik nu alleen de zichtbare gegevens van deze pagina.',
-    acties: hulp.navActions.slice(0, 3),
+    // Na een samenvatting is een rapportage een logische vervolgstap.
+    acties: [...hulp.navActions.slice(0, 2), 'maak-rapportage'],
     demo: true,
   };
 }
@@ -249,15 +250,22 @@ export function beantwoord(message, context) {
   const hulp = paginahulp(context.pageType, context.activeTab);
   const intent = herkenIntent(tekst);
 
+  let antwoord;
   switch (intent) {
-    case 'metriek': return antwoordMetriek(tekst, hulp);
-    case 'samenvatting': return antwoordSamenvatting(context, hulp);
-    case 'prioritering': return antwoordPrioritering(context, hulp);
-    case 'navigatie': return antwoordNavigatie(tekst, context, hulp);
-    case 'tips': return antwoordTips(hulp);
-    case 'pagina': return antwoordPagina(hulp);
-    default: return antwoordOnbekend(hulp);
+    case 'metriek': antwoord = antwoordMetriek(tekst, hulp); break;
+    case 'samenvatting': antwoord = antwoordSamenvatting(context, hulp); break;
+    case 'prioritering': antwoord = antwoordPrioritering(context, hulp); break;
+    case 'navigatie': antwoord = antwoordNavigatie(tekst, context, hulp); break;
+    case 'tips': antwoord = antwoordTips(hulp); break;
+    case 'pagina': antwoord = antwoordPagina(hulp); break;
+    default: antwoord = antwoordOnbekend(hulp);
   }
+  // Elke antwoord draagt de gebruikte data-doorsnede mee, behalve zuivere
+  // uitleg (metriek/tips/pagina) waar geen paginadata bij hoort.
+  const contextrelevant = ['samenvatting', 'prioritering'].includes(intent);
+  return contextrelevant && context.gebruikteContext
+    ? { ...antwoord, context: context.gebruikteContext }
+    : antwoord;
 }
 
 /** De startsuggesties (begroeting, pagina-inzicht, voorgestelde vragen). */

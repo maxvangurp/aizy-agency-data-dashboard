@@ -114,11 +114,29 @@ test.describe('Aizy-assistent — context en antwoorden', () => {
     await expect(laatsteAntwoord(page)).toContainText('besteed');
   });
 
+  test('een samenvatting toont de gebruikte datacontext en een rapportage-vervolgstap', async ({ page }) => {
+    await login(page, ACCOUNTS.klantAdmin);
+    await ga(page, '#/client/overview', { wacht: 500 });
+    await openAssistent(page);
+    await stelVraag(page, 'Vat deze pagina samen');
+    const laatste = page.locator('.assistent-bericht.is-assistent').last();
+    await expect(laatste.locator('.assistent-contextgebruikt')).toContainText('Gebruikte context');
+    await expect(laatste.locator('.assistent-acties')).toContainText('Rapportage maken');
+  });
+
   test('een onbekende vraag geeft een eerlijke fallback zonder verzonnen antwoord', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await openAssistent(page);
     await stelVraag(page, 'Bestel een pizza met ananas');
     await expect(laatsteAntwoord(page)).toContainText('demoversie nog niet');
+  });
+
+  test('het klantoverzicht toont een prominente Rapportage maken-actie', async ({ page }) => {
+    await login(page, ACCOUNTS.klantAdmin);
+    await ga(page, '#/client/overview', { wacht: 500 });
+    const cta = page.locator('.paginakop a', { hasText: 'Rapportage maken' });
+    await expect(cta).toBeVisible();
+    await expect(cta).toHaveAttribute('href', /client\/report/);
   });
 
   test('dezelfde vraag geeft in dezelfde context hetzelfde antwoord', async ({ page }) => {
@@ -127,7 +145,8 @@ test.describe('Aizy-assistent — context en antwoorden', () => {
     await openAssistent(page);
     await stelVraag(page, 'Waar moet ik eerst naar kijken?');
     await stelVraag(page, 'Waar moet ik eerst naar kijken?');
-    const antwoorden = await page.locator('.assistent-bericht.is-assistent .assistent-bel p').allInnerTexts();
+    // Alleen de hoofdtekst van elk antwoord vergelijken (niet de contextregel).
+    const antwoorden = await page.locator('.assistent-bericht.is-assistent .assistent-bel > p:first-child').allInnerTexts();
     const laatsteTwee = antwoorden.slice(-2);
     expect(laatsteTwee[0]).toBe(laatsteTwee[1]);
   });

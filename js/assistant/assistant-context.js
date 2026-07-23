@@ -17,6 +17,24 @@ import { toonBereik } from '../filters/period.js';
 import { getAccessibleClientSummaries, getAgencyOverview } from '../data/repository.js';
 import { getWerkSignalen, getToegankelijkeActies, actieSamenvatting } from '../data/work-repository.js';
 import { SignaalStatus } from '../model/signals.js';
+import { kanaalLabel } from '../filters/channels.js';
+
+/**
+ * Eén leesbare regel met de data-doorsnede die de assistent gebruikt: kanaal,
+ * klant, periode en vergelijking. Zo is onder elk antwoord zichtbaar wélke data
+ * is meegenomen — de assistent verzint niets en toont wat hij weet.
+ */
+function beschrijfContext({ filters, clientName }) {
+  const kanalen = filters?.channels ?? [];
+  const kanaalDeel = kanalen.length && kanalen.length <= 2
+    ? kanalen.map(kanaalLabel).join(', ')
+    : null;
+  const periodeDeel = filters?.periode ? toonBereik(filters.periode.startDate, filters.periode.endDate) : null;
+  const vergelijkingDeel = filters?.vergelijking?.mode && filters.vergelijking.mode !== 'none'
+    ? `vergeleken met ${String(filters.vergelijking.label ?? 'de vorige periode').toLowerCase()}`
+    : null;
+  return [kanaalDeel, clientName, periodeDeel, vergelijkingDeel].filter(Boolean).join(' · ');
+}
 
 /** Herkent de "aandacht nodig"-status ongeacht de exacte labeltekst. */
 function vraagtAandacht(status) {
@@ -151,6 +169,7 @@ export function bouwAssistantContext({
     },
     pageTitle: pagina?.titel ?? route?.titel ?? null,
     pageModel: pagina?.model ?? null,
+    gebruikteContext: beschrijfContext({ filters, clientName: clientName ?? summary.clientName ?? null }),
     summary,
     permissions: rechten,
   };
