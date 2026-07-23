@@ -15,7 +15,7 @@
 import { lineChart, barChart, funnelChart } from '../charts.js';
 import {
   fmt, esc, kpi, kpiMetriek, tabel, figure, renderBudget, ontbrekendeCel, metriekKolom,
-  doelRij, doelVoortgang, badge, uitklap, ChartHoogte,
+  doelRij, doelVoortgang, badge, uitklap, ChartHoogte, renderSamenvattingStrip, getalKolom,
 } from './components.js';
 import { renderInzichten } from './insight-cards.js';
 import { toonKorteDatum, toonBereik } from '../filters/period.js';
@@ -48,7 +48,15 @@ const vgl = (d) => (d.vergelijkingActief ? d.vergelijking.label.toLowerCase() : 
 export function renderLeadgenClient(dashboard, verhaal) {
   if (!dashboard.heeftData) return renderGeenData(dashboard);
 
+  const ankers = [
+    { id: 'inzichten', label: 'Inzichten' },
+    { id: 'doelen', label: 'Doelen' },
+    { id: 'funnel', label: 'Funnel' },
+    { id: 'kanalen', label: 'Kanalen' },
+  ];
+
   return `
+    ${renderSamenvattingStrip(dashboard, { ankers })}
     ${renderMeldingen(dashboard)}
     ${renderKerncijfers(dashboard)}
     ${renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd in de aanvragen' })}
@@ -116,7 +124,7 @@ function renderDoelen(dashboard) {
   const behaald = dashboard.doelen.filter((d) => doelVoortgang(d).opSchema).length;
   const meetbaar = dashboard.doelen.filter((d) => doelVoortgang(d).behaald != null).length;
 
-  return `<section class="card">
+  return `<section class="card" id="doelen">
     <h2>Doelen tegenover werkelijkheid</h2>
     <p class="muted">${behaald} van ${meetbaar} meetbare doelen op schema of hoger.</p>
     <ul class="goal-list">${rijen.join('')}</ul>
@@ -156,7 +164,7 @@ function renderFunnel(dashboard) {
       ? `Onvoldoende data. Met minder dan ${minimumVolume} landingspaginaweergaven in deze selectie is het verschil tussen stappen ruis; daar wordt geen conclusie aan verbonden.`
       : 'Er is onvoldoende data om een knelpunt te bepalen.';
 
-  return `<section class="leadfunnel">
+  return `<section class="leadfunnel" id="funnel">
     ${figure(
       'chart-lead-funnel',
       'Doorstroom per funnelstap',
@@ -269,8 +277,9 @@ function verschilCel(c) {
    --------------------------------------------------------------- */
 
 function renderKanalen(dashboard) {
+  const g = getalKolom;
   const tabelHtml = tabel(
-    ['Kanaal', 'Uitgaven', 'Impressies', 'Klikken', 'CTR', 'Leads', 'CPL', 'Gekwalificeerd', 'CPQL'],
+    ['Kanaal', g('Uitgaven'), g('Impressies'), g('Klikken'), g('CTR'), g('Leads'), g('CPL'), g('Gekwalificeerd'), g('CPQL')],
     dashboard.kanaalRijen.map((k) => [
       esc(k.label),
       fmt.euro(k.spend),
@@ -284,13 +293,13 @@ function renderKanalen(dashboard) {
     ])
   );
 
-  return figure(
+  return `<section id="kanalen">${figure(
     'chart-lead-kanaal',
     'Leads per kanaal',
     'Welke advertentiekanalen leads opleveren binnen de geselecteerde periode.',
     tabelHtml,
     'Advertentiekanalen en Google Analytics 4'
-  );
+  )}</section>`;
 }
 
 /* ---------------------------------------------------------------

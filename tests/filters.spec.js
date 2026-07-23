@@ -585,7 +585,8 @@ test.describe('Filterbalk: bediening', () => {
     await page.click('#filterKanalenKnop');
     await expect(page.locator('#filterKanalenPaneel')).toBeVisible();
 
-    await page.locator('#pageRoot h1').click();
+    // Een klik in het filterpaneel maar buiten het kanaalmenu sluit het menu.
+    await page.locator('#filterSamenvatting').click();
     await expect(page.locator('#filterKanalenPaneel')).toBeHidden();
   });
 

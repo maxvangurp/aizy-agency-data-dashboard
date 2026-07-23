@@ -246,6 +246,106 @@ test.describe('Layout-herindeling', () => {
 });
 
 /* ---------------------------------------------------------------
+   Shell-uitlijning: sidebar-kop en topbalk op één lijn
+   --------------------------------------------------------------- */
+
+test.describe('Shell-uitlijning', () => {
+  test('de sidebar-kop en de topbalk delen één horizontale lijn', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/clients/vitaalpunt', { wacht: 500 });
+
+    const brandBottom = await page.locator('.sidebar .brand').evaluate((el) => el.getBoundingClientRect().bottom);
+    const balkBottom = await page.locator('.contextbalk').evaluate((el) => el.getBoundingClientRect().bottom);
+    expect(Math.abs(brandBottom - balkBottom)).toBeLessThanOrEqual(1);
+  });
+
+  test('de navigatie-iconen zijn links op één verticale lijn uitgelijnd', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    const lefts = await page.locator('.nav-link .nav-icoon').evaluateAll(
+      (els) => els.map((e) => Math.round(e.getBoundingClientRect().left))
+    );
+    expect(lefts.length).toBeGreaterThan(3);
+    expect(Math.max(...lefts) - Math.min(...lefts)).toBeLessThanOrEqual(1);
+  });
+
+  test('de topbalk staat op desktop op één regel (vaste hoogte)', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    const hoogte = await page.locator('.contextbalk').evaluate((el) => el.getBoundingClientRect().height);
+    expect(hoogte).toBeLessThanOrEqual(64);
+  });
+});
+
+/* ---------------------------------------------------------------
+   Getallen, KPI-voet, samenvattingsstrip en doelbalk
+   --------------------------------------------------------------- */
+
+test.describe('Leesbaarheid v4', () => {
+  test('numerieke tabelkolommen zijn rechts uitgelijnd', async ({ page }) => {
+    await login(page, ACCOUNTS.klantAdmin);
+    await ga(page, '#/client/channels', { wacht: 500 });
+
+    const cel = page.locator('.table-scroll td.uitlijn-rechts').first();
+    await expect(cel).toHaveCount(1);
+    const align = await cel.evaluate((el) => getComputedStyle(el).textAlign);
+    expect(align).toBe('right');
+  });
+
+  test('de KPI-metaregel zakt naar de onderkant van de kaart', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/clients/vitaalpunt', { wacht: 600 });
+
+    // De onderkant van het laatste meta-element ligt dicht bij de onderkant van
+    // de kaart: geen groot wit gat meer.
+    const kaart = page.locator('.kpi-drilbaar').first();
+    const gat = await kaart.evaluate((el) => {
+      const kaartBox = el.getBoundingClientRect();
+      // Het écht laatste meta-element (drill wint van uitleg wint van sub).
+      const laatste = el.querySelector('.kpi-drill')
+        || el.querySelector('.kpi-uitleg')
+        || el.querySelector('.kpi-sub');
+      const metaBox = laatste.getBoundingClientRect();
+      return kaartBox.bottom - metaBox.bottom;
+    });
+    expect(gat).toBeLessThanOrEqual(24);
+  });
+
+  test('het klantdashboard opent met een samenvattingsstrip met werkende ankers', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/clients/vitaalpunt', { wacht: 600 });
+
+    await expect(page.locator('.samenvattingsstrip')).toHaveCount(1);
+    const anker = page.locator('.strip-anker').filter({ hasText: 'Funnel' });
+    await expect(anker).toBeVisible();
+    // Klikken scrolt naar de funnelsectie zonder de route te wijzigen.
+    const hashVoor = await page.evaluate(() => location.hash);
+    await anker.click();
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => location.hash)).toBe(hashVoor);
+    const inBeeld = await page.locator('#funnel').evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top >= -5 && r.top < window.innerHeight;
+    });
+    expect(inBeeld).toBe(true);
+  });
+
+  test('een doelbalk toont een vorige-periode-markering waar data bestaat', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/clients/vitaalpunt', { wacht: 600 });
+    expect(await page.locator('.progress-marker').count()).toBeGreaterThan(0);
+  });
+
+  test('e-commerce secundaire secties zijn inklapbaar met vindbare kop', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/clients/tafelwerk', { wacht: 700 });
+
+    // Productfeed/Zoekwoorden/Organische resultaten staan nu in uitklapbare secties.
+    await expect(page.getByRole('heading', { name: 'Productfeed' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Organische resultaten' })).toBeVisible();
+    expect(await page.locator('.uitklap').count()).toBeGreaterThan(0);
+  });
+});
+
+/* ---------------------------------------------------------------
    Thema's blijven leesbaar
    --------------------------------------------------------------- */
 

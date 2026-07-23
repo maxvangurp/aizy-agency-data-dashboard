@@ -15,7 +15,7 @@
 import { lineChart, barChart, funnelChart, donutChart } from '../charts.js';
 import {
   fmt, esc, kpi, kpiMetriek, tabel, figure, doelRij, renderBudget,
-  ontbrekendeCel, metriekKolom,
+  ontbrekendeCel, metriekKolom, uitklap, renderSamenvattingStrip, getalKolom,
 } from './components.js';
 import { renderInzichten } from './insight-cards.js';
 import { toonKorteDatum, toonBereik } from '../filters/period.js';
@@ -49,7 +49,15 @@ export function renderEcommerceClient(dashboard, verhaal) {
   const label = vgl(dashboard);
   const m = (key, opties = {}) => kpiMetriek(totalen, key, deltas, { vergelijkingLabel: label, drill: true, ...opties });
 
+  const ankers = [
+    { id: 'inzichten', label: 'Inzichten' },
+    { id: 'doelen', label: 'Doelen' },
+    { id: 'funnel', label: 'Funnel' },
+    { id: 'kanalen', label: 'Kanalen' },
+  ];
+
   return `
+    ${renderSamenvattingStrip(dashboard, { ankers })}
     ${renderMeldingen(dashboard)}
 
     <div class="kpi-row">
@@ -96,7 +104,7 @@ function renderMeldingen(dashboard) {
 }
 
 function renderDoelen(dashboard) {
-  return `<section class="card">
+  return `<section class="card" id="doelen">
     <h2>Doelen tegenover werkelijkheid</h2>
     <ul class="goal-list">${dashboard.doelen.map((d) => {
       const meta = DOEL_META[d.kpi] ?? { label: d.kpi, format: fmt.getal };
@@ -162,13 +170,13 @@ function renderFunnel(dashboard) {
       ? `Onvoldoende data. Met minder dan ${minimumVolume} productweergaven in deze selectie wordt er geen knelpunt aangewezen.`
       : 'Er is onvoldoende data om een knelpunt te bepalen.';
 
-  return `<section class="ecomfunnel">
+  return `<section class="ecomfunnel" id="funnel">
     ${figure(
       'chart-funnel',
       'E-commerce funnel',
       'Van productweergave tot aankoop, met doorstroom en uitval per stap.',
       tabel(
-        ['Stap', 'Volume', 'Vorige periode', 'Doorstroom', 'Uitval'],
+        ['Stap', getalKolom('Volume'), getalKolom('Vorige periode'), getalKolom('Doorstroom'), getalKolom('Uitval')],
         rijen.map((s) => [
           esc(s.label),
           s.volume == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(s.volume),
@@ -188,12 +196,13 @@ function renderFunnel(dashboard) {
 }
 
 function renderKanalen(dashboard) {
-  return figure(
+  const g = getalKolom;
+  return `<section id="kanalen">${figure(
     'chart-kanaal-omzet',
     'Omzet per kanaal',
     'Welke advertentiekanalen de omzet opleveren binnen de geselecteerde periode.',
     tabel(
-      ['Kanaal', 'Uitgaven', 'Sessies', 'Aankopen', 'Omzet', 'ROAS', 'Conversieratio'],
+      ['Kanaal', g('Uitgaven'), g('Sessies'), g('Aankopen'), g('Omzet'), g('ROAS'), g('Conversieratio')],
       dashboard.kanaalRijen.map((k) => [
         esc(k.label),
         fmt.euro(k.spend),
@@ -205,7 +214,7 @@ function renderKanalen(dashboard) {
       ])
     ),
     'Advertentiekanalen en Google Analytics 4'
-  );
+  )}</section>`;
 }
 
 function renderMatchtypes(dashboard) {
@@ -238,8 +247,7 @@ function renderProductfeed(mc) {
   const ernstLabel = { afgekeurd: 'Afgekeurd', beperkt: 'Beperkt', waarschuwing: 'Waarschuwing' };
   const ernstBadge = { afgekeurd: 'hoog', beperkt: 'middel', waarschuwing: 'muted' };
 
-  return `<section class="card">
-    <h2>Productfeed</h2>
+  return uitklap('Productfeed', `
     <div class="kpi-row">
       ${kpi('Totaal producten', fmt.getal(mc.totaalProducten), 'in de feed')}
       ${kpi('Goedgekeurd', fmt.getal(mc.goedgekeurd), fmt.procent(pct(mc.goedgekeurd)), 'positief')}
@@ -248,7 +256,7 @@ function renderProductfeed(mc) {
     </div>
     <div class="table-scroll" style="margin-top:16px">
       ${tabel(
-        ['Probleem', 'Producten', 'Ernst'],
+        ['Probleem', getalKolom('Producten'), 'Ernst'],
         mc.problemen.map((p) => [
           esc(p.probleem),
           fmt.getal(p.producten),
@@ -260,19 +268,19 @@ function renderProductfeed(mc) {
       De feedstatus is een momentopname en beweegt niet mee met de geselecteerde periode.
       Laatste synchronisatie: ${new Date(mc.laatsteSync).toLocaleString('nl-NL')}. Bron: Google Merchant Center.
     </p>
-  </section>`;
+  `, { samenvatting: `${mc.afgekeurd} afgekeurd · ${mc.beperkt} beperkt van ${fmt.getal(mc.totaalProducten)}` });
 }
 
 function renderZoekwoorden(dashboard) {
   const zoekwoorden = dashboard.profiel?.googleAds?.zoekwoorden ?? [];
 
-  return `<section class="card">
-    <h2>Zoekwoorden</h2>
+  const g = getalKolom;
+  return uitklap('Zoekwoorden', `
     ${!zoekwoorden.length
       ? '<p class="empty">Google Ads staat niet in de huidige kanaalselectie, dus er zijn geen zoekwoorden.</p>'
       : `<div class="table-scroll">
         ${tabel(
-          ['Zoekwoord', 'Matchtype', 'Vertoningen', 'Klikken', 'CTR', 'CPC', 'Kosten', 'Conversies', 'CPA', 'ROAS'],
+          ['Zoekwoord', 'Matchtype', g('Vertoningen'), g('Klikken'), g('CTR'), g('CPC'), g('Kosten'), g('Conversies'), g('CPA'), g('ROAS')],
           zoekwoorden.map((z) => [
             esc(z.zoekwoord),
             `<span class="tag">${esc(z.matchtype)}</span>`,
@@ -293,13 +301,13 @@ function renderZoekwoorden(dashboard) {
         Bron: Google Ads. De verdeling over zoekwoorden is in deze demo een vaste verhouding
         die met de geselecteerde periode meeschaalt.
       </p>`}
-  </section>`;
+  `, { samenvatting: `${fmt.getal(zoekwoorden.length)} zoekwoorden` });
 }
 
 function renderSearchConsole(sc) {
   if (!sc) return '';
-  return `<section class="card">
-    <h2>Organische resultaten</h2>
+  const g = getalKolom;
+  return uitklap('Organische resultaten', `
     <div class="kpi-row">
       ${kpi('Klikken', fmt.getal(sc.klikken), 'organisch')}
       ${kpi('Impressies', fmt.getal(sc.impressies), 'organisch')}
@@ -308,7 +316,7 @@ function renderSearchConsole(sc) {
     </div>
     <div class="table-scroll" style="margin-top:16px">
       ${tabel(
-        ['Segment', 'Klikken', 'Impressies', 'CTR', 'Gemiddelde positie'],
+        ['Segment', g('Klikken'), g('Impressies'), g('CTR'), g('Gemiddelde positie')],
         [
           ['Merkgebonden', fmt.getal(sc.branded.klikken), fmt.getal(sc.branded.impressies), fmt.procent(sc.branded.ctr), sc.branded.gemPositie.toFixed(1)],
           ['Niet-merkgebonden', fmt.getal(sc.nonBranded.klikken), fmt.getal(sc.nonBranded.impressies), fmt.procent(sc.nonBranded.ctr), sc.nonBranded.gemPositie.toFixed(1)],
@@ -319,7 +327,7 @@ function renderSearchConsole(sc) {
       Organische cijfers komen uit een aparte bron met een eigen attributievenster en volgen
       de kanaalselectie niet. Laatste beschikbare datum: ${esc(sc.laatsteDatum)}. Bron: Google Search Console.
     </p>
-  </section>`;
+  `, { samenvatting: `${fmt.getal(sc.klikken)} organische klikken` });
 }
 
 /* ---------------------------------------------------------------

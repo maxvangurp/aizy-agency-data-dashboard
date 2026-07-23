@@ -1392,6 +1392,13 @@ async function onClick(e) {
   if (el.dataset.signaalpaneel) { openPaneel('signaal', el.dataset.signaalpaneel); return; }
   if (el.dataset.drill) { openMetriek(el.dataset.drill); return; }
 
+  /* --- Sprong-ankers van de samenvattingsstrip --- */
+  if (el.dataset.spring) {
+    const doel = document.getElementById(el.dataset.spring);
+    if (doel) doel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+
   /* --- Cross-filtering op kanaal --- */
   if (el.dataset.kanaalfilter) {
     const huidig = getActieveFilters()?.filters.channels ?? [];

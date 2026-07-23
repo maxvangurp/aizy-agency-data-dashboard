@@ -205,30 +205,48 @@ export function tabel(kolommen, rijen, { leegTekst = 'Geen gegevens beschikbaar.
     return `<p class="empty">${esc(leegTekst)}</p>`;
   }
 
+  // Per kolom bepalen we de uitlijning. Numerieke kolommen (met een uitlijn:
+  // 'rechts', o.a. alle metriekKolom-kolommen) worden rechts uitgelijnd met
+  // tabulaire cijfers, zodat een getallenkolom in één blik te scannen is.
+  const uitlijnKlasse = (k) => (typeof k === 'object' && k.uitlijn === 'rechts' ? ' class="uitlijn-rechts"' : '');
+
   const kop = kolommen.map((k) => {
     const label = typeof k === 'string' ? k : k.label;
     const uitleg = typeof k === 'string' ? null : k.uitleg;
     const key = typeof k === 'string' ? null : k.key;
+    const kls = uitlijnKlasse(k);
     // Een kolom met een metrieksleutel krijgt de rijke tooltip uit de catalogus;
     // een kolom met alleen uitleg valt terug op een eenvoudige tekst-tooltip.
     if (key) {
-      return `<th scope="col"><span class="kolom-tip" data-tip="${esc(key)}" tabindex="0">${esc(label)} <span class="kpi-info" aria-hidden="true">i</span></span></th>`;
+      return `<th scope="col"${kls}><span class="kolom-tip" data-tip="${esc(key)}" tabindex="0">${esc(label)} <span class="kpi-info" aria-hidden="true">i</span></span></th>`;
     }
     return uitleg
-      ? `<th scope="col"><span class="kolom-tip" data-tip-text="${esc(uitleg)}" tabindex="0">${esc(label)}</span></th>`
-      : `<th scope="col">${esc(label)}</th>`;
+      ? `<th scope="col"${kls}><span class="kolom-tip" data-tip-text="${esc(uitleg)}" tabindex="0">${esc(label)}</span></th>`
+      : `<th scope="col"${kls}>${esc(label)}</th>`;
   }).join('');
 
   return `<table>
     <thead><tr>${kop}</tr></thead>
-    <tbody>${rijen.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tbody>${rijen.map((r) => `<tr>${r.map((c, i) => `<td${uitlijnKlasse(kolommen[i])}>${c}</td>`).join('')}</tr>`).join('')}</tbody>
   </table>`;
 }
 
-/** Kolomkop uit de metriekmetadata, met de metrieksleutel voor de tooltip. */
+/**
+ * Kolomkop uit de metriekmetadata, met de metrieksleutel voor de tooltip.
+ * Metrieken zijn getallen en worden daarom rechts uitgelijnd.
+ */
 export function metriekKolom(key, label = null) {
   const meta = metriekMeta(key);
-  return { label: label ?? meta.label, uitleg: meta.uitleg ?? '', key };
+  return { label: label ?? meta.label, uitleg: meta.uitleg ?? '', key, uitlijn: 'rechts' };
+}
+
+/**
+ * Een rechts uitgelijnde getallenkolom zonder metriektooltip.
+ * Voor handgemaakte tabellen waarin de kolomlabels niet één-op-één met een
+ * metrieksleutel overeenkomen, maar de waarden wel getallen zijn.
+ */
+export function getalKolom(label, uitleg = null) {
+  return uitleg ? { label, uitleg, uitlijn: 'rechts' } : { label, uitlijn: 'rechts' };
 }
 
 /**
@@ -238,6 +256,62 @@ export function metriekKolom(key, label = null) {
  * van de contrastwaarschuwing op enkele lichte reekskleuren: de waarden zijn
  * altijd ook zonder kleur af te lezen.
  */
+/**
+ * Samenvattingsstrip boven een lang klantdashboard.
+ *
+ * Een compacte, volle-breedte balk die in één oogopslag de kernvraag beantwoordt:
+ * hoe staat het ervoor, wat is het primaire resultaat tegenover het doel, en
+ * wat vraagt als eerste aandacht. De ankers rechts springen naar de hoofdsecties,
+ * zodat een lange pagina toch snel te doorlopen is.
+ *
+ * @param {object} dashboard  het viewmodel uit getClientDashboard
+ * @param {{ankers?: {id: string, label: string}[]}} opties
+ */
+const STRIP_PRIMAIR = {
+  leadgen: { key: 'leads', doelKpi: 'leads', label: 'Leads' },
+  ecommerce: { key: 'revenue', doelKpi: 'omzet', label: 'Omzet' },
+  awareness: { key: 'impressions', doelKpi: null, label: 'Vertoningen' },
+};
+
+export function renderSamenvattingStrip(dashboard, { ankers = [] } = {}) {
+  const status = dashboard.status;
+  const prioriteit = dashboard.prioriteit;
+  const model = dashboard.model ?? dashboard.type;
+  const primair = STRIP_PRIMAIR[model] ?? { key: 'impressions', label: 'Resultaat' };
+
+  const meta = metriekMeta(primair.key);
+  const waarde = dashboard.totalen?.[primair.key];
+  const waardeTekst = waarde == null ? 'Onvoldoende data' : formatteerMetriek(waarde, meta.formaat);
+
+  const doel = (dashboard.doelen ?? []).find((d) => d.kpi === primair.doelKpi);
+  const delta = dashboard.deltas?.[primair.key];
+  const doelTekst = doel?.target != null
+    ? `van doel ${formatteerMetriek(doel.target, meta.formaat)}`
+    : delta && delta.status !== 'onvoldoende-data' && delta.status !== 'niet-vergelijkbaar'
+      ? `${delta.tekst} t.o.v. vorige periode`
+      : 'geen doel ingesteld';
+
+  const aandacht = prioriteit && prioriteit.niveau !== 'geen'
+    ? (prioriteit.redenen?.[0] ?? 'Vraagt aandacht')
+    : 'Alle doelen op koers en meting volledig';
+
+  const blok = (label, waardeHtml, extraClass = '') => `<div class="strip-blok">
+    <span class="strip-label">${esc(label)}</span>
+    <span class="strip-waarde ${extraClass}">${waardeHtml}</span>
+  </div>`;
+
+  return `<section class="samenvattingsstrip" aria-label="Samenvatting">
+    ${blok('Status', badge(status?.label ?? 'Onbekend', status?.variant ?? 'muted'))}
+    <span class="strip-scheiding" aria-hidden="true"></span>
+    ${blok(primair.label, `${esc(waardeTekst)} <span class="muted klein">${esc(doelTekst)}</span>`)}
+    <span class="strip-scheiding" aria-hidden="true"></span>
+    ${blok('Eerste aandacht', esc(aandacht), 'klein-verschil')}
+    ${ankers.length ? `<nav class="strip-ankers" aria-label="Spring naar">
+      ${ankers.map((a) => `<button type="button" class="strip-anker" data-spring="${esc(a.id)}">${esc(a.label)}</button>`).join('')}
+    </nav>` : ''}
+  </section>`;
+}
+
 /**
  * Semantische grafiekhoogtes.
  *
@@ -425,13 +499,34 @@ export function doelRij(doel, { label, format = fmt.getal } = {}) {
         ${esc(format(doel.actueel))} van ${esc(format(doel.target))}
       </span>
     </div>
-    <div class="progress" role="img" aria-label="${behaald.toFixed(0)} procent van het doel behaald">
+    <div class="progress" role="img" aria-label="${behaald.toFixed(0)} procent van het doel behaald${doel.vorigePeriode != null ? `, vorige periode ${format(doel.vorigePeriode)}` : ''}">
       <span style="width:${Math.min(behaald, 100).toFixed(1)}%" class="${opSchema ? 'is-ok' : 'is-behind'}"></span>
+      ${vorigePeriodeMarker(doel)}
     </div>
     <span class="muted">
       ${behaald.toFixed(0)} procent behaald · ${esc(status)} · Verschil: ${esc(verschilTekst)}${esc(vorigeTekst)}${esc(prognoseTekst)}${esc(geschaaldTekst)}${doel.eigenaar ? ` · ${esc(doel.eigenaar)}` : ''}
     </span>
   </li>`;
+}
+
+/**
+ * De markering van de vorige periode op de doelbalk.
+ *
+ * Toont waar de balk vorige periode stond, als percentage van het doel op
+ * dezelfde schaal als de huidige voortgang. Zo is in één blik te zien of het
+ * beter of slechter gaat, zonder de tekst eronder te hoeven lezen.
+ */
+function vorigePeriodeMarker(doel) {
+  if (doel.vorigePeriode == null || doel.target == null || doel.target === 0) return '';
+  const richting = doel.richting ?? 'hoger';
+  // Dezelfde schaal als doelVoortgang: bij 'lager is beter' is 100% precies op
+  // het doel, dus de verhouding wordt omgekeerd.
+  const pct = richting === 'lager'
+    ? (doel.vorigePeriode === 0 ? null : (doel.target / doel.vorigePeriode) * 100)
+    : (doel.vorigePeriode / doel.target) * 100;
+  if (pct == null) return '';
+  const positie = Math.max(0, Math.min(100, pct));
+  return `<span class="progress-marker" style="left:${positie.toFixed(1)}%" title="Vorige periode"></span>`;
 }
 
 /* ---------------------------------------------------------------

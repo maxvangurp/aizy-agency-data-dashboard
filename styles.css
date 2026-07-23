@@ -2677,3 +2677,151 @@ body[data-shell='app'] { overflow-x: hidden; }
 @media (max-width: 768px) {
   .samenwerk-kolommen { grid-template-columns: 1fr; }
 }
+
+/* =========================================================
+   VISUEEL SYSTEEM v4 — strakke shell-uitlijning, tabellen,
+   KPI-voet, samenvattingsstrip en doelbalk-markering.
+   Staat achteraan zodat het als samenhangend systeem wint.
+   ========================================================= */
+
+:root { --topbar-height: 60px; }
+
+/* ---------- Sidebar-kop en topbalk op één doorlopende lijn ---------- */
+
+.sidebar { padding: 0 var(--space-3) var(--space-4); gap: var(--space-2); }
+
+/* De brand-rij is exact even hoog als de topbalk en heeft een full-bleed
+   onderrand, zodat de scheidingslijn onder de sidebar-kop naadloos doorloopt in
+   de onderrand van de contextbalk. */
+.sidebar .brand {
+  height: var(--topbar-height);
+  min-height: var(--topbar-height);
+  flex-shrink: 0;
+  align-items: center;
+  margin: 0 calc(-1 * var(--space-3)) var(--space-3);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+}
+/* De sidebar-kop en de klantcontext krimpen nooit; alleen de navigatie scrolt. */
+.sidebar .nav-klant { flex-shrink: 0; }
+.sidebar .nav { flex-shrink: 1; }
+.brand-title { font-size: 15px; line-height: 1.1; }
+.brand-sub { font-size: 11px; }
+
+/* De contextbalk krijgt dezelfde vaste hoogte en blijft op desktop op één regel;
+   de filtergroep krimpt/scrolt in plaats van te wrappen. */
+.contextbalk {
+  height: var(--topbar-height);
+  min-height: var(--topbar-height);
+  padding: 0 var(--page-padding-x);
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+}
+.contextbalk-links, .contextbalk-rechts { flex-shrink: 0; }
+.contextbalk-filters {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Subtiele scheiding tussen context, filters en algemene bediening. */
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 0 var(--space-3);
+  margin: 0 4px;
+}
+.contextbalk-filters::-webkit-scrollbar { display: none; }
+
+/* ---------- Nav: één strakke verticale uitlijning ---------- */
+
+.nav-groep-kop { padding: 10px var(--space-3) 4px; }
+.nav-link { padding: 9px var(--space-3); gap: 11px; border-radius: 10px; }
+.nav-icoon { width: 18px; height: 18px; }
+/* Actief item exact even hoog als inactief: geen springende rijen. */
+.nav-link.active { padding: 9px var(--space-3); }
+.nav-klant { margin: 0 0 var(--space-2); padding: 8px var(--space-3); border-radius: 10px; }
+
+/* Het uitklapbare filterpaneel en de correctiemelding horen niet in de vaste
+   60px-rij van de topbalk, anders worden ze platgedrukt. Ze vallen als
+   dropdown uit onder de balk zonder de hoogte te beïnvloeden. */
+.contextbalk > .filterbalk-wrap,
+.contextbalk > #filterCorrecties {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  z-index: 29;
+  box-shadow: var(--shadow-raised);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.contextbalk > #filterCorrecties { border-top: 0; }
+
+/* Het detailpaneel sluit exact onder de topbalk aan. */
+.detailpaneel { height: calc(100vh - var(--topbar-height)); top: var(--topbar-height); }
+
+@media (max-width: 768px) {
+  /* Op mobiel mag de contextbalk weer wrappen; de sidebar is dan een lade. De
+     groepen mogen dan wél krimpen, anders duwt de account-/zoekgroep de pagina
+     breder dan het scherm. */
+  .contextbalk { flex-wrap: wrap; height: auto; min-height: var(--topbar-height); }
+  .contextbalk-links, .contextbalk-rechts { flex-shrink: 1; min-width: 0; }
+  .contextbalk-filters { border: 0; padding: 0; margin: 0; overflow-x: visible; }
+}
+
+/* ---------- A. Getallen rechts uitgelijnd in gewone tabellen ---------- */
+
+.table-scroll td.uitlijn-rechts,
+.table-scroll th.uitlijn-rechts,
+.pagina-inhoud table td.uitlijn-rechts,
+.pagina-inhoud table th.uitlijn-rechts {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table-scroll th.uitlijn-rechts .kolom-tip { justify-content: flex-end; }
+
+/* ---------- B. KPI-voet: meta-regel naar de onderkant ---------- */
+
+.card.kpi { justify-content: flex-start; }
+.kpi-sub { margin-top: 4px; }
+.kpi-uitleg { margin-top: auto; padding-top: 8px; }
+.kpi-drill { margin-top: auto; padding-top: 8px; }
+/* Wanneer er zowel uitleg als drill is, houdt uitleg de auto-marge en zit drill
+   er direct onder. */
+.kpi-uitleg + .kpi-drill { margin-top: 6px; padding-top: 0; }
+
+/* ---------- C. Samenvattingsstrip boven lange dashboards ---------- */
+
+.samenvattingsstrip {
+  display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--card-padding);
+}
+.strip-blok { display: grid; gap: 2px; min-width: 0; }
+.strip-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-subtle); }
+.strip-waarde { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.strip-waarde.klein-verschil { font-size: 13px; font-weight: 600; }
+.strip-scheiding { width: 1px; align-self: stretch; background: var(--border); }
+.strip-ankers { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.strip-anker {
+  font-size: 12px; font-weight: 600; color: var(--accent);
+  text-decoration: none; padding: 4px 8px; border-radius: 999px;
+  background: var(--accent-soft);
+}
+.strip-anker:hover { text-decoration: underline; }
+
+@media (max-width: 768px) {
+  .samenvattingsstrip { gap: var(--space-3); }
+  .strip-scheiding { display: none; }
+  .strip-ankers { margin-left: 0; flex-basis: 100%; }
+}
+
+/* ---------- D. Doelbalk: vorige-periode-markering ---------- */
+
+.progress { position: relative; }
+.progress-marker {
+  position: absolute; top: -2px; bottom: -2px; width: 2px;
+  background: var(--ink-subtle); border-radius: 2px;
+  opacity: 0.7;
+}
