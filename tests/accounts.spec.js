@@ -25,13 +25,13 @@ test.describe('Authenticatie', () => {
 
   test('een agencybeheerder kan inloggen en komt op het agencyoverzicht', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
-    expect(await page.evaluate(() => location.hash)).toBe('#/agency/overview');
-    await expect(page.locator('#pageRoot h1')).toContainText('Portefeuilleoverzicht');
+    expect(await page.evaluate(() => location.hash)).toBe('#/agency/portfolio');
+    await expect(page.locator('#pageRoot h1')).toContainText('Portefeuille');
   });
 
   test('een agencymedewerker komt op zijn eigen overzicht', async ({ page }) => {
     await login(page, ACCOUNTS.medewerker);
-    expect(await page.evaluate(() => location.hash)).toBe('#/agency/overview');
+    expect(await page.evaluate(() => location.hash)).toBe('#/agency/work');
     // De medewerker begint bij zijn werkdag, niet bij de portefeuille.
     await expect(page.locator('#pageRoot h1')).toContainText('Berry');
     await expect(page.getByRole('link', { name: 'Mijn klanten' })).toBeVisible();
@@ -214,7 +214,7 @@ test.describe('Autorisatie', () => {
   test('een klantbeheerder kan gebruikersbeheer wel openen', async ({ page }) => {
     await login(page, ACCOUNTS.klantAdmin);
     await ga(page, '#/client/users');
-    await expect(page.getByRole('heading', { name: 'Gebruikers' })).toBeVisible();
+    await expect(page.locator('#pageRoot h1')).toContainText('Gebruikers');
   });
 
   test('alleen agencygebruikers zien de contextwisselaar', async ({ page }) => {
@@ -261,11 +261,13 @@ test.describe('Data-isolatie', () => {
 
   test('de totalen van een medewerker bevatten alleen toegewezen klanten', async ({ page }) => {
     await login(page, ACCOUNTS.medewerker);
-    await ga(page, '#/agency/overview');
+    await ga(page, '#/agency/clients?focus=alle');
 
-    // Vitaalpunt 11.820 plus Havenkwartier 9.400 is 21.220 euro.
-    await expect(page.locator('.kpi-row').first()).toContainText('21.220');
-    await expect(page.locator('.kpi-row').first()).toContainText('2');
+    // Een medewerker ziet uitsluitend zijn eigen klanten in de lijst.
+    const rijen = page.locator('.grid-tabel tbody tr');
+    expect(await rijen.count()).toBe(2);
+    await expect(page.locator('#pageRoot')).toContainText('Vitaalpunt');
+    await expect(page.locator('#pageRoot')).toContainText('Havenkwartier');
   });
 
   test('een klantgebruiker ziet geen signalen', async ({ page }) => {
@@ -308,38 +310,42 @@ test.describe('Data-isolatie', () => {
 test.describe('Weergaven', () => {
   test('het agencyoverzicht scheidt e-commerce en leadgeneratie', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
-    const sectie = page.locator('.card').filter({ hasText: 'Resultaten per dashboardtype' });
+    await ga(page, '#/agency/portfolio?tab=resultaten', { wacht: 500 });
 
-    await expect(sectie).toContainText('E-commerce');
-    await expect(sectie).toContainText('Leadgeneratie');
-    await expect(sectie).toContainText('Gemiddeld rendement');
-    await expect(sectie).toContainText('Gemiddelde kosten per lead');
-    // De twee mogen niet tot één gemiddelde zijn samengevoegd.
-    await expect(sectie).toContainText('niet onderling vergelijkbaar');
+    // De dashboardtypes hebben elk een eigen subtab; ze worden nooit tot één
+    // gemiddelde samengevoegd.
+    const subtabs = page.locator('.paginatabs-sub');
+    await expect(subtabs).toContainText('Leadgeneratie');
+    await expect(subtabs).toContainText('E-commerce');
+    // Leadgeneratie toont kosten per lead, e-commerce toont rendement — apart.
+    await expect(page.locator('#pageRoot')).toContainText('Gemiddelde kosten per lead');
+    await ga(page, '#/agency/portfolio?tab=resultaten&groep=ecommerce', { wacht: 400 });
+    await expect(page.locator('#pageRoot')).toContainText('Gemiddeld rendement');
   });
 
   test('het klantenoverzicht toont statussen met onderbouwing', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients');
-    const tabel = page.locator('#pageRoot table');
+    const tabel = page.locator('.grid-tabel');
 
     await expect(tabel).toContainText('Meetprobleem');
-    await expect(tabel).toContainText('doelen liggen onder het doel');
+    // De status draagt altijd een onderbouwing, geen kale badge.
+    await expect(tabel).toContainText('onbetrouwbaar');
   });
 
   test('het klantenoverzicht kan worden gefilterd en gesorteerd', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients');
 
-    await page.selectOption('#klantType', 'leadgen');
+    await page.selectOption('[data-grid-filter="klanten"][data-filter="type"]', 'leadgen');
     await page.waitForTimeout(400);
-    expect(await page.locator('#pageRoot tbody tr').count()).toBe(3);
+    expect(await page.locator('.grid-tabel tbody tr').count()).toBe(3);
 
-    await page.selectOption('#klantType', '');
+    await page.selectOption('[data-grid-filter="klanten"][data-filter="type"]', '');
     await page.waitForTimeout(400);
-    await page.fill('#klantZoek', 'kaap');
-    await page.waitForTimeout(500);
-    expect(await page.locator('#pageRoot tbody tr').count()).toBe(1);
+    await page.fill('[data-grid-zoek="klanten"]', 'kaap');
+    await page.waitForTimeout(600);
+    expect(await page.locator('.grid-tabel tbody tr').count()).toBe(1);
   });
 
   test('teambeheer toont rollen, status en toewijzingen', async ({ page }) => {
@@ -363,16 +369,16 @@ test.describe('Weergaven', () => {
     page.on('dialog', (d) => d.accept());
     await page.locator('[data-actie="deactiveer"]').first().click();
     await page.waitForTimeout(500);
-    await expect(page.locator('.banner-info')).toContainText('gedeactiveerd');
+    await expect(page.locator('.toast')).toContainText('gedeactiveerd');
   });
 
-  test('de contextwisselaar opent de klantweergave met contextbalk', async ({ page }) => {
+  test('de contextwisselaar opent de klantweergave met klantcontext', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await page.selectOption('#contextSelect', 'vitaalpunt');
     await page.waitForTimeout(800);
 
-    await expect(page.locator('.contextbalk')).toContainText('Vitaalpunt');
-    await expect(page.locator('.contextbalk')).toContainText('als Aizy-medewerker');
+    await expect(page.locator('.nav-klant-naam')).toContainText('Vitaalpunt');
+    await expect(page.locator('.app-grid')).toHaveAttribute('data-omgeving', 'client');
     expect(await page.evaluate(() => location.hash)).toContain('/client');
   });
 
@@ -380,10 +386,11 @@ test.describe('Weergaven', () => {
     await login(page, ACCOUNTS.admin);
     await page.selectOption('#contextSelect', 'vitaalpunt');
     await page.waitForTimeout(700);
-    await page.click('#terugNaarAgency');
+    // De optie Agencyomgeving in de klantkiezer verlaat de klantcontext.
+    await page.selectOption('#contextSelect', '');
     await page.waitForTimeout(700);
 
-    await expect(page.locator('.contextbalk')).toHaveCount(0);
+    await expect(page.locator('.app-grid')).toHaveAttribute('data-omgeving', 'agency');
     expect(await page.evaluate(() => location.hash)).toContain('/agency');
   });
 

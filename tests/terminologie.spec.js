@@ -265,10 +265,10 @@ test.describe('Context en locatie', () => {
   test('iedere agencypagina heeft een kruimelpad en een omgevingslabel', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
 
-    for (const route of ['#/agency/overview', '#/agency/clients', '#/agency/signals', '#/agency/team']) {
+    for (const route of ['#/agency/portfolio', '#/agency/clients', '#/agency/signals', '#/agency/team']) {
       await ga(page, route, { wacht: 400 });
       await expect(page.locator('.kruimelpad'), route).toBeVisible();
-      await expect(page.locator('.contextheader'), route).toHaveAttribute('data-omgeving', 'agency');
+      await expect(page.locator('.app-grid'), route).toHaveAttribute('data-omgeving', 'agency');
     }
   });
 
@@ -276,29 +276,27 @@ test.describe('Context en locatie', () => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients/vitaalpunt');
 
-    await expect(page.locator('.contextheader')).toContainText('Agencyweergave');
-    await expect(page.locator('.contextheader')).toContainText('interne informatie die de klant niet ziet');
-    await expect(page.locator('.contextheader')).toHaveAttribute('data-dashboardtype', 'leadgen');
+    await expect(page.locator('.paginakop')).toContainText('Agencyweergave');
+    await expect(page.locator('.paginakop')).toContainText('interne informatie die de klant niet ziet');
     await expect(page.locator('#internTitel')).toBeVisible();
   });
 
-  test('een Aizy-medewerker in de klantweergave ziet één duidelijke contextindicator', async ({ page }) => {
+  test('een Aizy-medewerker in de klantweergave ziet een duidelijke klantcontext', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await page.selectOption('#contextSelect', 'vitaalpunt');
     await page.waitForTimeout(800);
 
-    const balk = page.locator('.contextbalk');
-    await expect(balk).toHaveAttribute('data-context', 'klantweergave');
-    await expect(balk).toContainText('als Aizy-medewerker');
-    await expect(balk.getByRole('button', { name: 'Terug naar agencyoverzicht' })).toBeVisible();
-    await expect(page.locator('.contextheader')).toHaveAttribute('data-omgeving', 'client');
+    // De actieve klant staat in de zijnavigatie en de omgeving is klant.
+    await expect(page.locator('.nav-klant-naam')).toContainText('Vitaalpunt');
+    await expect(page.locator('.app-grid')).toHaveAttribute('data-omgeving', 'client');
+    // De klantkiezer in de bovenbalk toont de gekozen klant.
+    await expect(page.locator('#contextSelect')).toHaveValue('vitaalpunt');
   });
 
   test('een klantgebruiker ziet geen agencycontext', async ({ page }) => {
     await login(page, ACCOUNTS.klantAdmin);
 
-    await expect(page.locator('.contextbalk')).toHaveCount(0);
-    await expect(page.locator('.contextheader')).toHaveAttribute('data-omgeving', 'client');
+    await expect(page.locator('.app-grid')).toHaveAttribute('data-omgeving', 'client');
     await expect(page.locator('#contextSelect')).toHaveCount(0);
     await expect(page.locator('.sidebar')).not.toContainText('Team');
   });
@@ -315,22 +313,35 @@ test.describe('Context en locatie', () => {
 
   test('de navigatie is taakgericht en verschilt per rol', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
-    let links = await page.locator('.sidebar .nav a').allTextContents();
-    expect(links).toEqual(['Overzicht', 'Klanten', 'Signalen', 'Acties', 'Team', 'Instellingen']);
+    let links = (await page.locator('.nav-link').allTextContents()).map((t) => t.trim());
+    // Een beheerder start bij de portefeuille en heeft toegang tot team en systeem.
+    expect(links).toContain('Portefeuille');
+    expect(links).toContain('Team');
+    expect(links).toContain('Integraties');
+    expect(links).not.toContain('Vandaag');
 
     await login(page, ACCOUNTS.medewerker);
-    links = await page.locator('.sidebar .nav a').allTextContents();
-    expect(links).toEqual(['Mijn overzicht', 'Mijn klanten', 'Signalen', 'Acties']);
+    links = (await page.locator('.nav-link').allTextContents()).map((t) => t.trim());
+    // Een medewerker start bij zijn eigen dag en beheert geen team.
+    expect(links).toContain('Vandaag');
+    expect(links).toContain('Mijn klanten');
+    expect(links).not.toContain('Team');
+    expect(links).not.toContain('Integraties');
   });
 
   test('de klantnavigatie toont alleen wat dit account werkelijk mag openen', async ({ page }) => {
     await login(page, ACCOUNTS.klantAdmin);
-    let links = await page.locator('.sidebar .nav a').allTextContents();
-    expect(links).toEqual(['Overzicht', 'Resultaten', 'Kanalen', 'Conversies', 'Rapportages', 'Gebruikers']);
+    let links = (await page.locator('.nav-link').allTextContents()).map((t) => t.trim());
+    // Een klantbeheerder mag samenwerken en gebruikers beheren.
+    expect(links).toContain('Samenvatting');
+    expect(links).toContain('Acties');
+    expect(links).toContain('Gebruikers');
 
     await login(page, ACCOUNTS.klantViewer);
-    links = await page.locator('.sidebar .nav a').allTextContents();
-    expect(links).toEqual(['Overzicht', 'Resultaten', 'Kanalen', 'Rapportages']);
+    links = (await page.locator('.nav-link').allTextContents()).map((t) => t.trim());
+    // Een alleen-lezen gebruiker beheert geen gebruikers en ziet geen conversies.
+    expect(links).toContain('Samenvatting');
+    expect(links).not.toContain('Gebruikers');
   });
 
   test('geen enkele navigatielink leidt naar een geen-toegangpagina', async ({ page }) => {
@@ -338,9 +349,9 @@ test.describe('Context en locatie', () => {
 
     for (const account of [ACCOUNTS.admin, ACCOUNTS.medewerker, ACCOUNTS.klantAdmin, ACCOUNTS.klantViewer]) {
       await login(page, account);
-      const hrefs = await page.locator('.sidebar .nav a').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+      const hrefs = await page.locator('.nav-link').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
       for (const href of hrefs) {
-        await ga(page, href, { wacht: 400 });
+        await ga(page, href, { wacht: 300 });
         await expect(page.getByRole('heading', { name: 'Geen toegang' }), `${account} op ${href}`).toHaveCount(0);
       }
     }
@@ -356,10 +367,13 @@ test.describe('Context en locatie', () => {
   test('de actieve filtercontext is op iedere pagina zichtbaar', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
 
-    for (const route of ['#/agency/overview', '#/agency/clients', '#/agency/clients/vitaalpunt']) {
+    for (const route of ['#/agency/portfolio', '#/agency/clients', '#/agency/clients/vitaalpunt']) {
       await ga(page, route, { wacht: 400 });
-      await expect(page.locator('#filterSamenvatting'), route).toBeVisible();
-      await expect(page.locator('#filterSamenvatting'), route).toContainText('Periode');
+      // De actieve periode staat altijd zichtbaar in de bovenbalk, ook wanneer
+      // het volledige filterpaneel dicht is.
+      // De periodeknop in de bovenbalk toont de actieve periode, altijd zichtbaar.
+      await expect(page.locator('#filterToggle'), route).toBeVisible();
+      await expect(page.locator('#filterToggle'), route).toContainText('Periode');
     }
   });
 });

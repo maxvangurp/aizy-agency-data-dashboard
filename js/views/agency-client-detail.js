@@ -16,10 +16,9 @@ import { renderLeadgenClient, drawLeadgenCharts } from './leadgen.js';
 import { renderEcommerceClient, drawEcommerceCharts } from './ecommerce.js';
 import { renderAwarenessClient, drawAwarenessCharts } from './awareness.js';
 import { esc, badge, meetstatusBadge, fmt } from './components.js';
-import { renderContextheader, renderMedewerker } from './context-header.js';
+import { renderMedewerker } from './context-header.js';
 import { renderPrioriteit } from './insight-cards.js';
 import { kanaalLabel } from '../filters/channels.js';
-import { toonBereik } from '../filters/period.js';
 import { LABELS, dashboardtypeTerm, verantwoordelijkheidTerm } from '../terminology.js';
 
 export function renderAgencyClientDetail({ dashboard, verhaal, signalen = [], filterbalk = '', kanaalWaarschuwing = null }) {
@@ -29,23 +28,9 @@ export function renderAgencyClientDetail({ dashboard, verhaal, signalen = [], fi
 
   const { client, status, periode, prioriteit, team } = dashboard;
 
-  const kop = renderContextheader({
-    kruimelpad: [
-      { label: 'Agency', href: '#/agency/overview' },
-      { label: 'Klanten', href: '#/agency/clients' },
-      { label: client.name },
-    ],
-    titel: client.name,
-    ondertitel: `Agencyweergave over ${toonBereik(periode.startDate, periode.endDate)}. Deze pagina bevat interne informatie die de klant niet ziet.`,
-    omgeving: 'agency',
-    dashboardtype: dashboard.model,
-    labels: [
-      { tekst: status.label, variant: status.variant, uitleg: status.reden },
-      { tekst: prioriteit.label, variant: prioriteit.variant, uitleg: prioriteit.redenen[0] },
-    ],
-    actie: { href: '#/agency/clients', tekst: 'Terug naar klantenoverzicht' },
-  });
-
+  // De paginakop, het kruimelpad en de statuslabels komen uit de applicatieshell.
+  // Deze view levert uitsluitend de inhoud, zodat er nooit twee koppen boven
+  // elkaar staan en de kop op iedere pagina hetzelfde gedrag heeft.
   const intern = `
     <section class="card intern-blok" aria-labelledby="internTitel">
       <div class="kaart-kop">
@@ -110,7 +95,7 @@ export function renderAgencyClientDetail({ dashboard, verhaal, signalen = [], fi
             </p>
           </section>`;
 
-  return kop + intern + filterbalk + waarschuwing + inhoud;
+  return intern + filterbalk + waarschuwing + inhoud;
 }
 
 export function drawAgencyClientCharts(dashboard) {

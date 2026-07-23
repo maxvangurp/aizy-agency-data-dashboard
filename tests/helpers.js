@@ -111,13 +111,31 @@ export function filterState(page) {
   });
 }
 
+/**
+ * Opent het filterpaneel wanneer het nog dicht is.
+ *
+ * De filterkeuzes zitten sinds de nieuwe shell in een uitklapbaar paneel, zodat
+ * de bovenbalk compact blijft. Een test die een periode kiest, moet het paneel
+ * dus eerst openen.
+ */
+export async function openFilters(page) {
+  const paneel = page.locator('#filterPaneel');
+  if (await paneel.count() === 0) return;
+  if (await paneel.isHidden()) {
+    await page.click('#filterToggle');
+    await page.waitForTimeout(120);
+  }
+}
+
 /** Kiest een periodepreset en wacht op de herberekening. */
 export async function zetPeriode(page, preset, { wacht = 600 } = {}) {
+  await openFilters(page);
   await page.selectOption('#filterPeriode', preset);
   await page.waitForTimeout(wacht);
 }
 
 export async function zetVergelijking(page, mode, { wacht = 600 } = {}) {
+  await openFilters(page);
   await page.selectOption('#filterVergelijking', mode);
   await page.waitForTimeout(wacht);
 }
@@ -128,6 +146,7 @@ export async function zetVergelijking(page, mode, { wacht = 600 } = {}) {
  * onderweg nooit een lege selectie ontstaat die automatisch wordt hersteld.
  */
 export async function kiesKanalen(page, keys) {
+  await openFilters(page);
   await page.click('#filterKanalenKnop');
   await page.waitForTimeout(150);
 

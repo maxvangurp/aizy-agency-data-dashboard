@@ -27,18 +27,48 @@ export const ROUTES = [
   { pad: '/forgot-password', naam: 'forgot-password', publiek: true, titel: 'Wachtwoord vergeten' },
   { pad: '/accept-invite', naam: 'accept-invite', publiek: true, titel: 'Uitnodiging accepteren' },
 
-  { pad: '/agency/overview', naam: 'agency-overview', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Overzicht' },
+  /* Agency: start */
+  { pad: '/agency/portfolio', naam: 'agency-portfolio', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Portefeuille' },
+  { pad: '/agency/work', naam: 'agency-work', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Mijn werk' },
+  // Het oude adres blijft bestaan en toont hetzelfde scherm als de rol waarop
+  // het hoort te landen. Bestaande links en bladwijzers blijven daardoor werken
+  // zonder dat er een doorstuurstap tussen komt die de filters uit de URL haalt.
+  { pad: '/agency/overview', naam: 'agency-overview', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Portefeuille' },
+
+  /* Agency: beheer */
   { pad: '/agency/clients', naam: 'agency-clients', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Klanten' },
   { pad: '/agency/clients/:clientId', naam: 'agency-client-detail', permission: Permission.VIEW_AGENCY_DASHBOARD, clientParam: 'clientId', titel: 'Klantdetail' },
-  { pad: '/agency/signals', naam: 'agency-signals', permission: Permission.VIEW_AGENCY_SIGNALS, titel: 'Signalen' },
-  { pad: '/agency/actions', naam: 'agency-actions', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Acties' },
   { pad: '/agency/team', naam: 'agency-team', permission: Permission.MANAGE_TEAM, titel: 'Team' },
   { pad: '/agency/team/:userId', naam: 'agency-medewerker', permission: Permission.MANAGE_TEAM, titel: 'Medewerker' },
+
+  /* Agency: performance */
+  { pad: '/agency/channels', naam: 'agency-channels', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Kanalen' },
+  { pad: '/agency/channels/:kanaal', naam: 'agency-channel', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Kanaal' },
+  { pad: '/agency/campaigns', naam: 'agency-campaigns', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Campagnes' },
+  { pad: '/agency/budgets', naam: 'agency-budgets', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Budgetten' },
+  { pad: '/agency/conversions', naam: 'agency-conversions', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Conversies' },
+
+  /* Agency: werk */
+  { pad: '/agency/actions', naam: 'agency-actions', permission: Permission.VIEW_AGENCY_ACTIONS, titel: 'Acties' },
+  { pad: '/agency/planning', naam: 'agency-planning', permission: Permission.VIEW_AGENCY_PLANNING, titel: 'Planning' },
+  { pad: '/agency/signals', naam: 'agency-signals', permission: Permission.VIEW_AGENCY_SIGNALS, titel: 'Signalen' },
+
+  /* Agency: analyse */
+  { pad: '/agency/insights', naam: 'agency-insights', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Inzichten' },
+  { pad: '/agency/reports', naam: 'agency-reports', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Rapportages' },
+  { pad: '/agency/dataquality', naam: 'agency-dataquality', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Datakwaliteit' },
+
+  /* Agency: systeem */
+  { pad: '/agency/integrations', naam: 'agency-integrations', permission: Permission.VIEW_AGENCY_SETTINGS, titel: 'Integraties' },
   { pad: '/agency/settings', naam: 'agency-settings', permission: Permission.VIEW_AGENCY_SETTINGS, titel: 'Instellingen' },
 
+  /* Klantomgeving */
   { pad: '/client/overview', naam: 'client-overview', permission: Permission.VIEW_CLIENT_DASHBOARD, titel: 'Overzicht' },
   { pad: '/client/performance', naam: 'client-performance', permission: Permission.VIEW_CLIENT_DASHBOARD, titel: 'Resultaten' },
   { pad: '/client/channels', naam: 'client-channels', permission: Permission.VIEW_CLIENT_CHANNELS, titel: 'Kanalen' },
+  { pad: '/client/channels/:kanaal', naam: 'client-channel', permission: Permission.VIEW_CLIENT_CHANNELS, titel: 'Kanaal' },
+  { pad: '/client/analysis', naam: 'client-analysis', permission: Permission.VIEW_CLIENT_DASHBOARD, titel: 'Analyse' },
+  { pad: '/client/collaboration', naam: 'client-collaboration', permission: Permission.VIEW_CLIENT_COLLABORATION, titel: 'Samenwerking' },
   { pad: '/client/conversions', naam: 'client-conversions', permission: Permission.VIEW_CLIENT_CONVERSIONS, titel: 'Conversies' },
   { pad: '/client/report', naam: 'client-report', permission: Permission.VIEW_CLIENT_REPORT, titel: 'Rapportages' },
   { pad: '/client/users', naam: 'client-users', permission: Permission.MANAGE_CLIENT_USERS, titel: 'Gebruikers' },

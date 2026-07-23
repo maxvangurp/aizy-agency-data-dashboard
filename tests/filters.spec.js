@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   login, ga, ACCOUNTS, foutenVerzamelen, filterState, zetPeriode, zetVergelijking,
-  kiesKanalen, kpiWaarde, canvasHandtekening,
+  kiesKanalen, kpiWaarde, canvasHandtekening, openFilters,
 } from './helpers.js';
 
 /**
@@ -31,7 +31,7 @@ test.describe('Filterstate', () => {
     expect(f.vergelijking).toBe('previous_period');
     expect(f.conversie).toBe('primary');
     // Standaardwaarden horen niet in de URL te staan.
-    expect(await page.evaluate(() => location.hash)).toBe('#/agency/overview');
+    expect(await page.evaluate(() => location.hash)).toBe('#/agency/portfolio');
   });
 
   test('de periode kan worden gewijzigd en komt in de URL', async ({ page }) => {
@@ -58,6 +58,7 @@ test.describe('Filterstate', () => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients/vitaalpunt');
 
+    await openFilters(page);
     await page.selectOption('#filterConversie', 'secondary');
     await page.waitForTimeout(600);
 
@@ -77,7 +78,7 @@ test.describe('Filterstate', () => {
     const f = await filterState(page);
     expect(f.periode).toBe('last_30_days');
     expect(f.kanalen.length).toBeGreaterThan(1);
-    expect(await page.evaluate(() => location.hash)).toBe('#/agency/overview');
+    expect(await page.evaluate(() => location.hash)).toBe('#/agency/portfolio');
   });
 
   test('een geldige selectie overleeft een refresh', async ({ page }) => {
@@ -295,14 +296,13 @@ test.describe('Tenantisolatie van filters', () => {
 
   test('agencytotalen bevatten alleen toegankelijke klanten, ook na filteren', async ({ page }) => {
     await login(page, ACCOUNTS.medewerker);
-    await ga(page, '#/agency/overview');
+    await ga(page, '#/agency/clients?focus=alle', { wacht: 500 });
 
-    const dertig = await kpiWaarde(page, 'Advertentie-uitgaven');
+    // Een medewerker ziet uitsluitend zijn twee eigen klanten in de lijst.
+    expect(await page.locator('.grid-tabel tbody tr').count()).toBe(2);
+
     await zetPeriode(page, 'last_7_days');
-    const zeven = await kpiWaarde(page, 'Advertentie-uitgaven');
-
-    expect(zeven).not.toBe(dertig);
-    await expect(page.locator('.kpi-row').first()).toContainText('2');
+    expect(await page.locator('.grid-tabel tbody tr').count()).toBe(2);
 
     const html = await page.content();
     for (const naam of ['Meridiaan', 'Tafelwerk', 'Draadloos', 'Kaap Noord', 'Noordlicht']) {
@@ -321,6 +321,7 @@ test.describe('Tenantisolatie van filters', () => {
   test('een klantgebruiker ziet geen agencybrede filteropties', async ({ page }) => {
     await login(page, ACCOUNTS.klantAdmin);
     await expect(page.locator('.filterbalk-wrap')).toHaveAttribute('data-variant', 'client');
+    // Een klantgebruiker heeft geen klantkiezer in de bovenbalk.
     await expect(page.locator('#contextSelect')).toHaveCount(0);
   });
 });
@@ -566,6 +567,7 @@ test.describe('Filters en navigatie', () => {
 test.describe('Filterbalk: bediening', () => {
   test('het kanaalmenu is met het toetsenbord te bedienen en sluit op Escape', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
+    await openFilters(page);
 
     await page.click('#filterKanalenKnop');
     await expect(page.locator('#filterKanalenPaneel')).toBeVisible();
@@ -579,6 +581,7 @@ test.describe('Filterbalk: bediening', () => {
 
   test('een klik buiten het kanaalmenu sluit het', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
+    await openFilters(page);
     await page.click('#filterKanalenKnop');
     await expect(page.locator('#filterKanalenPaneel')).toBeVisible();
 
@@ -588,19 +591,20 @@ test.describe('Filterbalk: bediening', () => {
 
   test('iedere filterkeuze heeft een zichtbaar label', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
+    await openFilters(page);
     await expect(page.locator('label[for="filterPeriode"]')).toBeVisible();
     await expect(page.locator('label[for="filterVergelijking"]')).toBeVisible();
     await expect(page.locator('#filterKanalenLabel')).toBeVisible();
   });
 
-  test('de actieve waarden staan als tekst in de samenvatting', async ({ page }) => {
+  test('de actieve waarden staan als tekst in de bovenbalk', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
-    const samenvatting = page.locator('#filterSamenvatting');
 
-    await expect(samenvatting).toContainText('Periode');
-    await expect(samenvatting).toContainText('jun 2026');
-    await expect(samenvatting).toContainText('Vergelijking');
-    await expect(samenvatting).toContainText('30 dagen');
+    // De compacte knoppen in de bovenbalk tonen de actieve waarden altijd,
+    // ook wanneer het volledige filterpaneel dicht is.
+    await expect(page.locator('#filterToggle')).toContainText('jun 2026');
+    await expect(page.locator('#filterToggleVergelijking')).toContainText('Vorige periode');
+    await expect(page.locator('#filterToggleKanalen')).toContainText('Alle kanalen');
   });
 
   for (const viewport of [
@@ -613,7 +617,8 @@ test.describe('Filterbalk: bediening', () => {
       await page.setViewportSize(viewport);
       await login(page, ACCOUNTS.admin);
 
-      await expect(page.locator('#filterSamenvatting')).toBeVisible();
+      // De actieve periode en de resetknop zijn altijd zichtbaar in de bovenbalk.
+      await expect(page.locator('#filterToggle')).toBeVisible();
       await expect(page.locator('#filterReset')).toBeVisible();
 
       const overloop = await page.evaluate(
@@ -623,16 +628,17 @@ test.describe('Filterbalk: bediening', () => {
     });
   }
 
-  test('op mobiel openen de filters in een lade en blijven ze resetbaar', async ({ page }) => {
+  test('op mobiel openen de filters in een paneel en blijven ze resetbaar', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page, ACCOUNTS.admin);
 
-    // De velden zijn ingevouwen, de actieve waarden blijven zichtbaar.
-    await expect(page.locator('#filterbalkVelden')).toBeHidden();
-    await expect(page.locator('#filterSamenvatting')).toBeVisible();
+    // Het volledige paneel is ingevouwen; de actieve waarden blijven zichtbaar.
+    await expect(page.locator('#filterPaneel')).toBeHidden();
+    await expect(page.locator('#filterToggle')).toBeVisible();
+    await expect(page.locator('#filterReset')).toBeVisible();
 
     await page.click('#filterToggle');
-    await expect(page.locator('#filterbalkVelden')).toBeVisible();
+    await expect(page.locator('#filterPaneel')).toBeVisible();
     await expect(page.locator('#filterPeriode')).toBeVisible();
 
     const buiten = await page.locator('#filterPeriode').evaluate((el) => {

@@ -281,11 +281,16 @@ test.describe('Prioritering in de agencyomgeving', () => {
 
   test('de portefeuille groepeert klanten op wat er aan de hand is', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
-    const sectie = page.locator('.card').filter({ hasText: 'Portefeuille-indeling' });
+    // De acht vaste groepen zijn vervangen door één prioriteitenlijst met
+    // opgeslagen weergaven die hetzelfde onderscheid maken.
+    await ga(page, '#/agency/portfolio?tab=prioriteiten', { wacht: 500 });
 
-    await expect(sectie).toBeVisible();
-    await expect(sectie).toContainText('Onvolledige meting');
-    await expect(sectie).toContainText('Zonder CRM-koppeling');
+    const weergaven = page.locator('.grid-werkbalk-acties');
+    await weergaven.locator('[data-grid-weergaven]').click();
+    await page.waitForTimeout(200);
+    const paneel = page.locator('.grid-paneel').filter({ hasText: 'Opgeslagen weergaven' });
+    await expect(paneel).toContainText('Meetprobleem');
+    await expect(paneel).toContainText('Zonder CRM-koppeling');
   });
 
   test('een medewerker krijgt een persoonlijk overzicht met een werkvolgorde', async ({ page }) => {
@@ -294,19 +299,20 @@ test.describe('Prioritering in de agencyomgeving', () => {
     await expect(page.locator('#pageRoot h1')).toContainText('Benito');
     await expect(page.locator('#pageRoot h1')).toContainText(/Goede(morgen|middag|navond|nacht)/);
     await expect(page.locator('#vandaagAandacht')).toBeVisible();
-    await expect(page.locator('#pageRoot')).toContainText('Mijn klanten');
-    await expect(page.locator('#pageRoot')).toContainText('Recente veranderingen');
-    await expect(page.locator('#pageRoot')).toContainText('Datakwaliteit');
-    await expect(page.locator('#pageRoot')).toContainText('Open acties');
+    await expect(page.locator('#pageRoot')).toContainText('Mijn acties vandaag');
+    await expect(page.locator('#pageRoot')).toContainText('Klanten met aandacht');
+    await expect(page.locator('#pageRoot')).toContainText('Nieuwe signalen');
+    await expect(page.locator('#pageRoot')).toContainText('Komende meetings');
   });
 
   test('het persoonlijke overzicht onderscheidt verantwoordelijk en ondersteunend', async ({ page }) => {
     await login(page, ACCOUNTS.medewerkerGemengd);
+    // Het onderscheid is nu een filter en een weergave op de klantenlijst.
+    await ga(page, '#/agency/clients', { wacht: 500 });
 
-    const tabel = page.locator('.card').filter({ hasText: 'Mijn klanten' }).locator('table');
-    await expect(tabel).toContainText('Verantwoordelijk');
-    await expect(tabel).toContainText('Ondersteunend');
-    await expect(tabel.locator('thead')).toContainText('Mijn rol bij deze klant');
+    const filters = await page.locator('[data-grid-filter="klanten"][data-filter="betrokken"] option').allTextContents();
+    expect(filters.join(' ')).toContain('Ik ben verantwoordelijk');
+    expect(filters.join(' ')).toContain('Ik ondersteun');
   });
 
   test('het persoonlijke overzicht gebruikt geen vage productnamen', async ({ page }) => {
@@ -367,7 +373,7 @@ test.describe('Klantgerichte weergave', () => {
 
   test('de rapportage volgt de vaste klantstructuur', async ({ page }) => {
     await login(page, ACCOUNTS.klantAdmin);
-    await ga(page, '#/client/report');
+    await ga(page, '#/client/report?tab=rapportages');
 
     await expect(page.getByRole('heading', { name: 'Wat ik deze periode deed' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Wat ik hierna ga doen' })).toBeVisible();
@@ -469,7 +475,7 @@ test.describe('Toegankelijkheid en schermformaten', () => {
       await login(page, ACCOUNTS.admin);
       await ga(page, '#/agency/clients/vitaalpunt', { wacht: 600 });
 
-      await expect(page.locator('.contextheader h1')).toBeVisible();
+      await expect(page.locator('.paginakop h1')).toBeVisible();
       await expect(page.locator('#accountKnop')).toBeVisible();
 
       const overloop = await page.evaluate(
@@ -501,7 +507,7 @@ test.describe('Toegankelijkheid en schermformaten', () => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients');
 
-    const tabel = page.locator('#pageRoot table');
+    const tabel = page.locator('.grid-tabel');
     // Iedere status draagt een woord, niet alleen een kleur.
     await expect(tabel).toContainText('Op koers');
     await expect(tabel).toContainText('Meetprobleem');

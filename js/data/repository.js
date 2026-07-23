@@ -1128,6 +1128,116 @@ function bouwRecenteVeranderingen(samenvattingen) {
   return uit.sort((a, b) => Math.abs(b.delta.procent) - Math.abs(a.delta.procent)).slice(0, 5);
 }
 
+/* ---------------------------------------------------------------
+   Kanaaloverzicht over de portefeuille
+   --------------------------------------------------------------- */
+
+/**
+ * Cijfers per advertentiekanaal over alle toegankelijke klanten.
+ *
+ * Uitgaven, vertoningen en klikken zijn optelbaar over klanten heen: het zijn
+ * kosten en gebeurtenissen, geen verhoudingen. Omzet en leads worden per
+ * bedrijfsmodel gescheiden gehouden, om dezelfde reden als op het
+ * portefeuilleoverzicht: een som van omzet en leads betekent niets.
+ *
+ * Klanten waarvoor het kanaal niet gekoppeld is, tellen niet mee en worden
+ * apart geteld, zodat "0 klikken" niet wordt verward met "niet gemeten".
+ */
+export function getKanaalOverzicht(user, filters) {
+  const samenvattingen = getAccessibleClientSummaries(user, filters);
+  const gevraagd = sorteerKanalen(filters.channels ?? ADVERTENTIEKANAAL_KEYS);
+
+  const kanalen = gevraagd.map((key) => {
+    const perKlant = [];
+
+    for (const s of samenvattingen) {
+      const heeftKanaal = kanaalKeysVan(s.client).includes(key);
+      if (!heeftKanaal) continue;
+
+      const rijen = selecteerRijen(getClientRows(s.client.id), {
+        startDate: filters.periode.startDate,
+        endDate: filters.periode.endDate,
+        channels: [key],
+      });
+      if (!rijen.length) continue;
+
+      const totalen = totalenVoorModel(s.model, rijen, s.config, s.scope);
+      perKlant.push({
+        client: s.client,
+        model: s.model,
+        samenvatting: s,
+        totalen,
+      });
+    }
+
+    const som = (pad) => {
+      const waarden = perKlant.map(pad).filter((v) => v != null);
+      return waarden.length ? waarden.reduce((a, b) => a + b, 0) : null;
+    };
+
+    const ecommerce = perKlant.filter((r) => r.model === 'ecommerce');
+    const leadgen = perKlant.filter((r) => r.model === 'leadgen');
+
+    return {
+      key,
+      label: kanaalLabel(key),
+      aantalKlanten: perKlant.length,
+      zonderKoppeling: samenvattingen.length - perKlant.length,
+      perKlant: perKlant.sort((a, b) => (b.totalen.spend ?? 0) - (a.totalen.spend ?? 0)),
+      spend: som((r) => r.totalen.spend) ?? 0,
+      impressions: som((r) => r.totalen.impressions) ?? 0,
+      clicks: som((r) => r.totalen.clicks) ?? 0,
+      revenue: som((r) => (r.model === 'ecommerce' ? r.totalen.revenue : null)),
+      purchases: som((r) => (r.model === 'ecommerce' ? r.totalen.purchases : null)),
+      leads: som((r) => (r.model === 'leadgen' ? r.totalen.leads : null)),
+      ecommerceKlanten: ecommerce.length,
+      leadgenKlanten: leadgen.length,
+    };
+  });
+
+  return { filters, kanalen, samenvattingen };
+}
+
+/**
+ * De campagne-, advertentiegroep- en zoekwoordtabellen van één kanaal over alle
+ * toegankelijke klanten.
+ *
+ * Alleen Google Ads levert deze detailtabellen in de demodata. Voor de overige
+ * kanalen komt er een lege lijst terug; de kanaalpagina toont daar de
+ * koppelstatus in plaats van een lege tabel.
+ */
+export function getKanaalDetails(user, filters, kanaal) {
+  if (kanaal !== 'google_ads') {
+    return { campagnes: [], advertentiegroepen: [], zoekwoorden: [], beschikbaar: false };
+  }
+
+  const samenvattingen = getAccessibleClientSummaries(user, filters);
+  const campagnes = [];
+  const advertentiegroepen = [];
+  const zoekwoorden = [];
+
+  for (const s of samenvattingen) {
+    if (!kanaalKeysVan(s.client).includes('google_ads')) continue;
+    if (!(filters.channels ?? []).includes('google_ads')) continue;
+
+    const dashboard = getClientDashboard(user, s.client.id, filters);
+    const profiel = dashboard?.profiel;
+    if (!profiel?.googleAdsBeschikbaar) continue;
+
+    const metKlant = (rijen) => (rijen ?? []).map((r) => ({ ...r, klantNaam: s.client.name, klantId: s.client.id }));
+    campagnes.push(...metKlant(profiel.googleAds.campagnes));
+    advertentiegroepen.push(...metKlant(profiel.googleAds.advertentiegroepen));
+    zoekwoorden.push(...metKlant(profiel.googleAds.zoekwoorden));
+  }
+
+  return {
+    beschikbaar: campagnes.length > 0,
+    campagnes: campagnes.sort((a, b) => (b.kosten ?? 0) - (a.kosten ?? 0)),
+    advertentiegroepen: advertentiegroepen.sort((a, b) => (b.kosten ?? 0) - (a.kosten ?? 0)),
+    zoekwoorden: zoekwoorden.sort((a, b) => (b.kosten ?? 0) - (a.kosten ?? 0)),
+  };
+}
+
 /** Gebruikers binnen de eigen klantorganisatie. */
 export function getOrganisatieGebruikers(user, organisatieId) {
   if (!can(user, Permission.MANAGE_CLIENT_USERS)) return [];

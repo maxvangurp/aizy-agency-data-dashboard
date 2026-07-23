@@ -33,17 +33,16 @@ import { KANAAL_STATUS_LABELS } from '../filters/channels.js';
 
 const DASHBOARDS = [BusinessModel.LEADGEN, BusinessModel.ECOMMERCE, BusinessModel.AWARENESS];
 
-/** Kop van de klantomgeving, met de klantnaam als titel. */
-function klantKop(dashboard, { pagina, ondertitel }) {
-  const { client, periode } = dashboard;
-  return renderContextheader({
-    kruimelpad: [{ label: client.name, href: '#/client/overview' }, { label: pagina }],
-    titel: client.name,
-    ondertitel,
-    omgeving: 'client',
-    dashboardtype: dashboard.model,
-    labels: [{ tekst: pagina, variant: 'muted' }],
-  });
+/**
+ * De paginakop komt uit de applicatieshell.
+ *
+ * Eerder tekende iedere klantpagina zijn eigen kop met kruimelpad en labels.
+ * Dat leverde per pagina een net iets andere kop op en verschoof de inhoud bij
+ * elke navigatie. De shell zet nu één kop neer; deze module levert alleen de
+ * inhoud eronder.
+ */
+function klantKop() {
+  return '';
 }
 
 /** Getoond wanneer er voor een dashboardtype nog geen weergave bestaat. */

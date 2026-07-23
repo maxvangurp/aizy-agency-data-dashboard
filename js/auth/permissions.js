@@ -42,11 +42,27 @@ export const Permission = {
   SWITCH_CONTEXT: 'switch_context',
   VIEW_AGENCY_SETTINGS: 'view_agency_settings',
 
+  // Werk binnen het bureau
+  VIEW_AGENCY_ACTIONS: 'view_agency_actions',
+  MANAGE_ACTIONS: 'manage_actions',
+  // Werk aan een ander toewijzen is iets anders dan je eigen werk beheren.
+  // Een medewerker plant zijn eigen dag; verdelen over het team is een
+  // beslissing over andermans tijd en hoort bij de beheerder.
+  ASSIGN_ACTIONS: 'assign_actions',
+  VIEW_AGENCY_PLANNING: 'view_agency_planning',
+  VIEW_ALL_PLANNING: 'view_all_planning',
+  MANAGE_SIGNALS: 'manage_signals',
+
   // Klant
   VIEW_CLIENT_DASHBOARD: 'view_client_dashboard',
   VIEW_CLIENT_CHANNELS: 'view_client_channels',
   VIEW_CLIENT_CONVERSIONS: 'view_client_conversions',
   VIEW_CLIENT_REPORT: 'view_client_report',
+  VIEW_CLIENT_DATAQUALITY: 'view_client_dataquality',
+  VIEW_CLIENT_COLLABORATION: 'view_client_collaboration',
+  // Meekijken bij de samenwerking is niet hetzelfde als eraan deelnemen. Een
+  // alleen-lezen gebruiker ziet de afspraken, maar wijzigt er niets aan.
+  CLIENT_COLLABORATE: 'client_collaborate',
   MANAGE_CLIENT_USERS: 'manage_client_users',
   INVITE_CLIENT_USER: 'invite_client_user',
 };
@@ -67,20 +83,36 @@ const RECHTEN_PER_ROL = {
     Permission.INVITE_AGENCY_USER,
     Permission.SWITCH_CONTEXT,
     Permission.VIEW_AGENCY_SETTINGS,
+    Permission.VIEW_AGENCY_ACTIONS,
+    Permission.MANAGE_ACTIONS,
+    Permission.ASSIGN_ACTIONS,
+    Permission.VIEW_AGENCY_PLANNING,
+    Permission.VIEW_ALL_PLANNING,
+    Permission.MANAGE_SIGNALS,
     Permission.VIEW_CLIENT_DASHBOARD,
     Permission.VIEW_CLIENT_CHANNELS,
     Permission.VIEW_CLIENT_CONVERSIONS,
     Permission.VIEW_CLIENT_REPORT,
+    Permission.VIEW_CLIENT_DATAQUALITY,
+    Permission.VIEW_CLIENT_COLLABORATION,
+    Permission.CLIENT_COLLABORATE,
   ]),
 
   [Rol.AGENCY_EMPLOYEE]: new Set([
     Permission.VIEW_AGENCY_DASHBOARD,
     Permission.VIEW_AGENCY_SIGNALS,
     Permission.SWITCH_CONTEXT,
+    Permission.VIEW_AGENCY_ACTIONS,
+    Permission.MANAGE_ACTIONS,
+    Permission.VIEW_AGENCY_PLANNING,
+    Permission.MANAGE_SIGNALS,
     Permission.VIEW_CLIENT_DASHBOARD,
     Permission.VIEW_CLIENT_CHANNELS,
     Permission.VIEW_CLIENT_CONVERSIONS,
     Permission.VIEW_CLIENT_REPORT,
+    Permission.VIEW_CLIENT_DATAQUALITY,
+    Permission.VIEW_CLIENT_COLLABORATION,
+    Permission.CLIENT_COLLABORATE,
   ]),
 
   [Rol.CLIENT_ADMIN]: new Set([
@@ -88,17 +120,23 @@ const RECHTEN_PER_ROL = {
     Permission.VIEW_CLIENT_CHANNELS,
     Permission.VIEW_CLIENT_CONVERSIONS,
     Permission.VIEW_CLIENT_REPORT,
+    Permission.VIEW_CLIENT_DATAQUALITY,
+    Permission.VIEW_CLIENT_COLLABORATION,
+    Permission.CLIENT_COLLABORATE,
     Permission.MANAGE_CLIENT_USERS,
     Permission.INVITE_CLIENT_USER,
   ]),
 
   // Een alleen-lezen klantgebruiker ziet het resultaat en waar het vandaan
   // komt. De losse conversieconfiguratie is beheerdersinformatie: die gaat over
-  // hoe er gemeten wordt, niet over wat het resultaat is.
+  // hoe er gemeten wordt, niet over wat het resultaat is. Hij ziet de gemaakte
+  // afspraken wel, maar kan er niets aan veranderen: CLIENT_COLLABORATE
+  // ontbreekt bewust.
   [Rol.CLIENT_VIEWER]: new Set([
     Permission.VIEW_CLIENT_DASHBOARD,
     Permission.VIEW_CLIENT_CHANNELS,
     Permission.VIEW_CLIENT_REPORT,
+    Permission.VIEW_CLIENT_COLLABORATION,
   ]),
 };
 
@@ -193,9 +231,11 @@ export function standaardRoute(user) {
   if (!user) return '#/login';
   if (user.status !== AccountStatus.ACTIEF) return '#/login';
 
-  // Beide agencyrollen starten op het overzicht. Voor een beheerder is dat de
-  // portefeuille, voor een medewerker zijn eigen werkdag.
-  if (isAgencyGebruiker(user)) return '#/agency/overview';
+  // De twee agencyrollen hebben een verschillende eerste vraag: een beheerder
+  // wil weten hoe de portefeuille ervoor staat, een medewerker wat hij vandaag
+  // moet doen. Ze landen daarom op verschillende pagina's.
+  if (primaireRol(user) === Rol.AGENCY_ADMIN) return '#/agency/portfolio';
+  if (isAgencyGebruiker(user)) return '#/agency/work';
   return '#/client/overview';
 }
 

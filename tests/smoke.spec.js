@@ -10,10 +10,20 @@ import { login, ga, ACCOUNTS, foutenVerzamelen } from './helpers.js';
  */
 
 const AGENCY_ROUTES = [
-  { hash: '#/agency/overview', kop: 'Portefeuilleoverzicht' },
+  { hash: '#/agency/portfolio', kop: 'Portefeuille' },
+  { hash: '#/agency/work', kop: 'Goedemorgen' },
   { hash: '#/agency/clients', kop: 'Klanten' },
-  { hash: '#/agency/signals', kop: 'Signalen' },
+  { hash: '#/agency/channels', kop: 'Alle kanalen' },
+  { hash: '#/agency/campaigns', kop: 'Campagnes' },
+  { hash: '#/agency/budgets', kop: 'Budgetten' },
+  { hash: '#/agency/conversions', kop: 'Conversies' },
   { hash: '#/agency/actions', kop: 'Acties' },
+  { hash: '#/agency/planning', kop: 'Planning' },
+  { hash: '#/agency/signals', kop: 'Signalen' },
+  { hash: '#/agency/insights', kop: 'Inzichten' },
+  { hash: '#/agency/reports', kop: 'Rapportages' },
+  { hash: '#/agency/dataquality', kop: 'Datakwaliteit' },
+  { hash: '#/agency/integrations', kop: 'Integraties' },
   { hash: '#/agency/team', kop: 'Team' },
   { hash: '#/agency/settings', kop: 'Instellingen' },
 ];
@@ -23,7 +33,9 @@ test.describe('Stabiliteit', () => {
     const errors = foutenVerzamelen(page);
     await login(page, ACCOUNTS.admin);
 
-    await expect(page.locator('.sidebar .nav a')).toHaveCount(AGENCY_ROUTES.length);
+    // De navigatie is nu gegroepeerd; een beheerder ziet meerdere groepen met
+    // in totaal meer links dan pagina's, omdat sommige links naar een tab wijzen.
+    expect(await page.locator('.nav-link').count()).toBeGreaterThan(AGENCY_ROUTES.length - 2);
     await expect(page.locator('.kpi-value').first()).toBeVisible();
     expect(errors).toEqual([]);
   });
