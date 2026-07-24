@@ -21,7 +21,7 @@
  * de knoppen worden niet gerenderd.
  */
 
-import { fmt, esc, tabel, badge, ontbrekendeCel, metriekKolom, doelRij, kpiMetriek } from './components.js';
+import { fmt, esc, tabel, badge, ontbrekendeCel, metriekKolom, doelRij, kpiMetriek, dashRij } from './components.js';
 import { emptyState, koppelStatus } from '../ui/states.js';
 import { renderInzichten } from './insight-cards.js';
 import { renderMedewerker } from './context-header.js';
@@ -104,18 +104,20 @@ function doelFormat(kpi) {
 function renderOntwikkelingen(dashboard, verhaal) {
   return `
     ${renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd' })}
-    <section class="card">
-      <h2>Wat Aizy deze periode deed</h2>
-      ${verhaal?.gedaan?.length
-        ? `<ul class="verhaal-lijst">${verhaal.gedaan.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`
-        : '<p class="empty">Niets te melden voor deze periode.</p>'}
-    </section>
-    <section class="card">
-      <h2>Wat Aizy hierna gaat doen</h2>
-      ${verhaal?.volgende?.length
-        ? `<ul class="verhaal-lijst">${verhaal.volgende.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`
-        : '<p class="empty">De vervolgstappen worden in het eerstvolgende overleg vastgelegd.</p>'}
-    </section>`;
+    ${dashRij(
+      { span: 6, html: `<section class="card">
+        <h2>Wat Aizy deze periode deed</h2>
+        ${verhaal?.gedaan?.length
+          ? `<ul class="verhaal-lijst">${verhaal.gedaan.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`
+          : '<p class="empty">Niets te melden voor deze periode.</p>'}
+      </section>` },
+      { span: 6, html: `<section class="card">
+        <h2>Wat Aizy hierna gaat doen</h2>
+        ${verhaal?.volgende?.length
+          ? `<ul class="verhaal-lijst">${verhaal.volgende.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`
+          : '<p class="empty">De vervolgstappen worden in het eerstvolgende overleg vastgelegd.</p>'}
+      </section>` },
+    )}`;
 }
 
 /* ---------------------------------------------------------------

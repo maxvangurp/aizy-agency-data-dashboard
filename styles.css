@@ -2441,6 +2441,29 @@ body[data-shell='app'] { overflow-x: hidden; }
 .kpi-drill:focus, .contextknop:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* =========================================================
+   DASHBOARDCOMPOSITIE — brede 12-koloms rijen.
+
+   Data-elementen (kaarten, grafieken) staan op smalle en middelgrote schermen
+   onder elkaar (1 kolom, ongewijzigd gedrag) en vormen vanaf een brede viewport
+   een naast-elkaar-compositie. Puur layout: de secties zelf blijven intact, ze
+   worden alleen door dashRij() in kolommen gewikkeld. Tekst-/tabeldichte secties
+   blijven full-width — dit is de data-width vs readable-width-scheiding.
+   ========================================================= */
+/* align-items:start — kaarten houden hun natuurlijke hoogte en lijnen bovenaan
+   uit. Bij sterk verschillende hoogtes (bijv. compacte budgetkaart naast een
+   lange doelenlijst) voorkomt dit een grote lege kaart die tot de rijhoogte
+   uitrekt. */
+.dash-rij { display: grid; gap: var(--section-gap); grid-template-columns: minmax(0, 1fr); align-items: start; }
+.dash-rij > .dash-col { min-width: 0; }
+/* Neutraliseer stray marges van secties binnen de compositie; de rij-gap regelt
+   de tussenruimte. */
+.dash-rij > .dash-col > * { margin: 0; }
+@media (min-width: 1200px) {
+  .dash-rij { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .dash-rij > .dash-col { grid-column: span var(--span, 12); }
+}
+
+/* =========================================================
    VISUEEL SYSTEEM v3 — layout-herindeling & progressive disclosure.
    ========================================================= */
 

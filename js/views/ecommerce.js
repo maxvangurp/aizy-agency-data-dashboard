@@ -15,7 +15,7 @@
 import { lineChart, barChart, funnelChart, donutChart } from '../charts.js';
 import {
   fmt, esc, kpi, kpiMetriek, tabel, figure, doelRij, renderBudget,
-  ontbrekendeCel, metriekKolom, uitklap, renderSamenvattingStrip, getalKolom,
+  ontbrekendeCel, metriekKolom, uitklap, renderSamenvattingStrip, getalKolom, dashRij,
 } from './components.js';
 import { renderInzichten } from './insight-cards.js';
 import { toonKorteDatum, toonBereik } from '../filters/period.js';
@@ -74,8 +74,10 @@ export function renderEcommerceClient(dashboard, verhaal) {
     </div>
 
     ${renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd in de omzet' })}
-    ${renderBudget(dashboard)}
-    ${renderDoelen(dashboard)}
+    ${dashRij(
+      { span: 6, html: renderBudget(dashboard) },
+      { span: 6, html: renderDoelen(dashboard) },
+    )}
 
     <div class="chart-grid">
       ${renderOntwikkeling(dashboard)}

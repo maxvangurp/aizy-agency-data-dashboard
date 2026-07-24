@@ -378,6 +378,25 @@ export function samenwerkingsGrid(kolommen, contact = '') {
   </div>`;
 }
 
+/**
+ * Wikkelt bestaande sectie-strings in een brede compositierij. Op smalle en
+ * middelgrote schermen staan ze onder elkaar; vanaf een brede viewport naast
+ * elkaar volgens hun 12-koloms `span`. Grafieken reflowen vanzelf naar hun
+ * nieuwe kolombreedte (Chart.js responsive).
+ *
+ * Lege secties (secties die '' teruggeven, bijv. zonder budget of meldingen)
+ * vallen weg; blijft er één over, dan rendert die gewoon full-width zonder rij.
+ */
+export function dashRij(...kolommen) {
+  const geldig = kolommen.filter((k) => k && typeof k.html === 'string' && k.html.trim());
+  if (!geldig.length) return '';
+  if (geldig.length === 1) return geldig[0].html;
+  const cols = geldig
+    .map((k) => `<div class="dash-col" style="--span:${k.span ?? 12}">${k.html}</div>`)
+    .join('');
+  return `<div class="dash-rij">${cols}</div>`;
+}
+
 export function figure(id, titel, subtitel, tabelHtml, bron, hoogte = 260, { conclusie = null } = {}) {
   return `<figure class="chart-figure card">
     <figcaption>

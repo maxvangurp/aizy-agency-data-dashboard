@@ -15,7 +15,7 @@
 import { lineChart, barChart, funnelChart } from '../charts.js';
 import {
   fmt, esc, kpi, kpiMetriek, tabel, figure, renderBudget, ontbrekendeCel, metriekKolom,
-  doelRij, doelVoortgang, badge, uitklap, ChartHoogte, renderSamenvattingStrip, getalKolom,
+  doelRij, doelVoortgang, badge, uitklap, ChartHoogte, renderSamenvattingStrip, getalKolom, dashRij,
 } from './components.js';
 import { renderInzichten } from './insight-cards.js';
 import { toonKorteDatum, toonBereik } from '../filters/period.js';
@@ -60,10 +60,14 @@ export function renderLeadgenClient(dashboard, verhaal) {
     ${renderMeldingen(dashboard)}
     ${renderKerncijfers(dashboard)}
     ${renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd in de aanvragen' })}
-    ${renderBudget(dashboard)}
-    ${renderDoelen(dashboard)}
-    ${renderFunnel(dashboard)}
-    ${renderOntwikkeling(dashboard)}
+    ${dashRij(
+      { span: 6, html: renderBudget(dashboard) },
+      { span: 6, html: renderDoelen(dashboard) },
+    )}
+    ${dashRij(
+      { span: 6, html: renderFunnel(dashboard) },
+      { span: 6, html: renderOntwikkeling(dashboard) },
+    )}
     ${renderConversies(dashboard)}
     ${renderKanalen(dashboard)}
     ${renderGoogleAds(dashboard)}
@@ -520,48 +524,52 @@ export function renderLeadgenKlantview(dashboard, verhaal) {
         totalen.qualifiedLeads == null ? 'neutraal' : deltas.qualifiedLeads?.richting ?? 'neutraal')}
     </div>
 
-    ${renderBudget(dashboard)}
-
-    <section class="card">
-      <h2>Doelen</h2>
-      <ul class="goal-list">${kernDoelen.map((d) => {
-        const meta = DOEL_META[d.kpi] ?? { label: d.kpi, format: fmt.getal };
-        return doelRij(d, { label: meta.label, format: meta.format });
-      }).join('')}</ul>
-    </section>
-
-    ${figure(
-      'chart-klant-funnel',
-      'Van bezoeker tot klant',
-      'Hoeveel mensen elke stap zetten binnen de geselecteerde periode.',
-      tabel(
-        ['Stap', 'Aantal', 'Doorstroom'],
-        dashboard.funnel.rijen.map((r) => [
-          esc(r.label),
-          r.volume == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(r.volume),
-          r.doorstroom == null ? '<span class="muted">n.v.t.</span>' : fmt.procent(r.doorstroom),
-        ])
-      ),
-      'Advertentiekanalen, Google Analytics 4 en CRM',
-      320
+    ${dashRij(
+      { span: 6, html: renderBudget(dashboard) },
+      { span: 6, html: `<section class="card">
+        <h2>Doelen</h2>
+        <ul class="goal-list">${kernDoelen.map((d) => {
+          const meta = DOEL_META[d.kpi] ?? { label: d.kpi, format: fmt.getal };
+          return doelRij(d, { label: meta.label, format: meta.format });
+        }).join('')}</ul>
+      </section>` },
     )}
 
-    ${figure(
-      'chart-klant-kanaal',
-      'Waar de leads vandaan komen',
-      'Verdeling van leads over de geselecteerde kanalen.',
-      tabel(['Kanaal', 'Leads', 'Kosten per lead'], dashboard.kanaalRijen.map((k) => [
-        esc(k.label), fmt.getal(k.leads), k.cpl == null ? '<span class="muted">Niet te berekenen</span>' : fmt.euro2(k.cpl),
-      ])),
-      'Advertentiekanalen en Google Analytics 4'
+    ${dashRij(
+      { span: 6, html: figure(
+        'chart-klant-funnel',
+        'Van bezoeker tot klant',
+        'Hoeveel mensen elke stap zetten binnen de geselecteerde periode.',
+        tabel(
+          ['Stap', 'Aantal', 'Doorstroom'],
+          dashboard.funnel.rijen.map((r) => [
+            esc(r.label),
+            r.volume == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(r.volume),
+            r.doorstroom == null ? '<span class="muted">n.v.t.</span>' : fmt.procent(r.doorstroom),
+          ])
+        ),
+        'Advertentiekanalen, Google Analytics 4 en CRM',
+        320
+      ) },
+      { span: 6, html: figure(
+        'chart-klant-kanaal',
+        'Waar de leads vandaan komen',
+        'Verdeling van leads over de geselecteerde kanalen.',
+        tabel(['Kanaal', 'Leads', 'Kosten per lead'], dashboard.kanaalRijen.map((k) => [
+          esc(k.label), fmt.getal(k.leads), k.cpl == null ? '<span class="muted">Niet te berekenen</span>' : fmt.euro2(k.cpl),
+        ])),
+        'Advertentiekanalen en Google Analytics 4'
+      ) },
     )}
 
     ${renderInzichten(dashboard.inzichten, { titel: 'Wat er is veranderd', toonAanvullend: false })}
     ${renderMeetbeperkingen(verhaal)}
 
-    ${lijst('Wat ik deze periode deed', verhaal?.gedaan)}
-    ${lijst('Wat ik hierna ga doen', verhaal?.volgende)}
-    ${lijst('Wat ik van je nodig heb', verhaal?.vanKlant)}
+    ${dashRij(
+      { span: 4, html: lijst('Wat ik deze periode deed', verhaal?.gedaan) },
+      { span: 4, html: lijst('Wat ik hierna ga doen', verhaal?.volgende) },
+      { span: 4, html: lijst('Wat ik van je nodig heb', verhaal?.vanKlant) },
+    )}
   `;
 }
 

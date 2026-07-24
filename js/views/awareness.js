@@ -21,7 +21,7 @@
 
 import { lineChart, barChart } from '../charts.js';
 import {
-  fmt, esc, kpi, kpiMetriek, tabel, figure, renderBudget, ontbrekendeCel, metriekKolom,
+  fmt, esc, kpi, kpiMetriek, tabel, figure, renderBudget, ontbrekendeCel, metriekKolom, dashRij,
 } from './components.js';
 import { renderInzichten } from './insight-cards.js';
 import { toonKorteDatum } from '../filters/period.js';
@@ -83,8 +83,10 @@ export function renderAwarenessClient(dashboard) {
 
     ${renderVerzadiging(dashboard)}
     ${renderBudget(dashboard)}
-    ${renderOntwikkeling(dashboard)}
-    ${renderKanalen(dashboard)}
+    ${dashRij(
+      { span: 6, html: renderOntwikkeling(dashboard) },
+      { span: 6, html: renderKanalen(dashboard) },
+    )}
     ${renderOndersteunend(dashboard)}
   `;
 }
