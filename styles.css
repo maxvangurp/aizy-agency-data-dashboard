@@ -161,7 +161,7 @@ h1, h2, h3 {
 .app {
   display: grid;
   grid-template-columns: 250px 1fr;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .sidebar {
@@ -671,7 +671,7 @@ tbody tr:hover td {
 /* ---------- Authenticatieschermen ---------- */
 
 .auth-scherm {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: var(--space-4);
@@ -845,7 +845,7 @@ code {
 /* ---------- Statusschermen ---------- */
 
 .status-scherm {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -863,7 +863,7 @@ code {
 .app-grid {
   display: grid;
   grid-template-columns: 240px 1fr;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .topbar-links, .topbar-rechts {
@@ -1694,7 +1694,7 @@ code {
 .app-grid {
   display: grid;
   grid-template-columns: var(--nav-breedte, 244px) 1fr;
-  min-height: 100vh;
+  min-height: 100dvh;
   transition: grid-template-columns 0.16s ease;
 }
 .app-grid.nav-compact { --nav-breedte: 72px; }
@@ -1705,7 +1705,7 @@ code {
   min-width: 0;
   padding: 0;
   gap: 0;
-  height: 100vh;
+  height: 100dvh;
 }
 
 .werkgebied {
@@ -1742,7 +1742,7 @@ code {
   overflow-y: auto;
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
 }
 
 /* ---------- Paginakop ---------- */
@@ -1781,7 +1781,7 @@ code {
   border-left: 1px solid var(--border);
   background: var(--surface);
   overflow-y: auto;
-  height: calc(100vh - 55px);
+  height: calc(100dvh - 55px);
   position: sticky; top: 55px;
   display: flex; flex-direction: column;
 }
@@ -1816,10 +1816,16 @@ code {
 
 /* ---------- Datagrid ---------- */
 
-.datagrid { display: grid; gap: var(--space-2); }
-.grid-werkbalk { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.grid-zoekveld { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); padding: 7px 12px; font-size: 13px; min-width: 180px; }
-.grid-filter select, .grid-werkbalk select { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 13px; }
+/* Het datagrid moet onder zijn tabelbreedte kunnen krimpen, zodat de tabel
+   binnen .grid-scroll horizontaal scrolt in plaats van de pagina te verbreden. */
+.datagrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); min-width: 0; }
+.grid-scroll { min-width: 0; }
+.grid-werkbalk { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
+/* Grid-controls mogen nooit breder worden dan de beschikbare ruimte: een select
+   groeit anders naar zijn langste optie en duwt de pagina op smalle schermen open. */
+.grid-filter, .grid-zoek { min-width: 0; max-width: 100%; }
+.grid-zoekveld { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); padding: 7px 12px; font-size: 13px; min-width: min(180px, 100%); max-width: 100%; }
+.grid-filter select, .grid-werkbalk select { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 13px; max-width: 100%; }
 .grid-telling { font-size: 12px; color: var(--ink-muted); }
 .grid-werkbalk-acties { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
 
@@ -2030,7 +2036,7 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
   .widget-middel { grid-column: span 2; }
   .widget-groot { grid-column: span 4; }
   .app-grid.met-detail .werkgebied { grid-template-columns: minmax(0,1fr); }
-  .detailpaneel { position: fixed; inset: 0; top: 0; height: 100vh; z-index: 60; width: 100%; }
+  .detailpaneel { position: fixed; inset: 0; top: 0; height: 100dvh; z-index: 60; width: 100%; }
 }
 
 @media (max-width: 900px) {
@@ -2176,17 +2182,21 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
   --space-6: 32px;
   --space-7: 48px;
 
-  /* Layout */
-  --page-max-width: 1360px;
-  --page-padding-x: 28px;
-  --page-padding-y: 24px;
-  --section-gap: 20px;
+  /* Layout — twee breedtematen: data mag breed, tekst blijft leesbaar.
+     --content-wide-max-width begrenst de hele pagina (tabellen, grids, grafieken)
+     zodat die op brede schermen de ruimte benutten maar op 4K beheerst blijven;
+     --content-reading-width begrenst lopende tekst binnen kaarten. */
+  --content-wide-max-width: 2400px;
+  --page-max-width: var(--content-wide-max-width);
+  --page-padding-x: clamp(16px, 2vw, 44px);
+  --page-padding-y: clamp(16px, 1.4vw, 28px);
+  --section-gap: clamp(16px, 1.4vw, 28px);
   --section-gap-compact: 12px;
-  --grid-gap: 16px;
+  --grid-gap: clamp(12px, 1vw, 20px);
   --card-padding: 20px;
   --card-padding-compact: 14px;
   --control-height: 38px;
-  --content-reading-width: 68ch;
+  --content-reading-width: 72ch;
 
   /* Typografische schaal */
   --fs-page: 27px;
@@ -2220,7 +2230,10 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
 
 body { font-size: var(--fs-body); line-height: 1.5; }
 
-.page-root { padding: var(--page-padding-y) var(--page-padding-x); gap: var(--section-gap); max-width: var(--page-max-width); }
+/* De pagina-container is fluid en gecentreerd: hij benut de beschikbare
+   contentbreedte tot een ruime, beheerste maximumbreedte en staat op zeer brede
+   schermen gecentreerd i.p.v. links tegen de sidebar. */
+.page-root { padding: var(--page-padding-y) var(--page-padding-x); gap: var(--section-gap); max-width: var(--page-max-width); margin-inline: auto; width: 100%; }
 .pagina-inhoud { gap: var(--section-gap); }
 
 /* Lange tekstuele analyse krijgt een leesbreedte; cijfers en tabellen niet. */
@@ -2258,7 +2271,11 @@ body { font-size: var(--fs-body); line-height: 1.5; }
 
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  /* De minimale kaartbreedte groeit mee met het scherm: op brede monitoren
+     ontstaan zo minder maar grotere, gebalanceerde KPI-kaarten in plaats van een
+     lange rij kleine kaarten met een eenzame laatste kaart. Kleine schermen
+     worden verderop door media queries geregeld. */
+  grid-template-columns: repeat(auto-fit, minmax(clamp(190px, 12vw, 300px), 1fr));
   gap: var(--grid-gap);
   align-items: stretch;
 }
@@ -2871,7 +2888,7 @@ body[data-shell='app'] { overflow-x: hidden; }
 .contextbalk > #filterCorrecties { border-top: 0; }
 
 /* Het detailpaneel sluit exact onder de topbalk aan. */
-.detailpaneel { height: calc(100vh - var(--topbar-height)); top: var(--topbar-height); }
+.detailpaneel { height: calc(100dvh - var(--topbar-height)); top: var(--topbar-height); }
 
 /* ---------- Responsief gedrag van de bovenbalk ---------- */
 
@@ -3112,7 +3129,7 @@ body[data-shell='app'] { overflow-x: hidden; }
   bottom: 0;
   width: 360px;
   max-width: 40vw;
-  max-height: 100vh;
+  max-height: 100dvh;
   border-radius: 0;
   border-left: 1px solid var(--border);
 }
