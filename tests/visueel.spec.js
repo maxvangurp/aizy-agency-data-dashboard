@@ -424,4 +424,29 @@ test.describe('Navigatieshell', () => {
     );
     expect(overloop).toBe(false);
   });
+
+  test('de mobiele navigatielade opent en de links zijn klikbaar (niet bedekt door de overlay)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await login(page, ACCOUNTS.admin);
+    await ga(page, '#/agency/portfolio', { wacht: 400 });
+
+    // De hamburger opent de lade.
+    await page.click('#menuKnop');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#sidebar')).toHaveClass(/open/);
+
+    // De sidebar moet boven de overlay liggen, anders vangt de overlay de kliks op.
+    const gestapeld = await page.evaluate(() => {
+      const z = (id) => parseInt(getComputedStyle(document.getElementById(id)).zIndex || '0', 10);
+      return z('sidebar') > z('sidebarOverlay');
+    });
+    expect(gestapeld, 'sidebar moet boven de overlay liggen').toBe(true);
+
+    // Een navigatielink is echt klikbaar en navigeert (bewijst dat de overlay niet blokkeert).
+    await page.click('.sidebar a[href*="/agency/clients"]', { timeout: 3000 });
+    await page.waitForTimeout(400);
+    expect(page.url()).toContain('/agency/clients');
+    // Na navigatie sluit de lade.
+    await expect(page.locator('#sidebar')).not.toHaveClass(/open/);
+  });
 });

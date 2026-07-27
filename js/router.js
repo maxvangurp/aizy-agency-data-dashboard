@@ -56,6 +56,9 @@ export const ROUTES = [
   /* Agency: analyse */
   { pad: '/agency/insights', naam: 'agency-insights', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Inzichten' },
   { pad: '/agency/reports', naam: 'agency-reports', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Rapportages' },
+  // De literale /new-route moet vóór /:reportId staan, anders vangt de param 'new' op.
+  { pad: '/agency/reports/new', naam: 'agency-report-new', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Nieuwe rapportage' },
+  { pad: '/agency/reports/:reportId', naam: 'agency-report-builder', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Rapportage' },
   { pad: '/agency/dataquality', naam: 'agency-dataquality', permission: Permission.VIEW_AGENCY_DASHBOARD, titel: 'Datakwaliteit' },
 
   /* Agency: systeem */

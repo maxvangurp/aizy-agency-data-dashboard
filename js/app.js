@@ -107,6 +107,13 @@ import {
   renderKlantRapportage, OVERZICHT_TABS, SAMENWERKING_TABS, RAPPORTAGE_TABS,
 } from './views/client-pages.js';
 import { renderAgencyClientDetail, drawAgencyClientCharts } from './views/agency-client-detail.js';
+import {
+  renderRapportBouwer, renderRapportPreview, drawRapportCharts, renderOpgeslagenRapportages,
+} from './views/report-builder.js';
+import {
+  laadRapportages, getRapportage, nieuwConcept, opslaanRapportage,
+  verwijderRapportage, dupliceerRapportage,
+} from './model/reports.js';
 
 import { onDemoWijziging, wisAlleDemoGegevens } from './model/store.js';
 import {
@@ -506,6 +513,8 @@ function bouwPagina({ user, route, params, ctx, uiParams, omgeving }) {
     /* ---- Analyse ---- */
     case 'agency-insights': return paginaInzichten({ user, filters });
     case 'agency-reports': return paginaRapportages({ user, filters });
+    case 'agency-report-new': return paginaRapportBouwer({ user, filters, nieuw: true });
+    case 'agency-report-builder': return paginaRapportBouwer({ user, filters, params });
     case 'agency-dataquality': return paginaDatakwaliteit({ user, filters });
 
     /* ---- Systeem ---- */
@@ -953,13 +962,139 @@ function paginaInzichten({ user, filters }) {
 function paginaRapportages({ user, filters }) {
   return {
     titel: 'Rapportages',
-    ondertitel: 'De rapportage per klant en het werk dat daarvoor klaarstaat.',
+    ondertitel: 'Stel een rapportage samen, of bekijk de rapportage per klant.',
     kruimelpad: [AGENCY_KRUIMEL, { label: 'Rapportages' }],
-    inhoud: renderRapportages({
-      overview: getAgencyOverview(user, filters),
-      acties: getToegankelijkeActies(user),
-    }),
+    inhoud: `
+      ${renderOpgeslagenRapportages(laadRapportages())}
+      ${renderRapportages({
+        overview: getAgencyOverview(user, filters),
+        acties: getToegankelijkeActies(user),
+      })}`,
   };
+}
+
+/* ---------------------------------------------------------------
+   Rapportage-builder
+   --------------------------------------------------------------- */
+
+// Het concept dat op dit moment in de builder bewerkt wordt. Blijft in het
+// geheugen tijdens een sessie zodat tussentijdse keuzes de volledige re-render
+// overleven; pas bij Opslaan gaat het naar de demo-opslag.
+let bouwerConcept = null;
+let bouwerModusNieuw = false;
+
+function conceptVoorKlant(user, client, filters) {
+  const dashboard = getClientDashboard(user, client.id, filters);
+  const periodeLabel = toonBereik(filters.periode.startDate, filters.periode.endDate);
+  return nieuwConcept({
+    client,
+    model: dashboard?.model,
+    dashboard,
+    auteur: { id: user.id, naam: user.displayName },
+    periodeLabel,
+  });
+}
+
+/**
+ * Levert het concept dat de builder toont. Voor een nieuw rapport wordt een vers
+ * concept gemaakt (of het lopende hergebruikt); voor een opgeslagen rapport een
+ * bewerkbare kopie. Zo overleeft de bewerkte staat een re-render, maar begint
+ * "Nieuwe rapportage" wél schoon.
+ */
+function haalBouwerConcept({ user, filters, params, nieuw }) {
+  const klanten = getAccessibleClients(user);
+  if (!klanten.length) return { concept: null, klanten };
+
+  if (nieuw) {
+    // Een lopend nieuw-concept blijft staan over re-renders; alleen als er geen
+    // actief nieuw-concept is, begint de builder schoon.
+    if (!bouwerConcept || !bouwerModusNieuw) {
+      bouwerConcept = conceptVoorKlant(user, klanten[0], filters);
+      bouwerModusNieuw = true;
+    }
+  } else {
+    const id = params?.reportId;
+    if (!bouwerConcept || bouwerConcept.id !== id || bouwerModusNieuw) {
+      const opgeslagen = getRapportage(id);
+      bouwerConcept = opgeslagen ? { ...opgeslagen, concept: true } : null;
+      bouwerModusNieuw = false;
+    }
+  }
+  return { concept: bouwerConcept, klanten };
+}
+
+function paginaRapportBouwer({ user, filters, params, nieuw = false }) {
+  const { concept, klanten } = haalBouwerConcept({ user, filters, params, nieuw });
+
+  if (!concept) {
+    return {
+      titel: 'Rapportage',
+      ondertitel: 'Deze rapportage bestaat niet meer.',
+      kruimelpad: [AGENCY_KRUIMEL, { label: 'Rapportages', hash: '#/agency/reports' }, { label: 'Onbekend' }],
+      inhoud: emptyState({
+        titel: 'Rapportage niet gevonden',
+        uitleg: 'Mogelijk is de rapportage verwijderd. Maak een nieuwe of ga terug naar het overzicht.',
+        actie: { hash: '#/agency/reports', label: 'Naar rapportages' },
+      }),
+    };
+  }
+
+  const dashboard = getClientDashboard(user, concept.clientId, filters);
+  const verhaal = getPeriodNarrative(user, concept.clientId, filters);
+
+  return {
+    titel: nieuw ? 'Nieuwe rapportage' : concept.titel || 'Rapportage',
+    ondertitel: 'Stel de rapportage samen; de preview beweegt live mee.',
+    kruimelpad: [AGENCY_KRUIMEL, { label: 'Rapportages', hash: '#/agency/reports' }, { label: nieuw ? 'Nieuw' : 'Bewerken' }],
+    inhoud: renderRapportBouwer({ user, rapport: concept, dashboard, verhaal, klanten }),
+    teken: () => drawRapportCharts({ rapport: concept, dashboard }),
+  };
+}
+
+/**
+ * Hertekent alleen de rapport-preview (niet de opties eromheen), zodat een
+ * keuze of een aanslag in het intro-veld de invoerfocus niet steelt. Daarna
+ * worden de grafieken opnieuw getekend.
+ */
+function herrenderRapportPreview() {
+  if (!bouwerConcept) return;
+  const user = getCurrentUser();
+  const filters = getActieveFilters()?.resolved;
+  if (!user || !filters) return;
+  const dashboard = getClientDashboard(user, bouwerConcept.clientId, filters);
+  const verhaal = getPeriodNarrative(user, bouwerConcept.clientId, filters);
+  const bestaand = document.getElementById('rapportPreview');
+  if (!bestaand) return;
+  bestaand.outerHTML = renderRapportPreview({ rapport: bouwerConcept, dashboard, verhaal });
+  drawRapportCharts({ rapport: bouwerConcept, dashboard });
+}
+
+/** Zet een KPI- of inzichtkeuze aan of uit in het lopende concept. */
+function zetRapportKeuze(veld, waarde, aan) {
+  if (!bouwerConcept) return;
+  const arr = bouwerConcept.onderdelen[veld];
+  const idx = arr.indexOf(waarde);
+  if (aan && idx < 0) arr.push(waarde);
+  else if (!aan && idx >= 0) arr.splice(idx, 1);
+  herrenderRapportPreview();
+}
+
+/** Wisselt de klant van het concept: nieuwe standaard-onderdelen, titel/intro blijven. */
+function wisselRapportKlant(clientId) {
+  if (!bouwerConcept) return;
+  const user = getCurrentUser();
+  const filters = getActieveFilters()?.resolved;
+  const client = getClientById(user, clientId);
+  if (!client || !filters) return;
+  const vers = conceptVoorKlant(user, client, filters);
+  bouwerConcept = {
+    ...vers,
+    id: bouwerConcept.id,
+    titel: bouwerConcept.titel,
+    intro: bouwerConcept.intro,
+    auteur: bouwerConcept.auteur,
+  };
+  render();
 }
 
 function paginaDatakwaliteit({ user, filters }) {
@@ -1466,6 +1601,26 @@ async function onClick(e) {
     return;
   }
   if (el.dataset.assistentVraag) { assistent.verstuur(el.dataset.assistentVraag); return; }
+
+  /* --- Rapportage-builder --- */
+  // Een verse "Nieuwe rapportage" begint schoon; de navigatie loopt gewoon door.
+  if (el.matches?.('a[href$="/agency/reports/new"]')) { bouwerConcept = null; bouwerModusNieuw = false; }
+  if (el.dataset.rapportOpslaan !== undefined) {
+    if (bouwerConcept) { opslaanRapportage(bouwerConcept); toast('Rapportage opgeslagen.'); }
+    return;
+  }
+  if (el.dataset.rapportPrint !== undefined) { window.print(); return; }
+  if (el.dataset.rapportDupliceer) {
+    if (dupliceerRapportage(el.dataset.rapportDupliceer)) toast('Rapportage gedupliceerd.');
+    return;
+  }
+  if (el.dataset.rapportVerwijder) {
+    if (window.confirm('Deze rapportage verwijderen? Dit kan niet ongedaan worden gemaakt.')) {
+      verwijderRapportage(el.dataset.rapportVerwijder);
+      toast('Rapportage verwijderd.');
+    }
+    return;
+  }
   if (el.dataset.assistentInstelling) {
     const i = el.dataset.assistentInstelling;
     if (i === 'zichtbaar-aan') assistent.zetZichtbaar(true);
@@ -2022,6 +2177,15 @@ function onChange(e) {
     return;
   }
 
+  /* Rapportage-builder */
+  if (d.rapportKlant !== undefined) { wisselRapportKlant(el.value); return; }
+  if (d.rapportKpi !== undefined) { zetRapportKeuze('kpis', d.rapportKpi, el.checked); return; }
+  if (d.rapportInzicht !== undefined) { zetRapportKeuze('inzichtIds', Number(d.rapportInzicht), el.checked); return; }
+  if (d.rapportSectie !== undefined) {
+    if (bouwerConcept) { bouwerConcept.onderdelen[d.rapportSectie] = el.checked; herrenderRapportPreview(); }
+    return;
+  }
+
   /* Datagrid */
   if (d.gridFilter) { grids.zetFilter(d.gridFilter, d.filter, el.value); return; }
   if (d.gridGroep) { grids.zetGroepering(d.gridGroep, el.value); return; }
@@ -2056,10 +2220,22 @@ function onChange(e) {
 }
 
 let zoekTimer = null;
+let rapportTimer = null;
 
 function onInput(e) {
   const el = e.target;
   const d = el.dataset;
+
+  /* Rapportage-builder: titel/intro bijwerken zonder de invoerfocus te verliezen. */
+  if (d.rapportTitel !== undefined || d.rapportIntro !== undefined) {
+    window.clearTimeout(rapportTimer);
+    const veld = d.rapportTitel !== undefined ? 'titel' : 'intro';
+    const waarde = el.value;
+    rapportTimer = window.setTimeout(() => {
+      if (bouwerConcept) { bouwerConcept[veld] = waarde; herrenderRapportPreview(); }
+    }, 220);
+    return;
+  }
 
   if (d.gridZoek) {
     // Even wachten, zodat er niet bij iedere aanslag opnieuw wordt gerenderd en

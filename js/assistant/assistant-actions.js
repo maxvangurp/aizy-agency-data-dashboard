@@ -27,7 +27,7 @@ const DEFINITIES = {
   'open-integraties': (c) => (c.permissions.isAgency ? N('Open integraties', '#/agency/integrations') : null),
   'maak-rapportage': (c) => (c.environment === 'client'
     ? N('Rapportage maken', '#/client/report?tab=rapportages')
-    : N('Rapportage maken', '#/agency/reports')),
+    : N('Rapportage maken', '#/agency/reports/new')),
   'open-assistent-instellingen': (c) => (c.permissions.isAgency
     ? N('Assistent-instellingen', '#/agency/settings?sectie=assistent')
     : N('Assistent-instellingen', '#/client/report')),
