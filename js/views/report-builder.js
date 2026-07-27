@@ -272,8 +272,17 @@ export function renderRapportBouwer({ user, rapport, dashboard, verhaal, klanten
         </div>
       </fieldset>
 
+      <p class="rapport-status">
+        ${rapport?.gepubliceerd
+          ? `${badge('Gepubliceerd', 'ok')} <span class="muted klein">De klant ziet deze rapportage in zijn omgeving.</span>`
+          : `${badge('Concept', 'muted')} <span class="muted klein">Nog niet gedeeld met de klant.</span>`}
+      </p>
+
       <div class="rapport-acties">
         <button type="button" class="btn primary" data-rapport-opslaan>Rapportage opslaan</button>
+        <button type="button" class="btn" data-rapport-publiceer>
+          ${rapport?.gepubliceerd ? 'Publicatie intrekken' : 'Publiceren voor klant'}
+        </button>
         <button type="button" class="btn" data-rapport-print>Exporteren / printen</button>
       </div>
     </form>
@@ -298,6 +307,41 @@ function keuze(soort, waarde, label, aan) {
 }
 
 /* ===============================================================
+   Klant-omgeving — gepubliceerde rapportages van het bureau.
+   =============================================================== */
+
+/** De lijst met gepubliceerde rapportages die de klant kan openen. */
+export function renderGepubliceerdeRapportages(lijst) {
+  if (!lijst.length) return '';
+  return `<section class="card" id="gepubliceerdeRapportages">
+    <h2>Rapportages van je bureau</h2>
+    <p class="muted">Rapportages die Aizy met je heeft gedeeld. Openen om te lezen of te downloaden.</p>
+    <ul class="rapport-deel-lijst">
+      ${lijst.map((r) => `<li class="rapport-deel-item">
+        <a class="rapport-deel-link" href="#/client/report/${esc(r.id)}">
+          <span class="rapport-deel-titel">${esc(r.titel)}</span>
+          <span class="muted klein">${esc(r.periodeLabel || '')}${r.gepubliceerdOp ? ` · gedeeld op ${esc(toonDatum(r.gepubliceerdOp.slice(0, 10)))}` : ''}</span>
+        </a>
+        <span class="rapport-deel-actie" aria-hidden="true">→</span>
+      </li>`).join('')}
+    </ul>
+  </section>`;
+}
+
+/** De read-only weergave van één gepubliceerde rapportage voor de klant. */
+export function renderRapportWeergave({ rapport, dashboard, verhaal }) {
+  return `<div class="rapport-weergave">
+    <div class="rapport-weergave-balk">
+      <a class="link" href="#/client/report">← Terug naar rapportages</a>
+      <button type="button" class="btn" data-rapport-print>Downloaden / printen</button>
+    </div>
+    <div class="rapport-preview-wrap">
+      ${renderRapportPreview({ rapport, dashboard, verhaal })}
+    </div>
+  </div>`;
+}
+
+/* ===============================================================
    Opgeslagen rapportages — lijst op de rapportagepagina.
    =============================================================== */
 
@@ -319,10 +363,11 @@ export function renderOpgeslagenRapportages(lijst) {
     </div>
     <div class="table-scroll">
       ${tabel(
-        ['Rapportage', 'Klant', 'Bijgewerkt', 'Acties'],
+        ['Rapportage', 'Klant', 'Status', 'Bijgewerkt', 'Acties'],
         lijst.map((r) => [
           `<a class="link" href="#/agency/reports/${esc(r.id)}">${esc(r.titel)}</a>`,
           esc(r.clientNaam ?? '—'),
+          r.gepubliceerd ? badge('Gepubliceerd', 'ok') : badge('Concept', 'muted'),
           esc(toonDatum((r.gewijzigdOp ?? '').slice(0, 10))),
           `<span class="rapport-rij-acties">
             <a class="link klein" href="#/agency/reports/${esc(r.id)}">Openen</a>

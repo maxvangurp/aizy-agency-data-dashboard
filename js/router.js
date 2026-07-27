@@ -74,6 +74,7 @@ export const ROUTES = [
   { pad: '/client/collaboration', naam: 'client-collaboration', permission: Permission.VIEW_CLIENT_COLLABORATION, titel: 'Samenwerking' },
   { pad: '/client/conversions', naam: 'client-conversions', permission: Permission.VIEW_CLIENT_CONVERSIONS, titel: 'Conversies' },
   { pad: '/client/report', naam: 'client-report', permission: Permission.VIEW_CLIENT_REPORT, titel: 'Rapportages' },
+  { pad: '/client/report/:reportId', naam: 'client-report-view', permission: Permission.VIEW_CLIENT_REPORT, titel: 'Rapportage' },
   { pad: '/client/users', naam: 'client-users', permission: Permission.MANAGE_CLIENT_USERS, titel: 'Gebruikers' },
 
   { pad: '/unauthorized', naam: 'unauthorized', publiek: true, titel: 'Geen toegang' },

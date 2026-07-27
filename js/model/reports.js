@@ -36,7 +36,7 @@ export function getRapportage(id) {
  * beschikbare inzichten en alle secties staan aan. Het concept is nog niet
  * opgeslagen; de builder houdt het vast tot de gebruiker op Opslaan drukt.
  */
-export function nieuwConcept({ client, model, dashboard, auteur, periodeLabel }) {
+export function nieuwConcept({ client, model, dashboard, auteur, periodeLabel, filters }) {
   const kpis = (PRIMARY_KPIS[client.businessModel] ?? []).slice();
   // Inzichten staan als { primair, aanvullend }; de builder werkt met de platte
   // lijst, dus indexeren we over beide samen.
@@ -50,6 +50,10 @@ export function nieuwConcept({ client, model, dashboard, auteur, periodeLabel })
     titel: `Rapportage ${client.name}`,
     intro: '',
     periodeLabel: periodeLabel ?? '',
+    // De filters worden bevroren zodat de rapportage overal dezelfde cijfers
+    // toont, ongeacht wie hem bekijkt of welke periode er op dat moment is
+    // geselecteerd. De demo-data is deterministisch per periode+kanalen.
+    filters: filters ?? null,
     onderdelen: {
       kpis,
       inzichtIds,
@@ -62,6 +66,8 @@ export function nieuwConcept({ client, model, dashboard, auteur, periodeLabel })
     aangemaaktOp: nu(),
     gewijzigdOp: nu(),
     concept: true,
+    gepubliceerd: false,
+    gepubliceerdOp: null,
   };
 }
 
@@ -80,6 +86,37 @@ export function verwijderRapportage(id) {
   bewaar(laadRapportages().filter((r) => r.id !== id));
 }
 
+/** Publiceert een opgeslagen rapportage naar de klant-omgeving. */
+export function publiceerRapportage(id) {
+  return zetPublicatie(id, true);
+}
+
+/** Trekt een publicatie in; de klant ziet de rapportage dan niet meer. */
+export function trekPublicatieIn(id) {
+  return zetPublicatie(id, false);
+}
+
+function zetPublicatie(id, gepubliceerd) {
+  const lijst = laadRapportages();
+  const idx = lijst.findIndex((r) => r.id === id);
+  if (idx < 0) return null;
+  lijst[idx] = {
+    ...lijst[idx],
+    gepubliceerd,
+    gepubliceerdOp: gepubliceerd ? nu() : null,
+    gewijzigdOp: nu(),
+  };
+  bewaar(lijst);
+  return lijst[idx];
+}
+
+/** De gepubliceerde rapportages voor één klant, nieuwste publicatie eerst. */
+export function gepubliceerdeRapportagesVoor(clientId) {
+  return laadRapportages()
+    .filter((r) => r.gepubliceerd && r.clientId === clientId)
+    .sort((a, b) => String(b.gepubliceerdOp ?? '').localeCompare(String(a.gepubliceerdOp ?? '')));
+}
+
 /** Dupliceert een opgeslagen rapportage zodat je een variant kunt maken. */
 export function dupliceerRapportage(id) {
   const bron = getRapportage(id);
@@ -89,6 +126,8 @@ export function dupliceerRapportage(id) {
     id: nieuwId('rap'),
     titel: `${bron.titel} (kopie)`,
     onderdelen: { ...bron.onderdelen, kpis: [...bron.onderdelen.kpis], inzichtIds: [...bron.onderdelen.inzichtIds] },
+    gepubliceerd: false,
+    gepubliceerdOp: null,
     aangemaaktOp: nu(),
     gewijzigdOp: nu(),
   };

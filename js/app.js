@@ -109,10 +109,12 @@ import {
 import { renderAgencyClientDetail, drawAgencyClientCharts } from './views/agency-client-detail.js';
 import {
   renderRapportBouwer, renderRapportPreview, drawRapportCharts, renderOpgeslagenRapportages,
+  renderGepubliceerdeRapportages, renderRapportWeergave,
 } from './views/report-builder.js';
 import {
   laadRapportages, getRapportage, nieuwConcept, opslaanRapportage,
   verwijderRapportage, dupliceerRapportage,
+  publiceerRapportage, trekPublicatieIn, gepubliceerdeRapportagesVoor,
 } from './model/reports.js';
 
 import { onDemoWijziging, wisAlleDemoGegevens } from './model/store.js';
@@ -992,7 +994,18 @@ function conceptVoorKlant(user, client, filters) {
     dashboard,
     auteur: { id: user.id, naam: user.displayName },
     periodeLabel,
+    // Bevries de filters zodat de rapportage overal dezelfde cijfers toont.
+    filters: JSON.parse(JSON.stringify(filters)),
   });
+}
+
+/** Berekent dashboard + verhaal voor een rapportage met zijn bevroren filters. */
+function rapportData(user, rapport, valFilters) {
+  const rf = rapport.filters ?? valFilters;
+  return {
+    dashboard: getClientDashboard(user, rapport.clientId, rf),
+    verhaal: getPeriodNarrative(user, rapport.clientId, rf),
+  };
 }
 
 /**
@@ -1039,8 +1052,7 @@ function paginaRapportBouwer({ user, filters, params, nieuw = false }) {
     };
   }
 
-  const dashboard = getClientDashboard(user, concept.clientId, filters);
-  const verhaal = getPeriodNarrative(user, concept.clientId, filters);
+  const { dashboard, verhaal } = rapportData(user, concept, filters);
 
   return {
     titel: nieuw ? 'Nieuwe rapportage' : concept.titel || 'Rapportage',
@@ -1059,10 +1071,9 @@ function paginaRapportBouwer({ user, filters, params, nieuw = false }) {
 function herrenderRapportPreview() {
   if (!bouwerConcept) return;
   const user = getCurrentUser();
-  const filters = getActieveFilters()?.resolved;
-  if (!user || !filters) return;
-  const dashboard = getClientDashboard(user, bouwerConcept.clientId, filters);
-  const verhaal = getPeriodNarrative(user, bouwerConcept.clientId, filters);
+  const valFilters = getActieveFilters()?.resolved;
+  if (!user) return;
+  const { dashboard, verhaal } = rapportData(user, bouwerConcept, valFilters);
   const bestaand = document.getElementById('rapportPreview');
   if (!bestaand) return;
   bestaand.outerHTML = renderRapportPreview({ rapport: bouwerConcept, dashboard, verhaal });
@@ -1253,9 +1264,36 @@ function bouwKlantpagina({ user, route, params, filters, tab, uiParams }) {
           dashboard,
           verhaal,
           tab: actiefTab,
-          basisInhoud: renderClientReport({ dashboard, verhaal }),
+          basisInhoud: `
+            ${renderGepubliceerdeRapportages(gepubliceerdeRapportagesVoor(klantId))}
+            ${renderClientReport({ dashboard, verhaal })}`,
           magDatakwaliteit: can(user, Permission.VIEW_CLIENT_DATAQUALITY),
         }),
+      };
+    }
+
+    case 'client-report-view': {
+      const rapport = getRapportage(params.reportId);
+      // Toegangscontrole: alleen een gepubliceerde rapportage van de eigen klant.
+      if (!rapport || !rapport.gepubliceerd || rapport.clientId !== klantId) {
+        return {
+          titel: 'Rapportage',
+          ondertitel: 'Deze rapportage is niet (meer) beschikbaar.',
+          kruimelpad: [kruimel, { label: 'Rapportage', href: '#/client/report' }, { label: 'Onbekend' }],
+          inhoud: emptyState({
+            titel: 'Rapportage niet gevonden',
+            uitleg: 'Deze rapportage is ingetrokken of bestaat niet meer.',
+            actie: { hash: '#/client/report', label: 'Naar rapportages' },
+          }),
+        };
+      }
+      const rd = rapportData(user, rapport, filters);
+      return {
+        titel: rapport.titel || 'Rapportage',
+        ondertitel: `Gedeeld door je bureau${rapport.periodeLabel ? ` · ${rapport.periodeLabel}` : ''}.`,
+        kruimelpad: [kruimel, { label: 'Rapportage', href: '#/client/report' }, { label: rapport.titel || 'Rapportage' }],
+        inhoud: renderRapportWeergave({ rapport, dashboard: rd.dashboard, verhaal: rd.verhaal }),
+        teken: () => drawRapportCharts({ rapport, dashboard: rd.dashboard }),
       };
     }
 
@@ -1607,6 +1645,17 @@ async function onClick(e) {
   if (el.matches?.('a[href$="/agency/reports/new"]')) { bouwerConcept = null; bouwerModusNieuw = false; }
   if (el.dataset.rapportOpslaan !== undefined) {
     if (bouwerConcept) { opslaanRapportage(bouwerConcept); toast('Rapportage opgeslagen.'); }
+    return;
+  }
+  if (el.dataset.rapportPubliceer !== undefined) {
+    if (!bouwerConcept) return;
+    opslaanRapportage(bouwerConcept);
+    const bijgewerkt = bouwerConcept.gepubliceerd
+      ? trekPublicatieIn(bouwerConcept.id)
+      : publiceerRapportage(bouwerConcept.id);
+    if (bijgewerkt) bouwerConcept = { ...bijgewerkt, concept: true };
+    toast(bouwerConcept.gepubliceerd ? 'Rapportage gepubliceerd voor de klant.' : 'Publicatie ingetrokken.');
+    render();
     return;
   }
   if (el.dataset.rapportPrint !== undefined) { window.print(); return; }
