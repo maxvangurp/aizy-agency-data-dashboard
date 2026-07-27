@@ -565,16 +565,22 @@ tbody tr:hover td {
 
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
   gap: var(--space-3);
 }
+.chart-grid > * { min-width: 0; }
 
 .chart-figure {
   margin: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-width: 0;
 }
+/* Flexkinderen (o.a. de details/tabelweergave) mogen onder hun min-content
+   krimpen, zodat de .table-scroll een brede tabel intern laat scrollen i.p.v. de
+   figuur (en daarmee de pagina) breder te maken op smalle schermen. */
+.chart-figure > * { min-width: 0; }
 
 .chart-figure figcaption h3 {
   font-size: 15px;
@@ -628,9 +634,12 @@ tbody tr:hover td {
 /* Twee kolommen die op smalle schermen onder elkaar vallen. */
 .grid-2-col {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  /* min(100%, 320px): op schermen smaller dan 320px zakt de kolom naar 100%
+     i.p.v. een harde 320px-minimum af te dwingen (anders overloop op mobiel). */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: var(--space-4);
 }
+.grid-2-col > * { min-width: 0; }
 
 .grid-2-col h3 {
   font-size: 14px;
@@ -2307,6 +2316,10 @@ body { font-size: var(--fs-body); line-height: 1.5; }
   letter-spacing: -0.03em;
   line-height: 1.1;
   margin-top: 2px;
+  /* Lange tekstwaarden (bijv. "71 gekwalificeerd") mogen binnen de kaart breken
+     i.p.v. de KPI-kolom over de schermrand te duwen op smallere kolommen.
+     Getallen met vaste spatie (€ 14.000) blijven onaangetast. */
+  overflow-wrap: break-word;
 }
 .kpi-sub { font-size: 13px; color: var(--ink-muted); min-height: 1.2em; }
 .kpi-uitleg { font-size: 12px; line-height: 1.4; color: var(--ink-subtle); margin-top: 6px; }
@@ -2406,6 +2419,12 @@ body { font-size: var(--fs-body); line-height: 1.5; }
 @media (max-width: 480px) {
   .kpi-row { grid-template-columns: 1fr 1fr; }
   .paginakop h1 { font-size: 22px; }
+}
+/* Onder ~400px zijn twee KPI-kolommen te smal voor de grote waardefonts: een
+   lange waarde als "71 gekwalificeerd" of "€ 14.000" past niet in ~140px en
+   duwt de rij over de schermrand. Eén kolom geeft elke KPI de volle breedte. */
+@media (max-width: 400px) {
+  .kpi-row, .kpi-row-5 { grid-template-columns: 1fr; }
 }
 
 /* Vangnet: op smalle schermen blijft elke tabel horizontaal bruikbaar zonder de
@@ -2957,6 +2976,13 @@ p, li,
 }
 
 @media (max-width: 768px) {
+  /* De sidebar is op mobiel een fixed lade (buiten de gridflow). De app-grid mag
+     dan geen 244px-kolom meer reserveren, anders landt de content in die smalle
+     kolom en blijft de 1fr-kolom rechts leeg (content ~244px op een 375px-scherm).
+     Eén volledige kolom laat de inhoud de hele breedte benutten. */
+  .app-grid,
+  .app-grid.nav-compact { grid-template-columns: minmax(0, 1fr); }
+
   /* De contextbalk mag wrappen naar twee regels; de sidebar is dan een lade. */
   .contextbalk {
     flex-wrap: wrap;
@@ -2966,10 +2992,16 @@ p, li,
     gap: var(--topbar-gap);
   }
   .contextbalk-links, .contextbalk-rechts { flex-shrink: 1; min-width: 0; }
+  /* Zone 3 vult zijn eigen wrap-regel, zodat het zoekveld de volle breedte
+     krijgt én de avatar rechts uitlijnt. Anders zweek het accountpaneel (dat
+     rechts onder de avatar opent) links buiten beeld en werd de tekst afgekapt. */
+  .contextbalk-rechts { flex-basis: 100%; justify-content: flex-end; }
   .contextbalk-filters { order: 3; flex-basis: 100%; }
   .filtergroep { flex: 1; }
   .zoekveld { flex: 1; }
   .zoekveld input, .zoekveld input:focus { width: 100%; }
+  /* Het accountpaneel blijft binnen de viewport, ongeacht de avatarpositie. */
+  .accountpaneel { width: min(280px, calc(100vw - 24px)); }
   /* Profiel toont op smal alleen de avatar. */
   .accountknop-tekst { display: none; }
 }
@@ -3318,6 +3350,15 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 .signaalkaart-klant { font-size: 15px; font-weight: 700; color: var(--ink); }
 .signaalkaart-kanaal { font-size: 13px; }
 .signaalkaart-ouderdom { white-space: nowrap; }
+
+/* Op smalle schermen worden de kenmerkbadges en de klantregel anders op één
+   flex-regel geperst, waardoor de klantregel tot enkele pixels slinkt en de
+   nowrap-ouderdom ("Ontstaan … · N dagen open") rechts uitsteekt. Door de header
+   te stapelen krijgt de klantregel de volle kaartbreedte en past alles. */
+@media (max-width: 600px) {
+  .signaalkaart-header { flex-direction: column; }
+  .signaalkaart-klantregel { flex: none; width: 100%; margin-left: 0; }
+}
 
 .signaalkaart-titel { margin: 2px 0 0; font-size: 16px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
 
