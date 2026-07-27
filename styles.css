@@ -2464,6 +2464,24 @@ body[data-shell='app'] { overflow-x: hidden; }
 }
 
 /* =========================================================
+   TEKST-FLOW — nette regelafbrekingen.
+
+   Koppen en korte labels worden gebalanceerd, zodat er geen los woord
+   op een laatste regel blijft hangen ("… gekwalificeerde / lead").
+   Lopende tekst krijgt "pretty": de browser voorkomt een weeskindwoord
+   onderaan een alinea. Puur cosmetisch — geen functionele impact, en
+   browsers die deze waarden niet kennen negeren ze zonder gevolg.
+   ========================================================= */
+h1, h2, h3, h4,
+.kpi-label, .contextknop-label {
+  text-wrap: balance;
+}
+p, li,
+.muted, .kpi-uitleg, .empty {
+  text-wrap: pretty;
+}
+
+/* =========================================================
    VISUEEL SYSTEEM v3 — layout-herindeling & progressive disclosure.
    ========================================================= */
 
@@ -2743,8 +2761,11 @@ body[data-shell='app'] { overflow-x: hidden; }
   font-size: 13px;
 }
 
-/* Zone 1 (context) en zone 3 (algemene bediening) houden hun maat; zone 2
-   (filters) krimpt als de ruimte tekortschiet. */
+/* Zone 1 (context) houdt zijn maat. De filterwaarden ("Vorige periode", "Alle
+   kanalen (3)") zijn kort en betekenisdragend, dus die willen we niet afkappen:
+   zone 2 (filters) houdt zijn inhoudsbreedte en zone 3 (algemene bediening) geeft
+   mee — het zoekveld krimpt als de ruimte tekortschiet. Zo verschijnt de "…"
+   alleen bij écht krappe breedte i.p.v. al op een normaal 1440-scherm. */
 .contextbalk-links, .contextbalk-rechts { display: flex; align-items: center; gap: var(--topbar-gap); flex-shrink: 0; }
 .contextbalk-rechts { margin-left: auto; }
 .contextbalk-filters { display: flex; align-items: center; gap: var(--topbar-gap); min-width: 0; flex-shrink: 1; }
@@ -2915,9 +2936,12 @@ body[data-shell='app'] { overflow-x: hidden; }
 
 /* ---------- Responsief gedrag van de bovenbalk ---------- */
 
-/* De filters houden voorrang. Zodra de ruimte krapper wordt, krimpt het profiel
-   tot alleen de avatar zodat de analysefilters leesbaar blijven. */
-@media (max-width: 1300px) {
+/* De filterwaarden houden voorrang boven de eigen naam: die zijn kort maar
+   zeggen wélke data je ziet (periode, kanalen, conversies). Zodra de balk krap
+   wordt krimpt daarom eerst het profiel tot alleen de avatar (de naam blijft in
+   het accountmenu), zodat de filters volledig leesbaar blijven i.p.v. af te
+   kappen tot "Vorige p…". De naam verschijnt weer zodra er ruim plek is. */
+@media (max-width: 1600px) {
   .accountknop { padding: 0 4px; }
   .accountknop-tekst { display: none; }
 }
