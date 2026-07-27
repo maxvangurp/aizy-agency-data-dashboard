@@ -85,6 +85,10 @@ function baseOptions(p, { stacked = false, horizontal = false, valueFormatter } 
   return {
     responsive: true,
     maintainAspectRatio: false,
+    // Grafieken worden bij elke render opnieuw opgebouwd; een animatie zou dan
+    // bij iedere filterwijziging of tabwissel opnieuw afspelen — visueel onrustig
+    // en onnodig werk op de hoofdthread. Direct tonen is hier beter.
+    animation: false,
     indexAxis: horizontal ? 'y' : 'x',
     interaction: { mode: 'index', intersect: false },
     plugins: {
@@ -279,6 +283,7 @@ export function donutChart(canvasId, { labels, data, colors, valueFormatter }) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       cutout: '62%',
       plugins: {
         legend: {

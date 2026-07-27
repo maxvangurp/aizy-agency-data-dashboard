@@ -211,6 +211,9 @@ function renderAuthScherm(html, titel) {
 }
 
 function render() {
+  // Een nog niet uitgevoerde chart-tekening van de vorige render annuleren, zodat
+  // die niet op de zojuist vervangen canvassen tekent.
+  if (tekenRaf) { cancelAnimationFrame(tekenRaf); tekenRaf = null; }
   destroyAllCharts();
   grids.wisGrids();
 
@@ -389,7 +392,12 @@ function render() {
   document.body.dataset.assistent = assistent.isVastgezet() ? 'vast' : 'los';
   app().insertAdjacentHTML('beforeend', renderAssistent(assistentContext));
 
-  pagina.teken?.();
+  // De grafieken worden ná de eerste paint getekend, zodat de shell, tabellen en
+  // KPI's meteen zichtbaar zijn en de (relatief dure) chartopbouw de weergave niet
+  // blokkeert. Vooral merkbaar op mobiel/tragere CPU's.
+  if (pagina.teken) {
+    tekenRaf = requestAnimationFrame(() => { tekenRaf = null; pagina.teken(); });
+  }
   herstelPanelen();
 
   // De scrollpositie hoort bij de plek waar je was, niet bij het adres dat je
@@ -2270,6 +2278,7 @@ function onChange(e) {
 
 let zoekTimer = null;
 let rapportTimer = null;
+let tekenRaf = null;
 
 function onInput(e) {
   const el = e.target;
