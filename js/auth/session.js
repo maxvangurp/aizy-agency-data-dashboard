@@ -21,6 +21,17 @@ const SESSIE_SLEUTEL = 'aizy.session';
 const SESSIE_VERSIE = 1;
 
 /**
+ * De app-modus bij deze sessie. `simpel` = het datagerichte Meta/Google Ads-
+ * dashboard met minimale navigatie; `uitgebreid` = het volledige systeem.
+ * Gekozen bij inloggen en per sessie bewaard.
+ */
+export const Modus = { SIMPEL: 'simpel', UITGEBREID: 'uitgebreid' };
+
+function normaliseerModus(waarde) {
+  return waarde === Modus.SIMPEL ? Modus.SIMPEL : Modus.UITGEBREID;
+}
+
+/**
  * Leest de ruwe sessie uit de opslag.
  * Beschadigde of verouderde sessies worden verwijderd in plaats van hersteld,
  * zodat de applicatie nooit op halve gegevens doorstart.
@@ -61,15 +72,17 @@ export function leesSessie() {
     // De context is een voorkeur, geen recht. Hij wordt bij het herstellen
     // altijd opnieuw tegen de rechten van de gebruiker gehouden.
     contextClientId: typeof sessie.contextClientId === 'string' ? sessie.contextClientId : null,
+    modus: normaliseerModus(sessie.modus),
     aangemaaktOp: typeof sessie.aangemaaktOp === 'string' ? sessie.aangemaaktOp : null,
   };
 }
 
-export function schrijfSessie({ userId, contextClientId = null }) {
+export function schrijfSessie({ userId, contextClientId = null, modus = Modus.UITGEBREID }) {
   const sessie = {
     versie: SESSIE_VERSIE,
     userId,
     contextClientId,
+    modus: normaliseerModus(modus),
     aangemaaktOp: new Date().toISOString(),
   };
   try {
@@ -84,7 +97,19 @@ export function schrijfSessie({ userId, contextClientId = null }) {
 export function schrijfContext(contextClientId) {
   const huidig = leesSessie();
   if (!huidig) return null;
-  return schrijfSessie({ userId: huidig.userId, contextClientId });
+  return schrijfSessie({ userId: huidig.userId, contextClientId, modus: huidig.modus });
+}
+
+/** Wisselt de app-modus (simpel ↔ uitgebreid) zonder opnieuw in te loggen. */
+export function zetModus(modus) {
+  const huidig = leesSessie();
+  if (!huidig) return null;
+  return schrijfSessie({ userId: huidig.userId, contextClientId: huidig.contextClientId, modus });
+}
+
+/** De huidige app-modus (default uitgebreid als er geen sessie is). */
+export function getModus() {
+  return leesSessie()?.modus ?? Modus.UITGEBREID;
 }
 
 /**

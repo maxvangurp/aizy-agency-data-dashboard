@@ -68,6 +68,11 @@ export function renderLogin({ fout = null, email = '' } = {}) {
           <button type="submit" class="btn primary breed" id="loginKnop">Inloggen</button>
         </form>
 
+        <p class="auth-flow-wissel">
+          Alleen je Meta &amp; Google Ads-cijfers?
+          <a href="#/start">Snel inzicht →</a>
+        </p>
+
         <section class="demo-accounts" aria-labelledby="demoAccountsTitel">
           <h2 id="demoAccountsTitel">Demo-accounts</h2>
           <p class="muted">
@@ -95,6 +100,58 @@ export function renderLogin({ fout = null, email = '' } = {}) {
             omgeving is niet geschikt voor echte klantgegevens.
           </p>
         </section>
+      </div>
+    </div>`;
+}
+
+/* ---------------------------------------------------------------
+   Simpel inloggen — de "snel inzicht"-flow (Meta & Google Ads)
+   --------------------------------------------------------------- */
+
+/**
+ * Een bewust minimaal inlogscherm dat naar het datagerichte Meta/Google Ads-
+ * dashboard leidt. Dezelfde veld-id's als het volledige scherm, maar met een
+ * eigen formulier-id (`startLoginForm`) zodat de app-modus op 'simpel' wordt
+ * gezet.
+ */
+export function renderSimpelLogin({ fout = null, email = '' } = {}) {
+  return `
+    <div class="auth-scherm auth-simpel">
+      <div class="auth-kaart">
+        ${merkteken()}
+        <h1>Snel inzicht</h1>
+        <p class="muted">Bekijk direct je Meta- en Google Ads-resultaten. Geen omwegen.</p>
+
+        <form id="startLoginForm" novalidate>
+          ${fout ? `<div class="banner banner-danger" role="alert"><span>${esc(fout)}</span></div>` : ''}
+
+          <div class="veld">
+            <label for="loginEmail">E-mailadres</label>
+            <input type="email" id="loginEmail" name="email" autocomplete="username"
+              value="${esc(email)}" aria-describedby="loginEmailFout" required>
+            ${foutmelding('loginEmailFout')}
+          </div>
+
+          <div class="veld">
+            <label for="loginWachtwoord">Wachtwoord</label>
+            <div class="veld-met-knop">
+              <input type="password" id="loginWachtwoord" name="wachtwoord"
+                autocomplete="current-password" aria-describedby="loginWachtwoordFout" required>
+              <button type="button" class="veld-knop" id="toonWachtwoord"
+                aria-label="Wachtwoord tonen" aria-pressed="false">Tonen</button>
+            </div>
+            ${foutmelding('loginWachtwoordFout')}
+          </div>
+
+          <button type="submit" class="btn primary breed" id="loginKnop">Bekijk mijn cijfers</button>
+        </form>
+
+        <p class="muted klein">Demo-wachtwoord: <code>${esc(DEMO_WACHTWOORD)}</code>. Elk demo-account werkt.</p>
+
+        <p class="auth-flow-wissel">
+          Wil je het volledige systeem?
+          <a href="#/login">Naar het volledige systeem →</a>
+        </p>
       </div>
     </div>`;
 }

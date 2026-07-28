@@ -452,6 +452,9 @@ function renderAccountmenu(user, actieveKlantId, klanten) {
           </div>
         </dl>` : ''}
         <div class="accountpaneel-acties">
+          <button type="button" role="menuitem" class="menu-item" data-naar-modus="simpel">
+            Naar snel inzicht (Meta &amp; Google Ads)
+          </button>
           <button type="button" role="menuitem" class="menu-item" id="menuThema">
             Wissel tussen licht en donker thema
           </button>

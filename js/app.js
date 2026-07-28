@@ -41,8 +41,9 @@ import {
 } from './auth/domain.js';
 import {
   parseHash, parseQuery, bouwHash, controleerRoute, Uitkomst, navigeer,
-  navigeerNaarStartpagina, startRouter,
+  navigeerNaarStartpagina, startRouter, startRoute,
 } from './router.js';
+import { zetModus, getModus, Modus } from './auth/session.js';
 import {
   getAccessibleClients, getClientById, getFilterOpties, getAgencyOverview,
   getAccessibleClientSummaries, getPersoonlijkOverzicht, getClientDashboard,
@@ -62,9 +63,11 @@ import { DEMO_TODAY, toonBereik, toonDatum, plusDagen } from './filters/period.j
 import { dashboardtypeTerm, LABELS } from './terminology.js';
 
 import {
-  renderLogin, renderForgotPassword, renderAcceptInvite,
+  renderLogin, renderSimpelLogin, renderForgotPassword, renderAcceptInvite,
   renderGeenToegang, renderNietGevonden,
 } from './views/auth-screens.js';
+import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts } from './views/simpel-dashboard.js';
+import { haalAdsPlatforms, combineerTotalen, alleCampagnes } from './data/ads-data.js';
 import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
   renderPaginatabs, renderDetailpaneel, actieveTab,
@@ -239,7 +242,7 @@ function render() {
   const user = getCurrentUser();
 
   if (controle.uitkomst === Uitkomst.TOEGESTAAN && controle.route.publiek) {
-    if (user && ['login', 'forgot-password', 'accept-invite'].includes(controle.route.naam)) {
+    if (user && ['login', 'start-login', 'forgot-password', 'accept-invite'].includes(controle.route.naam)) {
       navigeerNaarStartpagina();
       return;
     }
@@ -264,6 +267,15 @@ function render() {
 
   const { route, params } = controle;
 
+  // Modus-guard: in de simpele modus is alleen het pulse-dashboard bereikbaar.
+  // Publieke routes (login, uitloggen) zijn hierboven al afgehandeld, en de
+  // modus-wissel zet de modus vóór het navigeren — "Volledig systeem" wordt dus
+  // niet teruggestuurd.
+  if (getModus() === Modus.SIMPEL && route.naam !== 'simpel-dashboard') {
+    navigeer('#/pulse', { vervang: true });
+    return;
+  }
+
   // Stap 5: de filtercontext, genormaliseerd tegen wat deze gebruiker mag zien.
   const scope = bepaalScope(user, route, params);
   const opties = getFilterOpties(user, { clientId: scope.clientId });
@@ -280,6 +292,13 @@ function render() {
   const omgeving = route.pad.startsWith('/client') ? 'client' : 'agency';
   const actieveKlantId = getActieveKlantId();
   if (omgeving === 'client' && actieveKlantId) onthoudKlant(user.id, actieveKlantId);
+
+  // Simpele modus: eigen minimale layout, niet de volledige app-shell.
+  if (route.naam === 'simpel-dashboard') {
+    renderSimpelPagina({ user, ctx });
+    laatstePad = pad;
+    return;
+  }
 
   let pagina;
   try {
@@ -470,11 +489,47 @@ function synchroniseerUrl(pad, huidigeQuery, ctx) {
 function renderPubliek(route) {
   switch (route.naam) {
     case 'login': renderAuthScherm(renderLogin(), 'Inloggen'); break;
+    case 'start-login': renderAuthScherm(renderSimpelLogin(), 'Snel inzicht'); break;
     case 'forgot-password': renderAuthScherm(renderForgotPassword(), 'Wachtwoord vergeten'); break;
     case 'accept-invite': renderAuthScherm(renderAcceptInvite(), 'Uitnodiging'); break;
     case 'unauthorized': renderAuthScherm(renderGeenToegang({}), 'Geen toegang'); break;
     default: renderAuthScherm(renderNietGevonden({ pad: route.pad }), 'Niet gevonden');
   }
+}
+
+// Voorkomt dat een trage/verlate data-fetch de inhoud van een nieuwere render vult.
+let simpelToken = 0;
+
+/**
+ * Rendert het simpele Meta/Google Ads-dashboard met een eigen minimale layout.
+ * De cijfers laden async via de data-provider-seam; eerst een laadstaat, dan de
+ * inhoud + grafieken.
+ */
+function renderSimpelPagina({ user, ctx }) {
+  const filters = ctx.resolved;
+  const klanten = getAccessibleClients(user);
+  const magWisselen = can(user, Permission.SWITCH_CONTEXT);
+  const klantId = getActieveKlantId() ?? primaireOrganisatieId(user) ?? klanten[0]?.id ?? null;
+  const dashboard = klantId ? getClientDashboard(user, klantId, filters) : null;
+
+  document.title = 'Snel inzicht · Aizy';
+  document.body.dataset.shell = 'simpel';
+  document.body.dataset.assistent = 'los';
+
+  app().innerHTML = renderSimpelLayout({ user, dashboard, klanten, filters, platforms: null, magWisselen });
+
+  if (!dashboard) return;
+
+  const token = ++simpelToken;
+  haalAdsPlatforms(dashboard, filters)
+    .then((platforms) => {
+      if (token !== simpelToken) return; // een nieuwere render heeft het overgenomen
+      const houder = document.getElementById('simpelInhoud');
+      if (!houder) return;
+      houder.innerHTML = renderSimpelInhoud({ dashboard, platforms });
+      drawSimpelCharts({ platforms });
+    })
+    .catch(() => { /* Bij een fetch-fout blijft de laadstaat staan. */ });
 }
 
 /* ---------------------------------------------------------------
@@ -1518,7 +1573,12 @@ async function onSubmit(e) {
 
   if (form.id === 'loginForm') {
     e.preventDefault();
-    await verwerkLogin(form);
+    await verwerkLogin(form, Modus.UITGEBREID);
+    return;
+  }
+  if (form.id === 'startLoginForm') {
+    e.preventDefault();
+    await verwerkLogin(form, Modus.SIMPEL);
     return;
   }
   if (form.id === 'forgotForm') {
@@ -1647,6 +1707,13 @@ async function onClick(e) {
     return;
   }
   if (el.dataset.assistentVraag) { assistent.verstuur(el.dataset.assistentVraag); return; }
+
+  /* --- App-modus wisselen (simpel ↔ volledig) --- */
+  if (el.dataset.naarModus) {
+    zetModus(el.dataset.naarModus);
+    navigeerNaarStartpagina();
+    return;
+  }
 
   /* --- Rapportage-builder --- */
   // Een verse "Nieuwe rapportage" begint schoon; de navigatie loopt gewoon door.
@@ -2234,6 +2301,9 @@ function onChange(e) {
     return;
   }
 
+  /* Simpel dashboard: klant wisselen (blijft in simpele modus) */
+  if (d.simpelKlant !== undefined) { if (setActieveKlantId(el.value)) render(); return; }
+
   /* Rapportage-builder */
   if (d.rapportKlant !== undefined) { wisselRapportKlant(el.value); return; }
   if (d.rapportKpi !== undefined) { zetRapportKeuze('kpis', d.rapportKpi, el.checked); return; }
@@ -2447,7 +2517,7 @@ function sluitSidebar() {
   document.getElementById('menuKnop')?.setAttribute('aria-expanded', 'false');
 }
 
-async function verwerkLogin(form) {
+async function verwerkLogin(form, modus = Modus.UITGEBREID) {
   const knop = form.querySelector('#loginKnop');
   const email = form.querySelector('#loginEmail').value;
   const wachtwoord = form.querySelector('#loginWachtwoord').value;
@@ -2457,11 +2527,16 @@ async function verwerkLogin(form) {
 
   const resultaat = await login({ email, wachtwoord });
   if (resultaat.ok) {
+    // De gekozen flow bepaalt de app-modus; navigeerNaarStartpagina (startRoute)
+    // stuurt daarna naar het pulse-dashboard of naar het volledige systeem.
+    zetModus(modus);
     navigeerNaarStartpagina();
     return;
   }
 
-  renderAuthScherm(renderLogin({ fout: resultaat.melding, email }), 'Inloggen');
+  const simpel = modus === Modus.SIMPEL;
+  const scherm = simpel ? renderSimpelLogin : renderLogin;
+  renderAuthScherm(scherm({ fout: resultaat.melding, email }), simpel ? 'Snel inzicht' : 'Inloggen');
   document.getElementById('loginWachtwoord')?.focus();
 }
 

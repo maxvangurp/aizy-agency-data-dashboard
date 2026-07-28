@@ -14,6 +14,13 @@
 import { getCurrentUser, getActieveKlantId } from './auth/auth-service.js';
 import { can, magKlantZien, standaardRoute, weigeringsreden, Permission } from './auth/permissions.js';
 import { isAgencyGebruiker } from './auth/domain.js';
+import { getModus, Modus } from './auth/session.js';
+
+/** De startpagina bij de gekozen app-modus: simpel → het pulse-dashboard. */
+export function startRoute(user) {
+  if (getModus() === Modus.SIMPEL) return '#/pulse';
+  return standaardRoute(user);
+}
 
 /**
  * Routedefinities.
@@ -24,6 +31,10 @@ import { isAgencyGebruiker } from './auth/domain.js';
  */
 export const ROUTES = [
   { pad: '/login', naam: 'login', publiek: true, titel: 'Inloggen' },
+  { pad: '/start', naam: 'start-login', publiek: true, titel: 'Snel inzicht' },
+  // Het simpele Meta/Google Ads-dashboard: elke ingelogde rol mag hier komen
+  // (agency ziet een gekozen klant, een klantgebruiker de eigen organisatie).
+  { pad: '/pulse', naam: 'simpel-dashboard', titel: 'Overzicht' },
   { pad: '/forgot-password', naam: 'forgot-password', publiek: true, titel: 'Wachtwoord vergeten' },
   { pad: '/accept-invite', naam: 'accept-invite', publiek: true, titel: 'Uitnodiging accepteren' },
 
@@ -239,7 +250,7 @@ export function navigeer(hash, { vervang = false } = {}) {
 
 /** Stuurt de gebruiker naar het scherm dat bij zijn rol hoort. */
 export function navigeerNaarStartpagina() {
-  navigeer(standaardRoute(getCurrentUser()), { vervang: true });
+  navigeer(startRoute(getCurrentUser()), { vervang: true });
 }
 
 export function startRouter(onChange) {
