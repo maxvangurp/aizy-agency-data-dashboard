@@ -509,7 +509,11 @@ function renderSimpelPagina({ user, ctx }) {
   const filters = ctx.resolved;
   const klanten = getAccessibleClients(user);
   const magWisselen = can(user, Permission.SWITCH_CONTEXT);
-  const klantId = getActieveKlantId() ?? primaireOrganisatieId(user) ?? klanten[0]?.id ?? null;
+  // De klant-id moet een toegankelijke klant zijn: de voorkeur (actieve klant of
+  // eigen organisatie) geldt alleen als die in de lijst staat, anders de eerste
+  // klant. Een agency-org is géén klant en zou anders een leeg dashboard geven.
+  const voorkeur = getActieveKlantId() ?? primaireOrganisatieId(user);
+  const klantId = klanten.some((k) => k.id === voorkeur) ? voorkeur : (klanten[0]?.id ?? null);
   const dashboard = klantId ? getClientDashboard(user, klantId, filters) : null;
 
   document.title = 'Snel inzicht · Aizy';
