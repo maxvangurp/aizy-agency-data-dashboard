@@ -3675,15 +3675,23 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
   min-height: 56px; padding: 10px clamp(16px, 2vw, 32px);
   background: var(--surface-raised); border-bottom: 1px solid var(--border);
 }
-.simpel-topbar-midden { display: flex; align-items: center; gap: var(--space-2); flex: 1; min-width: 0; flex-wrap: wrap; }
-.simpel-kiezer { display: inline-flex; min-width: 0; }
-.simpel-kiezer select {
+.simpel-topbar-midden { display: flex; align-items: center; gap: var(--space-3); flex: 1; min-width: 0; flex-wrap: wrap; }
+.simpel-topbar-filters { display: flex; align-items: flex-end; gap: var(--space-2); flex-wrap: wrap; }
+.simpel-kiezer { display: inline-flex; flex-direction: column; gap: 3px; min-width: 0; }
+.simpel-kiezer-label { font-size: 11px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.03em; padding-left: 2px; }
+.simpel-kiezer select,
+.simpel-datum input {
   height: var(--topbar-control-h, 36px);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--ink);
   padding: 0 10px; font: inherit; max-width: 100%;
 }
-.simpel-klantnaam { font-weight: 700; font-size: 15px; }
+.simpel-datumbereik { display: inline-flex; align-items: center; gap: 6px; align-self: flex-end; }
+.simpel-datum { display: inline-flex; }
+.simpel-klantnaam { font-weight: 700; font-size: 15px; align-self: center; }
+.simpel-kop-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 0; }
+.simpel-kop-meta .simpel-databron { margin: 0; }
+.simpel-kop-scheiding { color: var(--ink-muted); }
 
 .simpel-main { flex: 1; overflow-y: auto; }
 .simpel-root { display: flex; flex-direction: column; gap: var(--section-gap); }
@@ -3734,7 +3742,8 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
   font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 7px;
 }
 .metric-switch-knop:hover { color: var(--ink); }
-.metric-switch-knop.actief { background: var(--surface); color: var(--accent); box-shadow: 0 1px 2px rgba(22, 13, 39, 0.12); }
+/* Actieve pil: een rand + subtiele schaduw geven ook in dark mode een 'lift'. */
+.metric-switch-knop.actief { background: var(--surface); color: var(--accent); border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16); }
 
 /* Filter-chips (Alle / Meta / Google) */
 .card-kop-rij { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-2); }

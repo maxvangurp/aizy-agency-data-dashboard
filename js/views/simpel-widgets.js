@@ -48,9 +48,9 @@ export function sparkline(data, { breedte = 104, hoogte = 28 } = {}) {
  * @param {object} delta     resultaat van berekenDelta (of null)
  * @param {{sub?: string, sparkData?: number[], primair?: boolean, tip?: string}} opties
  */
-export function kpiDelta(label, waarde, delta, { sub = '', sparkData = null, primair = false, tip = null } = {}) {
+export function kpiDelta(label, waarde, delta, { sub = '', sparkData = null, primair = false, tip = null, vergelijkingLabel = 'de vorige periode' } = {}) {
   const richting = delta?.richting ?? 'neutraal';
-  const subtekst = delta ? deltaTekst(delta) : sub;
+  const subtekst = delta ? deltaTekst(delta, vergelijkingLabel) : sub;
   const spark = sparkData ? `<div class="kpi-spark trend-${esc(richting)}">${sparkline(sparkData)}</div>` : '';
   const tipAttr = tip ? ` data-tip="${esc(tip)}" tabindex="0"` : '';
   return `<article class="card kpi kpi-delta${primair ? ' kpi-primair' : ''}" data-label="${esc(label)}">
@@ -71,8 +71,8 @@ export function kpiDelta(label, waarde, delta, { sub = '', sparkData = null, pri
  * alleen die grafiek + tabelweergave opnieuw tekent.
  */
 export function metricSwitcher(grafiekId, opties, actief) {
-  return `<div class="metric-switch" role="tablist" aria-label="Kies metriek">
-    ${opties.map((o) => `<button type="button" role="tab" class="metric-switch-knop${o.key === actief ? ' actief' : ''}" aria-selected="${o.key === actief}" data-simpel-metric="${esc(grafiekId)}:${esc(o.key)}">${esc(o.label)}</button>`).join('')}
+  return `<div class="metric-switch" role="group" aria-label="Kies metriek voor de grafiek">
+    ${opties.map((o) => `<button type="button" class="metric-switch-knop${o.key === actief ? ' actief' : ''}" aria-pressed="${o.key === actief}" data-simpel-metric="${esc(grafiekId)}:${esc(o.key)}">${esc(o.label)}</button>`).join('')}
   </div>`;
 }
 
@@ -111,7 +111,8 @@ export function interactieveTabel(id, kolommen, rijen, {
   </div>` : '';
 
   if (!rijen.length) {
-    return `<div class="ia-tabel" id="${esc(id)}">${toolbar}<p class="empty">${esc(leegTekst)}</p></div>`;
+    // Geen rijen: geen toolbar (zoeken/exporteren zou inert zijn).
+    return `<div class="ia-tabel" id="${esc(id)}"><p class="empty">${esc(leegTekst)}</p></div>`;
   }
 
   const kop = kolommen.map((k, i) => {

@@ -103,7 +103,7 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await naar(page, 'Conversies');
     await expect(page.locator('#simpel-funnel')).toBeVisible();
     await expect(page.locator('#simpel-donut-conversies')).toBeVisible();
-    await expect(page.locator('#simpelInhoud')).toContainText('Conversieratio');
+    await expect(page.locator('#simpelInhoud')).toContainText('Conversie/klik');
   });
 
   test('de Segmenten-pagina toont apparaat en weekdag', async ({ page }) => {
@@ -119,5 +119,43 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('.simpel-kpi')).toContainText('Leads');
     await naar(page, 'Segmenten');
     await expect(page.locator('#simpel-bar-regio')).toBeVisible();
+  });
+
+  test('de periodekiezer, custom datumbereik en vergelijking werken', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await expect(page.locator('#filterPeriode')).toBeVisible();
+    await expect(page.locator('#filterVergelijking')).toBeVisible();
+
+    // Standaard: vergelijking met de vorige periode.
+    await expect(page.locator('.simpel-kpi .kpi-sub').first()).toContainText('vorige periode');
+
+    // Vergelijking met vorig jaar past het label + de kop aan.
+    await page.selectOption('#filterVergelijking', 'previous_year');
+    await page.waitForTimeout(600);
+    await expect(page.locator('.simpel-kpi .kpi-sub').first()).toContainText('vorig jaar');
+    await expect(page.locator('.simpel-kop-meta')).toContainText('Vergeleken met');
+
+    // Geen vergelijking.
+    await page.selectOption('#filterVergelijking', 'none');
+    await page.waitForTimeout(600);
+    await expect(page.locator('.simpel-kpi .kpi-sub').first()).toContainText('Geen vergelijking');
+
+    // Aangepast datumbereik toont van/tot-velden.
+    await page.selectOption('#filterPeriode', 'custom');
+    await page.waitForTimeout(500);
+    await expect(page.locator('#filterVan')).toBeVisible();
+    await expect(page.locator('#filterTot')).toBeVisible();
+  });
+
+  test('op een lange periode valt de weekdag-uitsplitsing netjes weg (verdichte reeks)', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await page.selectOption('#filterPeriode', 'last_90_days');
+    await page.waitForTimeout(700);
+    // Gemiddeld per dag klopt met 90 dagen (niet met het aantal verdichte punten).
+    await expect(page.locator('.budget-tempo')).toContainText('over 90 dagen');
+    await naar(page, 'Segmenten');
+    // Weekdaggrafiek is er niet bij een verdichte reeks; apparaat blijft wel.
+    await expect(page.locator('#simpel-bar-weekdag')).toHaveCount(0);
+    await expect(page.locator('#simpel-donut-devices')).toBeVisible();
   });
 });

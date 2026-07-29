@@ -15,10 +15,18 @@
 
 import { fmt, esc, tabel, figure, getalKolom, badge } from './components.js';
 import { renderInzichten } from './insight-cards.js';
-import { combineerTotalen, alleCampagnes, adDeltas, perWeekdag, adSegmenten, resultMetriek } from '../data/ads-data.js';
+import { combineerTotalen, alleCampagnes, adDeltas, adSegmenten, resultMetriek, gecombineerdeReeks } from '../data/ads-data.js';
 import { bouwAdInzichten, budgetTempo } from '../data/simpel-insights.js';
 import { lineChart, barChart, donutChart, funnelChart } from '../charts.js';
-import { PERIODE_PRESETS, toonBereik, toonKorteDatum } from '../filters/period.js';
+import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, toonKorteDatum } from '../filters/period.js';
+
+/** Korte, in-zin bruikbare tekst per vergelijkingsmodus (voor 't.o.v. …'). */
+const VERGELIJK_KORT = {
+  previous_period: 'de vorige periode',
+  previous_month: 'de vorige maand',
+  previous_year: 'dezelfde periode vorig jaar',
+  none: 'geen vergelijking',
+};
 import { kpiDelta, metricSwitcher, chips, interactieveTabel } from './simpel-widgets.js';
 
 /* De datapagina's in de sidebar. */
@@ -69,6 +77,9 @@ function renderSimpelSidebar(view) {
 
 function renderSimpelTopbar({ dashboard, klanten, filters, magWisselen }) {
   const periode = filters?.periode ?? {};
+  const vergMode = filters?.vergelijking?.mode ?? 'previous_period';
+  const isCustom = periode.preset === 'custom';
+
   const klantKiezer = magWisselen && klanten.length > 1
     ? `<label class="simpel-kiezer">
         <span class="visueel-verborgen">Klant</span>
@@ -78,15 +89,34 @@ function renderSimpelTopbar({ dashboard, klanten, filters, magWisselen }) {
       </label>`
     : `<span class="simpel-klantnaam">${esc(dashboard?.client?.name ?? '')}</span>`;
 
+  const datumBereik = isCustom
+    ? `<div class="simpel-datumbereik">
+        <label class="simpel-datum"><span class="visueel-verborgen">Van</span>
+          <input type="date" id="filterVan" value="${esc(periode.startDate ?? '')}" max="${esc(periode.endDate ?? '')}"></label>
+        <span aria-hidden="true">–</span>
+        <label class="simpel-datum"><span class="visueel-verborgen">Tot</span>
+          <input type="date" id="filterTot" value="${esc(periode.endDate ?? '')}" min="${esc(periode.startDate ?? '')}"></label>
+      </div>`
+    : '';
+
   return `<header class="simpel-topbar">
     <div class="simpel-topbar-midden">
       ${klantKiezer}
-      <label class="simpel-kiezer">
-        <span class="visueel-verborgen">Periode</span>
-        <select id="filterPeriode">
-          ${PERIODE_PRESETS.map((p) => `<option value="${esc(p.key)}"${periode.preset === p.key ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}
-        </select>
-      </label>
+      <div class="simpel-topbar-filters">
+        <label class="simpel-kiezer">
+          <span class="simpel-kiezer-label">Periode</span>
+          <select id="filterPeriode" aria-label="Periode">
+            ${PERIODE_PRESETS.map((p) => `<option value="${esc(p.key)}"${periode.preset === p.key ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}
+          </select>
+        </label>
+        ${datumBereik}
+        <label class="simpel-kiezer">
+          <span class="simpel-kiezer-label">Vergelijk met</span>
+          <select id="filterVergelijking" aria-label="Vergelijk met">
+            ${VERGELIJK_MODI.map((m) => `<option value="${esc(m.key)}"${m.key === vergMode ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}
+          </select>
+        </label>
+      </div>
     </div>
   </header>`;
 }
@@ -99,20 +129,34 @@ function renderSimpelLaden() {
    Inhoud: dispatch per view
    --------------------------------------------------------------- */
 
-export function renderSimpelInhoud({ dashboard, platforms, view = 'simpel-overzicht' }) {
+export function renderSimpelInhoud({ dashboard, platforms, view = 'simpel-overzicht', vergelijking = null }) {
   if (!platforms || (!platforms.meta?.aanwezig && !platforms.google?.aanwezig)) {
     return renderSimpelLeeg('Geen advertentiedata',
       'Er zijn voor deze klant en periode geen Meta- of Google Ads-cijfers.');
   }
+  const v = normaliseerVergelijking(vergelijking);
   switch (view) {
-    case 'simpel-google': return renderPlatformView(dashboard, platforms.google, platforms);
-    case 'simpel-meta': return renderPlatformView(dashboard, platforms.meta, platforms);
-    case 'simpel-campagnes': return renderCampagnesView(dashboard, platforms);
-    case 'simpel-conversies': return renderConversiesView(dashboard, platforms);
-    case 'simpel-segmenten': return renderSegmentenView(dashboard, platforms);
-    case 'simpel-trends': return renderTrendsView(dashboard, platforms);
-    default: return renderOverzichtView(dashboard, platforms);
+    case 'simpel-google': return renderPlatformView(dashboard, platforms.google, platforms, v);
+    case 'simpel-meta': return renderPlatformView(dashboard, platforms.meta, platforms, v);
+    case 'simpel-campagnes': return renderCampagnesView(dashboard, platforms, v);
+    case 'simpel-conversies': return renderConversiesView(dashboard, platforms, v);
+    case 'simpel-segmenten': return renderSegmentenView(dashboard, platforms, v);
+    case 'simpel-trends': return renderTrendsView(dashboard, platforms, v);
+    default: return renderOverzichtView(dashboard, platforms, v);
   }
+}
+
+/** Normaliseert de opgeloste vergelijking tot wat de views nodig hebben. */
+function normaliseerVergelijking(vergelijking) {
+  const mode = vergelijking?.mode ?? 'previous_period';
+  return {
+    mode,
+    actief: mode !== 'none',
+    kort: VERGELIJK_KORT[mode] ?? 'de vorige periode',
+    label: vergelijking?.label ?? 'Vorige periode',
+    startDate: vergelijking?.startDate ?? null,
+    endDate: vergelijking?.endDate ?? null,
+  };
 }
 
 /**
@@ -126,13 +170,19 @@ export function renderSimpelLeeg(titel, tekst) {
   </section>`;
 }
 
-/** Gedeelde paginakop met klant + periode + databron. */
-function simpelKop(titel, dashboard, platforms, ondertitel = '') {
+/** Gedeelde paginakop met klant + periode + vergelijking + databron. */
+function simpelKop(titel, dashboard, platforms, { ondertitel = '', vergelijking = null } = {}) {
   const periodeLabel = dashboard?.periode ? toonBereik(dashboard.periode.startDate, dashboard.periode.endDate) : '';
+  const vergLabel = (vergelijking?.actief && vergelijking.startDate && vergelijking.endDate)
+    ? `Vergeleken met ${toonBereik(vergelijking.startDate, vergelijking.endDate)}`
+    : (vergelijking && !vergelijking.actief ? 'Geen vergelijking' : '');
   return `<div class="simpel-kop">
     <h1>${esc(titel)}</h1>
     <p class="muted">${esc(dashboard?.client?.name ?? '')}${periodeLabel ? ` · ${esc(periodeLabel)}` : ''}${ondertitel ? ` · ${esc(ondertitel)}` : ''}</p>
-    ${platforms?.demodata ? `<p class="simpel-databron">${badge('Demodata', 'muted')} <span class="muted klein">Sluit de Meta/Google API's aan voor live cijfers.</span></p>` : ''}
+    <p class="simpel-kop-meta">
+      ${vergLabel ? `<span class="muted klein">${esc(vergLabel)}</span>` : ''}
+      ${platforms?.demodata ? `${vergLabel ? '<span class="simpel-kop-scheiding" aria-hidden="true">·</span>' : ''}<span class="simpel-databron">${badge('Demodata', 'muted')} <span class="muted klein">Sluit de Meta/Google API's aan voor live cijfers.</span></span>` : ''}
+    </p>
   </div>`;
 }
 
@@ -142,24 +192,13 @@ function simpelKop(titel, dashboard, platforms, ondertitel = '') {
 
 const FMT = { euro: fmt.euro, euro2: fmt.euro2, getal: fmt.getal, procent: fmt.procent, ratio: fmt.ratio };
 
-/** De gecombineerde dagreeks (Meta + Google) voor sparklines en trends. */
-function combinedDagreeks(platforms) {
-  const basis = reeksAs(platforms.meta, platforms.google);
-  return basis.map((p, i) => ({
-    date: p.date,
-    spend: (platforms.meta?.series?.[i]?.spend ?? 0) + (platforms.google?.series?.[i]?.spend ?? 0),
-    clicks: (platforms.meta?.series?.[i]?.clicks ?? 0) + (platforms.google?.series?.[i]?.clicks ?? 0),
-    results: (platforms.meta?.series?.[i]?.results ?? 0) + (platforms.google?.series?.[i]?.results ?? 0),
-  }));
-}
-
 /**
  * KPI-band met verandering t.o.v. de vorige periode en sparklines. Werkt zowel
  * voor de gecombineerde totalen als voor één platform: geef de bijbehorende
  * dagreeks mee voor de sparklines.
  */
-function kpiBandDelta(dashboard, totaal, dagreeks) {
-  const deltas = adDeltas(dashboard, totaal);
+function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null) {
+  const deltas = adDeltas(dashboard, totaal, { vergelijkingActief: vergelijking ? vergelijking.actief : true });
   const spendSpark = dagreeks.map((p) => p.spend);
   const resultSpark = dagreeks.map((p) => p.results);
   const rlabel = totaal.resultLabel ?? 'Resultaat';
@@ -167,9 +206,12 @@ function kpiBandDelta(dashboard, totaal, dagreeks) {
   const model = dashboard.model;
   const rTip = resultMetriek(model);
   const cTip = model === 'ecommerce' ? 'cpa' : model === 'awareness' ? 'cpc' : 'cpl';
+  const vergLabel = vergelijking?.kort ?? 'de vorige periode';
 
-  const kaart = (key, label, raw, opmaak, { spark = null, primair = false, tip = null } = {}) =>
-    kpiDelta(label, raw == null ? 'Niet te berekenen' : FMT[opmaak](raw), deltas[key], { sparkData: spark, primair, tip: tip ?? key });
+  const kaart = (key, label, raw, opmaak, { spark = null, primair = false, tip } = {}) =>
+    kpiDelta(label, raw == null ? 'Niet te berekenen' : FMT[opmaak](raw), deltas[key], {
+      sparkData: spark, primair, vergelijkingLabel: vergLabel, tip: tip === false ? null : (tip ?? key),
+    });
 
   const kaarten = [
     kaart('spend', 'Uitgaven', totaal.spend, 'euro', { spark: spendSpark, primair: true }),
@@ -188,7 +230,9 @@ function kpiBandDelta(dashboard, totaal, dagreeks) {
     kaarten.push(kaart('frequentie', 'Frequentie', totaal.frequentie, 'ratio', { tip: 'frequentie' }));
   } else {
     kaarten.push(kaart('cpm', 'CPM', totaal.cpm, 'euro2', { tip: 'cpm' }));
-    kaarten.push(kaart('conversieratio', 'Conversieratio', totaal.conversieratio, 'procent', { tip: 'conversieratio' }));
+    // "Conversie per klik" = resultaten/klikken. Bewust géén metriek-tooltip: de
+    // catalogus definieert 'conversieratio' als aandeel van sessies (GA4), niet klikken.
+    kaarten.push(kaart('conversieratio', 'Conversie per klik', totaal.conversieratio, 'procent', { tip: false }));
   }
   return `<div class="kpi-row simpel-kpi">${kaarten.join('')}</div>`;
 }
@@ -228,9 +272,11 @@ function prestatieKolommen(rlabel, { eersteKolom = 'Campagne', metPlatform = fal
   cols.push(
     { label: 'Uitgaven', uitlijn: 'rechts', type: 'num', cel: (c) => fmt.euro(c.spend), waarde: (c) => c.spend ?? 0 },
     { label: 'Klikken', uitlijn: 'rechts', type: 'num', cel: (c) => fmt.getal(c.clicks), waarde: (c) => c.clicks ?? 0 },
-    { label: 'CTR', uitlijn: 'rechts', type: 'num', cel: (c) => (c.ctr == null ? '—' : fmt.procent(c.ctr)), waarde: (c) => c.ctr ?? 0 },
+    // CTR en kosten/resultaat mogen ontbreken: geef dan de ruwe null door (leeg
+    // data-v) i.p.v. 0, zodat sorteren en CSV "geen data" niet als 0 behandelen.
+    { label: 'CTR', uitlijn: 'rechts', type: 'num', cel: (c) => (c.ctr == null ? '—' : fmt.procent(c.ctr)), waarde: (c) => c.ctr },
     { label: rlabel, uitlijn: 'rechts', type: 'num', cel: (c) => fmt.getal(c.results), waarde: (c) => c.results ?? 0 },
-    { label: `Kosten/${rl}`, uitlijn: 'rechts', type: 'num', cel: (c) => (c.costPerResult == null ? '—' : fmt.euro2(c.costPerResult)), waarde: (c) => c.costPerResult ?? 0 },
+    { label: `Kosten/${rl}`, uitlijn: 'rechts', type: 'num', cel: (c) => (c.costPerResult == null ? '—' : fmt.euro2(c.costPerResult)), waarde: (c) => c.costPerResult },
   );
   return cols;
 }
@@ -306,15 +352,15 @@ function trendMetriekFiguur(grafiekId, platforms, { titel = 'Ontwikkeling per da
 
 /* ---------- View 1: Totaal overzicht ---------- */
 
-function renderOverzichtView(dashboard, platforms) {
+function renderOverzichtView(dashboard, platforms, vergelijking) {
   const totaal = combineerTotalen(platforms);
   const rlabel = totaal?.resultLabel ?? 'Resultaat';
   const campagnes = alleCampagnes(platforms).slice(0, 8);
-  const dagreeks = combinedDagreeks(platforms);
+  const dagreeks = gecombineerdeReeks(platforms);
 
   return `
-    ${simpelKop('Meta & Google Ads', dashboard, platforms)}
-    ${kpiBandDelta(dashboard, totaal, dagreeks)}
+    ${simpelKop('Meta & Google Ads', dashboard, platforms, { vergelijking })}
+    ${kpiBandDelta(dashboard, totaal, dagreeks, vergelijking)}
     <div class="dash-rij">
       <div class="dash-col" style="--span:5">
         ${figure('simpel-donut-split', 'Verdeling uitgaven', 'Aandeel van Meta en Google in het budget.', platformSplitTabel(platforms, rlabel), 'Meta Marketing API en Google Ads API', 240)}
@@ -329,16 +375,19 @@ function renderOverzichtView(dashboard, platforms) {
       <p class="muted">De grootste campagnes over beide platforms.</p>
       <div class="table-scroll">${prestatieTabel(campagnes, rlabel, { metPlatform: true })}</div>
     </section>
-    ${adInzichtenBlok(dashboard, platforms)}
+    ${adInzichtenBlok(dashboard, platforms, vergelijking)}
   `;
 }
 
 /* ---------- View 2/3: Google Ads / Meta Ads ---------- */
 
-function renderPlatformView(dashboard, blok, platforms) {
+function renderPlatformView(dashboard, blok, platforms, vergelijking) {
   if (!blok?.aanwezig) {
-    return `<section class="card"><h2>Niet actief</h2>
-      <p class="empty">Deze klant adverteert binnen de geselecteerde periode niet via dit platform.</p></section>`;
+    const naam = blok?.label ?? 'Dit platform';
+    return `
+      ${simpelKop(naam, dashboard, platforms, { vergelijking })}
+      <section class="card"><h2>Niet actief</h2>
+        <p class="empty">Deze klant adverteert binnen de geselecteerde periode niet via ${esc(naam.toLowerCase())}.</p></section>`;
   }
   const rlabel = blok.resultLabel ?? 'Resultaat';
   const rl = rlabel.toLowerCase();
@@ -360,8 +409,8 @@ function renderPlatformView(dashboard, blok, platforms) {
       </div>` : '';
 
   return `
-    ${simpelKop(blok.label, dashboard, { demodata: platforms?.demodata })}
-    ${kpiBandDelta(dashboard, blok.totals, blok.series ?? [])}
+    ${simpelKop(blok.label, dashboard, platforms, { vergelijking })}
+    ${kpiBandDelta(dashboard, blok.totals, blok.series ?? [], vergelijking)}
     ${trendMetriekFiguur('simpel-trend-platform', enkelPlatform, { titel: 'Ontwikkeling per dag', subtitel: `${blok.label} per dag — wissel de metriek.` })}
     <section class="card">
       <h2>Campagnes</h2>
@@ -371,13 +420,13 @@ function renderPlatformView(dashboard, blok, platforms) {
     ${keywords}
     ${adSets}
     ${placements}
-    ${adInzichtenBlok(dashboard, platforms, 1)}
+    ${adInzichtenBlok(dashboard, platforms, vergelijking, 1)}
   `;
 }
 
 /* ---------- View 4: Campagnes (alle, met platformfilter) ---------- */
 
-function renderCampagnesView(dashboard, platforms) {
+function renderCampagnesView(dashboard, platforms, vergelijking) {
   const totaal = combineerTotalen(platforms);
   const rlabel = totaal?.resultLabel ?? 'Resultaat';
   const campagnes = alleCampagnes(platforms);
@@ -386,7 +435,7 @@ function renderCampagnesView(dashboard, platforms) {
   if (platforms.google?.aanwezig) platformOpties.push({ key: 'google', label: 'Google Ads' });
 
   return `
-    ${simpelKop('Campagnes', dashboard, platforms, `${campagnes.length} campagnes`)}
+    ${simpelKop('Campagnes', dashboard, platforms, { ondertitel: `${campagnes.length} campagnes`, vergelijking })}
     <section class="card">
       <div class="card-kop-rij">
         <p class="muted">Alle campagnes over beide platforms — sorteer, zoek, filter of exporteer.</p>
@@ -401,12 +450,12 @@ function renderCampagnesView(dashboard, platforms) {
 
 /* ---------- View 5: Conversies ---------- */
 
-function renderConversiesView(dashboard, platforms) {
+function renderConversiesView(dashboard, platforms, vergelijking) {
   const totaal = combineerTotalen(platforms);
   const rlabel = totaal?.resultLabel ?? 'Resultaat';
 
   const perPlatform = tabel(
-    ['Platform', getalKolom(rlabel), getalKolom(`Kosten/${rlabel.toLowerCase()}`), getalKolom('Conversieratio'), getalKolom('Aandeel')],
+    ['Platform', getalKolom(rlabel), getalKolom(`Kosten/${rlabel.toLowerCase()}`), getalKolom('Conversie/klik'), getalKolom('Aandeel')],
     ['meta', 'google'].map((k) => platforms[k]).filter((b) => b?.aanwezig).map((b) => [
       esc(b.label), fmt.getal(b.totals.results),
       b.totals.costPerResult == null ? '—' : fmt.euro2(b.totals.costPerResult),
@@ -438,7 +487,7 @@ function renderConversiesView(dashboard, platforms) {
     : '';
 
   return `
-    ${simpelKop('Conversies', dashboard, platforms)}
+    ${simpelKop('Conversies', dashboard, platforms, { vergelijking })}
     <section class="card">
       <h2>Resultaat per platform</h2>
       <div class="table-scroll">${perPlatform}</div>
@@ -451,7 +500,7 @@ function renderConversiesView(dashboard, platforms) {
 
 /* ---------- View 6: Segmenten (apparaat / regio / weekdag) ---------- */
 
-function renderSegmentenView(dashboard, platforms) {
+function renderSegmentenView(dashboard, platforms, vergelijking) {
   const seg = adSegmenten(dashboard, platforms);
   const rlabel = seg.rlabel ?? 'Resultaat';
   const heeftSpend = seg.devices.some((d) => d.spend != null);
@@ -480,9 +529,9 @@ function renderSegmentenView(dashboard, platforms) {
     : '';
 
   const weekdag = seg.weekdagen.length
-    ? figure('simpel-bar-weekdag', 'Dag van de week', 'Uitgaven en resultaten per weekdag, opgeteld over de periode.',
-        tabel(['Dag', getalKolom('Uitgaven'), getalKolom(rlabel), getalKolom(`Kosten/${rlabel.toLowerCase()}`)],
-          seg.weekdagen.map((w) => [esc(w.name), fmt.euro(w.spend), fmt.getal(w.results), w.costPerResult == null ? '—' : fmt.euro2(w.costPerResult)])),
+    ? figure('simpel-bar-weekdag', 'Dag van de week', 'Gemiddelde uitgaven per weekdag (per keer dat die dag in de periode viel).',
+        tabel(['Dag', getalKolom('Gem. uitgaven'), getalKolom(rlabel), getalKolom(`Kosten/${rlabel.toLowerCase()}`)],
+          seg.weekdagen.map((w) => [esc(w.name), w.gemPerDag == null ? '—' : fmt.euro(w.gemPerDag), fmt.getal(w.results), w.costPerResult == null ? '—' : fmt.euro2(w.costPerResult)])),
         'Meta Marketing API en Google Ads API', 260)
     : '';
 
@@ -490,7 +539,7 @@ function renderSegmentenView(dashboard, platforms) {
     ? `<section class="card"><p class="empty">Er zijn voor deze klant geen segmentgegevens beschikbaar.</p></section>` : '';
 
   return `
-    ${simpelKop('Segmenten', dashboard, platforms)}
+    ${simpelKop('Segmenten', dashboard, platforms, { vergelijking })}
     ${apparaat}
     ${seg.regios.length ? `<div class="dash-rij"><div class="dash-col" style="--span:6">${regio}</div><div class="dash-col" style="--span:6">${weekdag}</div></div>` : weekdag}
     ${leeg}
@@ -506,12 +555,12 @@ function segmentInzicht(rijen, rlabel, soort) {
 
 /* ---------- View 7: Trends ---------- */
 
-function renderTrendsView(dashboard, platforms) {
+function renderTrendsView(dashboard, platforms, vergelijking) {
   const totaal = combineerTotalen(platforms);
-  const rlabel = totaal?.resultLabel ?? 'Resultaat';
+  const titel = vergelijking?.actief ? `Vergelijking met ${vergelijking.kort}` : 'Vergelijking met de vorige periode';
 
   return `
-    ${simpelKop('Trends', dashboard, platforms)}
+    ${simpelKop('Trends', dashboard, platforms, { vergelijking })}
     ${trendMetriekFiguur('simpel-trend-trends', platforms, { titel: 'Ontwikkeling per dag', subtitel: 'Meta en Google per dag — wissel de metriek.' })}
     <section class="card">
       <h2>Uitgaven per dag — gestapeld</h2>
@@ -519,8 +568,8 @@ function renderTrendsView(dashboard, platforms) {
       <div class="chart-canvas" style="height:260px"><canvas id="simpel-stacked-spend"></canvas></div>
     </section>
     <section class="card">
-      <h2>Vergelijking met de vorige periode</h2>
-      ${vergelijkingTabel(dashboard, totaal)}
+      <h2>${esc(titel)}</h2>
+      ${vergelijkingTabel(dashboard, totaal, vergelijking)}
     </section>
   `;
 }
@@ -533,9 +582,10 @@ function renderTrendsView(dashboard, platforms) {
  * gecombineerde platformtotalen; de vorige periode + het verschil komen uit
  * `adDeltas` (ad-schaal, richting uit de metriek-catalogus).
  */
-function vergelijkingTabel(dashboard, adTotalen) {
+function vergelijkingTabel(dashboard, adTotalen, vergelijking = null) {
   const ad = adTotalen ?? {};
-  const deltas = adDeltas(dashboard, ad);
+  const actief = vergelijking ? vergelijking.actief : true;
+  const deltas = adDeltas(dashboard, ad, { vergelijkingActief: actief });
   const rlabel = ad.resultLabel ?? 'Resultaat';
   const model = dashboard.model;
   const regels = [
@@ -571,13 +621,12 @@ function vergelijkingTabel(dashboard, adTotalen) {
 function budgetTempoKaart(dashboard, platforms) {
   const t = budgetTempo(dashboard, platforms);
   if (!t) return '';
-  const drukste = t.drukste ? `${t.drukste.name} (${fmt.euro(t.drukste.spend)})` : 'Niet te bepalen';
   return `<section class="card budget-tempo">
     <h2>Budget &amp; tempo</h2>
     <div class="kpi-row">
       ${kpiKaartje('Uitgaven', fmt.euro(t.uitgaven), `over ${t.dagen} ${t.dagen === 1 ? 'dag' : 'dagen'}`)}
       ${kpiKaartje('Gemiddeld per dag', t.gemiddeldPerDag == null ? '—' : fmt.euro(t.gemiddeldPerDag), 'advertentiebudget')}
-      ${kpiKaartje('Drukste dag', drukste, 'hoogste dagbudget')}
+      ${t.drukste ? kpiKaartje('Drukste dag', `${t.drukste.name} (${fmt.euro(t.drukste.spend)})`, 'hoogste dagbudget') : ''}
       ${t.aandeelBudget != null ? kpiKaartje('Aandeel van accountbudget', fmt.procent(t.aandeelBudget), `budget ${fmt.euro(t.accountBudget)}`) : ''}
     </div>
   </section>`;
@@ -609,11 +658,14 @@ function verdeelTabel(items, eersteKolom, rlabel) {
 /* ---------- Inzichten ---------- */
 
 /** Ad-gerichte auto-inzichten ("Wat valt op"). */
-function adInzichtenBlok(dashboard, platforms, max = 3) {
-  const inzichten = bouwAdInzichten(dashboard, platforms);
+function adInzichtenBlok(dashboard, platforms, vergelijking, max = 3) {
+  const inzichten = bouwAdInzichten(dashboard, platforms, vergelijking);
   if (!inzichten.primair.length) return '';
+  // Wat niet in 'primair' past, schuift door naar 'aanvullend' — nooit weggegooid.
+  const primair = inzichten.primair.slice(0, max);
+  const aanvullend = [...inzichten.primair.slice(max), ...inzichten.aanvullend];
   return renderInzichten(
-    { primair: inzichten.primair.slice(0, max), aanvullend: inzichten.aanvullend },
+    { primair, aanvullend },
     { titel: 'Wat valt op', toonAanvullend: true },
   );
 }
@@ -680,7 +732,7 @@ export function drawSimpelCharts({ dashboard, platforms, view = 'simpel-overzich
     if (seg.weekdagen.length) {
       barChart('simpel-bar-weekdag', {
         labels: seg.weekdagen.map((w) => w.name),
-        series: [{ label: 'Uitgaven', data: seg.weekdagen.map((w) => w.spend ?? 0) }],
+        series: [{ label: 'Gem. uitgaven', data: seg.weekdagen.map((w) => w.gemPerDag ?? 0) }],
         valueFormatter: (v) => fmt.euro(v),
       });
     }
@@ -696,7 +748,7 @@ export function zetTrendMetriek(platforms, grafiekId, metricKey) {
   document.querySelectorAll(`[data-simpel-metric^="${grafiekId}:"]`).forEach((b) => {
     const actief = b.dataset.simpelMetric === `${grafiekId}:${key}`;
     b.classList.toggle('actief', actief);
-    b.setAttribute('aria-selected', actief ? 'true' : 'false');
+    b.setAttribute('aria-pressed', actief ? 'true' : 'false');
   });
   const canvas = document.getElementById(grafiekId);
   const fig = canvas?.closest('.chart-figure');

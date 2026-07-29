@@ -130,7 +130,7 @@ export function adTotalenVorige(dashboard, ad) {
  * periode. Hergebruikt `berekenDelta` (richting uit de metriek-catalogus), zodat
  * een view nooit zelf hoeft te weten of dalen goed nieuws is.
  */
-export function adDeltas(dashboard, ad) {
+export function adDeltas(dashboard, ad, { vergelijkingActief = true } = {}) {
   if (!ad) return {};
   const vorige = adTotalenVorige(dashboard, ad);
   const rveld = resultMetriek(dashboard.model);
@@ -143,27 +143,51 @@ export function adDeltas(dashboard, ad) {
   ];
   const uit = {};
   for (const [adKey, metriekKey] of paren) {
-    uit[adKey] = berekenDelta(metriekKey, ad[adKey], vorige[adKey]);
+    uit[adKey] = berekenDelta(metriekKey, ad[adKey], vorige[adKey], { vergelijkingActief });
   }
   return uit;
 }
 
-/** Groepeert de dagreeks op weekdag (ma–zo) en telt spend + resultaten op. */
-export function perWeekdag(platforms) {
-  const namen = ['Zondag', 'Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag'];
-  const volgorde = [1, 2, 3, 4, 5, 6, 0]; // maandag eerst
+/** De gecombineerde dagreeks (Meta + Google) per datumpunt. */
+export function gecombineerdeReeks(platforms) {
   const meta = platforms?.meta?.series ?? [];
   const google = platforms?.google?.series ?? [];
   const basis = meta.length ? meta : google;
+  return basis.map((p, i) => ({
+    date: p.date,
+    spend: (meta[i]?.spend ?? 0) + (google[i]?.spend ?? 0),
+    clicks: (meta[i]?.clicks ?? 0) + (google[i]?.clicks ?? 0),
+    results: (meta[i]?.results ?? 0) + (google[i]?.results ?? 0),
+  }));
+}
+
+/**
+ * True wanneer de reeks op dagniveau staat. Bij een lange periode (>45 dagen)
+ * wordt de reeks verdicht tot meerdaagse blokken; dan is een weekdag- of
+ * per-dag-uitsplitsing niet betrouwbaar (elk punt bundelt meerdere dagen).
+ */
+export function reeksIsDagelijks(reeks) {
+  if (reeks.length < 2) return true;
+  return (new Date(`${reeks[1].date}T00:00:00`) - new Date(`${reeks[0].date}T00:00:00`)) === 86400000;
+}
+
+/**
+ * Groepeert de dagreeks op weekdag (ma–zo). Alleen zinvol op dagniveau: bij een
+ * verdichte reeks (lange periode) levert de functie een lege lijst, zodat de
+ * weekdag-visualisatie en -inzichten netjes wegvallen i.p.v. verkeerd te tellen.
+ */
+export function perWeekdag(platforms) {
+  const namen = ['Zondag', 'Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag'];
+  const volgorde = [1, 2, 3, 4, 5, 6, 0]; // maandag eerst
+  const reeks = gecombineerdeReeks(platforms);
+  if (!reeksIsDagelijks(reeks)) return [];
   const acc = new Map();
-  basis.forEach((p, i) => {
+  for (const p of reeks) {
     const dag = new Date(`${p.date}T00:00:00`).getDay();
-    const spend = (meta[i]?.spend ?? 0) + (google[i]?.spend ?? 0);
-    const results = (meta[i]?.results ?? 0) + (google[i]?.results ?? 0);
     const rij = acc.get(dag) ?? { dag, dagen: 0, spend: 0, results: 0 };
-    rij.dagen += 1; rij.spend += spend; rij.results += results;
+    rij.dagen += 1; rij.spend += p.spend; rij.results += p.results;
     acc.set(dag, rij);
-  });
+  }
   return volgorde
     .filter((d) => acc.has(d))
     .map((d) => {
@@ -173,6 +197,7 @@ export function perWeekdag(platforms) {
         spend: r.spend,
         results: r.results,
         dagen: r.dagen,
+        gemPerDag: r.dagen ? r.spend / r.dagen : null,
         costPerResult: r.results ? r.spend / r.results : null,
       };
     });

@@ -101,13 +101,20 @@ function platformBlok(dashboard, platform) {
   const vormVeld = somDagResultaat > 0 ? dagResultaat : (p) => p.spend;
   const somVorm = somDagResultaat > 0 ? somDagResultaat : somDagSpend;
   const resultSchaal = somVorm > 0 ? results / somVorm : null;
+  // Klikken en impressies worden — net als resultaten — op hun dagelijkse vorm
+  // geschaald naar het wérkelijke platformtotaal (niet naar spend-aandeel), zodat
+  // de trendgrafiek per platform aansluit op de KPI-band voor datzelfde platform.
+  const somDagImpr = punten.reduce((s, p) => s + (p.impressions ?? 0), 0);
+  const somDagClicks = punten.reduce((s, p) => s + (p.clicks ?? 0), 0);
+  const imprSchaal = somDagImpr > 0 ? impressions / somDagImpr : null;
+  const clicksSchaal = somDagClicks > 0 ? clicks / somDagClicks : null;
   const series = punten.map((p) => {
     const vorm = vormVeld(p);
     return {
       date: p.date,
       spend: p.spend != null ? Math.round(p.spend * aandeel) : null,
-      impressions: p.impressions != null ? Math.round(p.impressions * aandeel) : null,
-      clicks: p.clicks != null ? Math.round(p.clicks * aandeel) : null,
+      impressions: (imprSchaal != null && p.impressions != null) ? Math.round(p.impressions * imprSchaal) : null,
+      clicks: (clicksSchaal != null && p.clicks != null) ? Math.round(p.clicks * clicksSchaal) : null,
       results: (resultSchaal != null && vorm != null) ? Math.round(vorm * resultSchaal) : null,
     };
   });

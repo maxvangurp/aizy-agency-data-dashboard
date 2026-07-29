@@ -68,7 +68,7 @@ import {
 } from './views/auth-screens.js';
 import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg, zetTrendMetriek } from './views/simpel-dashboard.js';
 import { naarCsv, downloadCsv } from './ui/csv.js';
-import { haalAdsPlatforms, combineerTotalen, alleCampagnes } from './data/ads-data.js';
+import { haalAdsPlatforms } from './data/ads-data.js';
 import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
   renderPaginatabs, renderDetailpaneel, actieveTab,
@@ -548,14 +548,15 @@ function renderSimpelPagina({ user, ctx, route }) {
     return;
   }
 
+  const vergelijking = filters.vergelijking ?? null;
   const token = ++simpelToken;
   haalAdsPlatforms(dashboard, filters)
     .then((platforms) => {
       if (token !== simpelToken) return; // een nieuwere render heeft het overgenomen
       const houder = document.getElementById('simpelInhoud');
       if (!houder) return;
-      simpelState = { dashboard, platforms, view };
-      houder.innerHTML = renderSimpelInhoud({ dashboard, platforms, view });
+      simpelState = { dashboard, platforms, view, vergelijking };
+      houder.innerHTML = renderSimpelInhoud({ dashboard, platforms, view, vergelijking });
       drawSimpelCharts({ dashboard, platforms, view });
     })
     .catch(() => { /* Bij een fetch-fout blijft de laadstaat staan. */ });
@@ -601,7 +602,15 @@ function sorteerIaTabel(knop) {
   rijen.sort((a, b) => {
     const av = a.cells[idx]?.dataset.v ?? '';
     const bv = b.cells[idx]?.dataset.v ?? '';
-    if (numeriek) return (Number(av) - Number(bv)) * teken;
+    if (numeriek) {
+      // Lege waarden ("geen data") staan altijd onderaan, ongeacht de richting.
+      const an = av === '' ? null : Number(av);
+      const bn = bv === '' ? null : Number(bv);
+      if (an === null && bn === null) return 0;
+      if (an === null) return 1;
+      if (bn === null) return -1;
+      return (an - bn) * teken;
+    }
     return String(av).localeCompare(String(bv), 'nl') * teken;
   });
   for (const rij of rijen) tbody.appendChild(rij);
