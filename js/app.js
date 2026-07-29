@@ -1832,8 +1832,29 @@ async function onSubmit(e) {
   }
 }
 
+/**
+ * Zet de trend-metriek van een simpel-grafiek (gedeeld door de klikbare KPI's,
+ * de segmented control en het toetsenbord). Bepaalt het platform-scope uit de
+ * huidige view, hertekent de grafiek en bewaart de keuze in de URL (deelbaar).
+ */
+function kiesSimpelMetriek(grafiekId, metricKey) {
+  if (!simpelState) return;
+  const scope = simpelState.view === 'simpel-google' ? { google: simpelState.platforms.google, demodata: simpelState.platforms.demodata }
+    : simpelState.view === 'simpel-meta' ? { meta: simpelState.platforms.meta, demodata: simpelState.platforms.demodata }
+    : simpelState.platforms;
+  zetTrendMetriek(scope, grafiekId, metricKey, { dashboard: simpelState.dashboard, vergelijking: simpelState.vergelijking });
+  // Bewaar de gekozen metriek in de URL (deelbaar), zonder een herrender.
+  try {
+    const [pad, q = ''] = window.location.hash.split('?');
+    const params = new URLSearchParams(q);
+    params.set('metric', metricKey);
+    window.history.replaceState(null, '', `${pad}?${params.toString()}`);
+  } catch { /* URL niet bij te werken — niet kritiek */ }
+}
+
 async function onClick(e) {
-  const el = e.target.closest('button, a');
+  // Ook klikbare KPI-kaarten (article[data-simpel-metric]) meenemen, naast knoppen/links.
+  const el = e.target.closest('button, a, [data-simpel-metric]');
   if (!el) return;
 
   /* --- Aizy-assistent --- */
@@ -1861,17 +1882,7 @@ async function onClick(e) {
   /* --- Simpel dashboard: interactieve widgets (client-side, geen refetch) --- */
   if (el.dataset.simpelMetric && simpelState) {
     const [grafiekId, metricKey] = el.dataset.simpelMetric.split(':');
-    const scope = simpelState.view === 'simpel-google' ? { google: simpelState.platforms.google, demodata: simpelState.platforms.demodata }
-      : simpelState.view === 'simpel-meta' ? { meta: simpelState.platforms.meta, demodata: simpelState.platforms.demodata }
-      : simpelState.platforms;
-    zetTrendMetriek(scope, grafiekId, metricKey, { dashboard: simpelState.dashboard, vergelijking: simpelState.vergelijking });
-    // Bewaar de gekozen metriek in de URL (deelbaar), zonder een herrender.
-    try {
-      const [pad, q = ''] = window.location.hash.split('?');
-      const params = new URLSearchParams(q);
-      params.set('metric', metricKey);
-      window.history.replaceState(null, '', `${pad}?${params.toString()}`);
-    } catch { /* URL niet bij te werken — niet kritiek */ }
+    kiesSimpelMetriek(grafiekId, metricKey);
     return;
   }
   if (el.dataset.iaSort) { sorteerIaTabel(el); return; }
@@ -2625,6 +2636,17 @@ function onKeydown(e) {
     e.preventDefault();
     if (getCurrentUser()) assistent.toggle();
     return;
+  }
+
+  // Klikbare KPI-kaart (role="button"): Enter/Spatie kiest de metriek.
+  if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+    const kpi = e.target.closest?.('.kpi-klik[data-simpel-metric]');
+    if (kpi && simpelState) {
+      e.preventDefault();
+      const [grafiekId, metricKey] = kpi.dataset.simpelMetric.split(':');
+      kiesSimpelMetriek(grafiekId, metricKey);
+      return;
+    }
   }
 
   if (e.key !== 'Escape') return;

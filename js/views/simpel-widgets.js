@@ -48,12 +48,18 @@ export function sparkline(data, { breedte = 104, hoogte = 28 } = {}) {
  * @param {object} delta     resultaat van berekenDelta (of null)
  * @param {{sub?: string, sparkData?: number[], primair?: boolean, tip?: string}} opties
  */
-export function kpiDelta(label, waarde, delta, { sparkData = null, primair = false, tip = null } = {}) {
+export function kpiDelta(label, waarde, delta, { sparkData = null, tip = null, metric = null, grafiekId = null, actief = false } = {}) {
   const richting = delta?.richting ?? 'neutraal';
   // De sparkline-houder staat er altijd (ook leeg), zodat alle kaarten even hoog zijn.
   const spark = `<div class="kpi-spark trend-${esc(richting)}">${sparkData ? sparkline(sparkData) : ''}</div>`;
   const tipAttr = tip ? ` data-tip="${esc(tip)}" tabindex="0"` : '';
-  return `<article class="card kpi kpi-delta${primair ? ' kpi-primair' : ''}" data-label="${esc(label)}">
+  // Klikbaar: de KPI-kaart selecteert zijn metriek voor de trendgrafiek eronder.
+  const klikbaar = Boolean(metric && grafiekId);
+  const klikAttr = klikbaar
+    ? ` data-simpel-metric="${esc(grafiekId)}:${esc(metric)}" role="button" tabindex="0" aria-pressed="${actief ? 'true' : 'false'}"`
+    : '';
+  const klassen = `card kpi kpi-delta${klikbaar ? ' kpi-klik' : ''}${actief ? ' is-actief' : ''}`;
+  return `<article class="${klassen}" data-label="${esc(label)}"${klikAttr}>
     <span class="kpi-label"${tipAttr}>${esc(label)}${tip ? ' <span class="kpi-info" aria-hidden="true">i</span>' : ''}</span>
     <span class="kpi-value">${esc(waarde)}</span>
     ${deltaPill(delta)}

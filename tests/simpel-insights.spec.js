@@ -47,14 +47,39 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('.simpel-kpi')).toContainText('ROAS');
   });
 
-  test('de metric-switcher wisselt de trendgrafiek', async ({ page }) => {
+  test('een klik op een KPI-kaart wisselt de trendgrafiek (geen aparte switcher)', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
     const id = 'simpel-trend-overzicht';
+    // Op het overzicht sturen de KPI's de grafiek; er is geen aparte switcher.
+    await expect(page.locator('.metric-switch')).toHaveCount(0);
+    // Startmetriek = uitgaven; die KPI-kaart is gemarkeerd en klikbaar.
+    await expect(page.locator(`.simpel-kpi .kpi[data-simpel-metric="${id}:spend"]`)).toHaveClass(/is-actief/);
+    await expect(page.locator(`.simpel-kpi .kpi[data-simpel-metric="${id}:spend"]`)).toHaveAttribute('role', 'button');
+    // Klik op de Klikken-KPI: die wordt actief, uitgaven niet meer.
+    await page.click(`.simpel-kpi .kpi[data-simpel-metric="${id}:clicks"]`);
+    await page.waitForTimeout(300);
+    await expect(page.locator(`.simpel-kpi .kpi[data-simpel-metric="${id}:clicks"]`)).toHaveClass(/is-actief/);
+    await expect(page.locator(`.simpel-kpi .kpi[data-simpel-metric="${id}:clicks"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(`.simpel-kpi .kpi[data-simpel-metric="${id}:spend"]`)).not.toHaveClass(/is-actief/);
+  });
+
+  test('de metric-switcher op Trends wisselt de trendgrafiek', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await naar(page, 'Trends');
+    const id = 'simpel-trend-trends';
     await expect(page.locator(`.metric-switch-knop[data-simpel-metric="${id}:spend"]`)).toHaveClass(/actief/);
-    await page.click(`[data-simpel-metric="${id}:clicks"]`);
+    await page.click(`.metric-switch-knop[data-simpel-metric="${id}:clicks"]`);
     await page.waitForTimeout(300);
     await expect(page.locator(`.metric-switch-knop[data-simpel-metric="${id}:clicks"]`)).toHaveClass(/actief/);
     await expect(page.locator(`.metric-switch-knop[data-simpel-metric="${id}:spend"]`)).not.toHaveClass(/actief/);
+  });
+
+  test('de trendbron is per kanaal correct (Google Ads toont geen Meta)', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await naar(page, 'Google Ads');
+    const bron = page.locator('.chart-figure:has(#simpel-trend-platform) .chart-source');
+    await expect(bron).toContainText('Google Ads API');
+    await expect(bron).not.toContainText('Meta');
   });
 
   test('een donut en tabelweergave staan op het totaaloverzicht', async ({ page }) => {
@@ -203,12 +228,12 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
 
   test('de gekozen trend-metriek overleeft een herlaadactie via de URL', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
-    await page.click('[data-simpel-metric="simpel-trend-overzicht:clicks"]');
+    await page.click('.simpel-kpi .kpi[data-simpel-metric="simpel-trend-overzicht:clicks"]');
     await page.waitForTimeout(300);
     expect(page.url()).toContain('metric=clicks');
     await page.reload();
     await page.waitForTimeout(900);
-    await expect(page.locator('.metric-switch-knop.actief[data-simpel-metric^="simpel-trend-overzicht:"]'))
+    await expect(page.locator('.simpel-kpi .kpi.is-actief[data-simpel-metric^="simpel-trend-overzicht:"]'))
       .toHaveAttribute('data-simpel-metric', 'simpel-trend-overzicht:clicks');
   });
 });
