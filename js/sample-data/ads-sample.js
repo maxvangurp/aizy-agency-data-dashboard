@@ -108,6 +108,11 @@ function platformBlok(dashboard, platform) {
   const somDagClicks = punten.reduce((s, p) => s + (p.clicks ?? 0), 0);
   const imprSchaal = somDagImpr > 0 ? impressions / somDagImpr : null;
   const clicksSchaal = somDagClicks > 0 ? clicks / somDagClicks : null;
+  // Dagelijkse omzet (e-commerce) volgt de resultaatvorm, dagelijks bereik
+  // (awareness) de impressievorm — beide geschaald op het platformtotaal, zodat
+  // de sparklines reconciliëren met de KPI-band.
+  const revenueSchaal = (revenue != null && somVorm > 0) ? revenue / somVorm : null;
+  const reachSchaal = (reach != null && somDagImpr > 0) ? reach / somDagImpr : null;
   const series = punten.map((p) => {
     const vorm = vormVeld(p);
     return {
@@ -116,6 +121,8 @@ function platformBlok(dashboard, platform) {
       impressions: (imprSchaal != null && p.impressions != null) ? Math.round(p.impressions * imprSchaal) : null,
       clicks: (clicksSchaal != null && p.clicks != null) ? Math.round(p.clicks * clicksSchaal) : null,
       results: (resultSchaal != null && vorm != null) ? Math.round(vorm * resultSchaal) : null,
+      revenue: (revenueSchaal != null && vorm != null) ? Math.round(vorm * revenueSchaal) : null,
+      reach: (reachSchaal != null && p.impressions != null) ? Math.round(p.impressions * reachSchaal) : null,
     };
   });
 

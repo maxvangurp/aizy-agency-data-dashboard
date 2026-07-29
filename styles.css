@@ -3723,12 +3723,41 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 
 /* ---------- Simpel dashboard: rijke widgets ---------- */
 
-/* Sparkline onder een KPI */
-.kpi-spark { margin-top: 8px; height: 26px; color: var(--accent); }
+/* ---------- Simpel KPI-band: gelijke hoogte, delta-pill + sparkline ---------- */
+
+/* Iets ruimere kaarten zodat 9 KPI's evenwichtig afbreken (≈5 per rij). */
+.simpel-kpi { grid-template-columns: repeat(auto-fit, minmax(clamp(200px, 15vw, 272px), 1fr)); align-items: stretch; }
+
+/* Uniforme kaart: label boven, waarde + pill, sparkline onderaan vastgezet. */
+.simpel-kpi .kpi-delta { display: flex; flex-direction: column; gap: 3px; }
+/* Hero valt op via tint + accentrand, niet via een grotere waarde — zo blijven
+   alle kaarten exact even hoog. */
+.simpel-kpi .kpi-primair { background: var(--accent-soft); }
+.simpel-kpi .kpi-primair .kpi-value { font-size: var(--fs-kpi); }
+
+/* Gekleurde verandering-pill (▲/▼ + %) — kort en scanbaar. */
+.kpi-delta-pill {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 22px; box-sizing: border-box;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; line-height: 1.1;
+  background: var(--surface-sunken); color: var(--ink-muted);
+  margin-top: 2px;
+}
+.kpi-delta-pill.trend-positief { background: var(--positief-bg); color: var(--positief); }
+.kpi-delta-pill.trend-negatief { background: var(--negatief-bg); color: var(--negatief); }
+.kpi-delta-pill.trend-neutraal { background: var(--surface-sunken); color: var(--ink-muted); }
+.kpi-delta-pijl { font-size: 9px; line-height: 1; }
+/* Geen vergelijking: onzichtbaar maar wél ruimte, zodat kaarten gelijk blijven. */
+.kpi-delta-pill.is-leeg { background: transparent; padding-left: 0; padding-right: 0; }
+
+/* Sparkline onderaan de kaart, in de trendkleur; vaste hoogte reserveert ruimte. */
+.kpi-spark { margin-top: auto; padding-top: 10px; height: 34px; color: var(--accent); }
 .kpi-spark.trend-positief { color: var(--positief); }
 .kpi-spark.trend-negatief { color: var(--negatief); }
 .kpi-spark.trend-neutraal { color: var(--ink-muted); }
-.sparkline { display: block; width: 100%; height: 26px; }
+.sparkline { display: block; width: 100%; height: 24px; opacity: 0.85; }
 
 /* Segmented control: metric-switcher */
 .trend-blok { display: flex; flex-direction: column; }

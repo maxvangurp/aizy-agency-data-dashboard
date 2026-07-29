@@ -11,7 +11,7 @@
  * staan in de globale delegatie in app.js (net als de klant-/periodekiezer).
  */
 
-import { esc, deltaTekst } from './components.js';
+import { esc } from './components.js';
 
 /* ---------------------------------------------------------------
    Sparkline (inline SVG)
@@ -48,17 +48,35 @@ export function sparkline(data, { breedte = 104, hoogte = 28 } = {}) {
  * @param {object} delta     resultaat van berekenDelta (of null)
  * @param {{sub?: string, sparkData?: number[], primair?: boolean, tip?: string}} opties
  */
-export function kpiDelta(label, waarde, delta, { sub = '', sparkData = null, primair = false, tip = null, vergelijkingLabel = 'de vorige periode' } = {}) {
+export function kpiDelta(label, waarde, delta, { sparkData = null, primair = false, tip = null } = {}) {
   const richting = delta?.richting ?? 'neutraal';
-  const subtekst = delta ? deltaTekst(delta, vergelijkingLabel) : sub;
-  const spark = sparkData ? `<div class="kpi-spark trend-${esc(richting)}">${sparkline(sparkData)}</div>` : '';
+  // De sparkline-houder staat er altijd (ook leeg), zodat alle kaarten even hoog zijn.
+  const spark = `<div class="kpi-spark trend-${esc(richting)}">${sparkData ? sparkline(sparkData) : ''}</div>`;
   const tipAttr = tip ? ` data-tip="${esc(tip)}" tabindex="0"` : '';
   return `<article class="card kpi kpi-delta${primair ? ' kpi-primair' : ''}" data-label="${esc(label)}">
     <span class="kpi-label"${tipAttr}>${esc(label)}${tip ? ' <span class="kpi-info" aria-hidden="true">i</span>' : ''}</span>
     <span class="kpi-value">${esc(waarde)}</span>
-    <span class="kpi-sub trend-${esc(richting)}">${esc(subtekst)}</span>
+    ${deltaPill(delta)}
     ${spark}
   </article>`;
+}
+
+/**
+ * Compacte, gekleurde verandering-pill: ▲/▼ + percentage. De pijl volgt de
+ * werkelijke richting (omhoog/omlaag); de kleur volgt de betekenis (`richting` —
+ * een dalende CPC is groen). De vergelijkingsperiode staat al in de kop, dus die
+ * herhalen we hier niet. Zonder bruikbare vergelijking blijft de plek leeg (maar
+ * gereserveerd), zodat de kaarthoogte gelijk blijft.
+ */
+export function deltaPill(delta) {
+  if (delta && (delta.status === 'gestegen' || delta.status === 'gedaald')) {
+    const pijl = (delta.procent ?? 0) > 0 ? '▲' : '▼';
+    return `<span class="kpi-delta-pill trend-${esc(delta.richting ?? 'neutraal')}"><span class="kpi-delta-pijl" aria-hidden="true">${pijl}</span>${Math.abs(delta.procent).toFixed(1)}%</span>`;
+  }
+  if (delta && delta.status === 'gelijk') {
+    return '<span class="kpi-delta-pill trend-neutraal">gelijk</span>';
+  }
+  return '<span class="kpi-delta-pill is-leeg" aria-hidden="true"></span>';
 }
 
 /* ---------------------------------------------------------------

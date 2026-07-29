@@ -30,13 +30,18 @@ async function naar(page, label) {
 }
 
 test.describe('Simpel dashboard — rijke inzichten', () => {
-  test('de KPI-band toont vergelijking met de vorige periode en sparklines', async ({ page }) => {
+  test('de KPI-band toont gekleurde delta-pills en een sparkline op elke kaart', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
-    // Delta's: minstens een paar KPI's dragen een positieve/negatieve richting.
-    const deltas = await page.locator('.simpel-kpi .kpi-sub.trend-positief, .simpel-kpi .kpi-sub.trend-negatief').count();
-    expect(deltas).toBeGreaterThanOrEqual(3);
-    // Sparklines onder de KPI's.
-    expect(await page.locator('.simpel-kpi .sparkline').count()).toBeGreaterThanOrEqual(1);
+    // Delta-pills: minstens een paar KPI's dragen een positieve/negatieve richting.
+    const pills = await page.locator('.kpi-delta-pill.trend-positief, .kpi-delta-pill.trend-negatief').count();
+    expect(pills).toBeGreaterThanOrEqual(3);
+    // Elke KPI-kaart heeft een sparkline.
+    const kaarten = await page.locator('.simpel-kpi .kpi').count();
+    expect(await page.locator('.simpel-kpi .sparkline').count()).toBe(kaarten);
+    // Alle KPI-kaarten zijn even hoog.
+    const hoogtes = await page.evaluate(() =>
+      [...new Set([...document.querySelectorAll('.simpel-kpi .kpi')].map((k) => Math.round(k.getBoundingClientRect().height)))]);
+    expect(hoogtes).toHaveLength(1);
     // E-commerce toont omzet + ROAS.
     await expect(page.locator('.simpel-kpi')).toContainText('Omzet');
     await expect(page.locator('.simpel-kpi')).toContainText('ROAS');
@@ -126,19 +131,20 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('#filterPeriode')).toBeVisible();
     await expect(page.locator('#filterVergelijking')).toBeVisible();
 
-    // Standaard: vergelijking met de vorige periode.
-    await expect(page.locator('.simpel-kpi .kpi-sub').first()).toContainText('vorige periode');
-
-    // Vergelijking met vorig jaar past het label + de kop aan.
-    await page.selectOption('#filterVergelijking', 'previous_year');
-    await page.waitForTimeout(600);
-    await expect(page.locator('.simpel-kpi .kpi-sub').first()).toContainText('vorig jaar');
+    // Standaard: er zijn gevulde delta-pills, en de kop toont de vergelijkingsperiode.
+    expect(await page.locator('.kpi-delta-pill:not(.is-leeg)').count()).toBeGreaterThanOrEqual(3);
     await expect(page.locator('.simpel-kop-meta')).toContainText('Vergeleken met');
 
-    // Geen vergelijking.
+    // Vergelijking met vorig jaar: de kop verwijst naar 2025.
+    await page.selectOption('#filterVergelijking', 'previous_year');
+    await page.waitForTimeout(600);
+    await expect(page.locator('.simpel-kop-meta')).toContainText('2025');
+
+    // Geen vergelijking: kop meldt het, en er staan geen gevulde delta-pills meer.
     await page.selectOption('#filterVergelijking', 'none');
     await page.waitForTimeout(600);
-    await expect(page.locator('.simpel-kpi .kpi-sub').first()).toContainText('Geen vergelijking');
+    await expect(page.locator('.simpel-kop-meta')).toContainText('Geen vergelijking');
+    expect(await page.locator('.kpi-delta-pill:not(.is-leeg)').count()).toBe(0);
 
     // Aangepast datumbereik toont van/tot-velden.
     await page.selectOption('#filterPeriode', 'custom');

@@ -156,9 +156,37 @@ export function gecombineerdeReeks(platforms) {
   return basis.map((p, i) => ({
     date: p.date,
     spend: (meta[i]?.spend ?? 0) + (google[i]?.spend ?? 0),
+    impressions: (meta[i]?.impressions ?? 0) + (google[i]?.impressions ?? 0),
     clicks: (meta[i]?.clicks ?? 0) + (google[i]?.clicks ?? 0),
     results: (meta[i]?.results ?? 0) + (google[i]?.results ?? 0),
+    revenue: (meta[i]?.revenue ?? 0) + (google[i]?.revenue ?? 0),
+    reach: (meta[i]?.reach ?? 0) + (google[i]?.reach ?? 0),
   }));
+}
+
+/**
+ * De dagreeks van één metriek, voor een sparkline. Basiswaarden komen direct uit
+ * de reeks; ratio's worden per dag berekend. Werkt op zowel de gecombineerde
+ * reeks als een platform-`series` (zelfde veldnamen).
+ */
+export function metriekReeks(reeks, key) {
+  const veld = {
+    spend: (p) => p.spend,
+    impressions: (p) => p.impressions,
+    clicks: (p) => p.clicks,
+    results: (p) => p.results,
+    revenue: (p) => p.revenue,
+    reach: (p) => p.reach,
+    ctr: (p) => (p.impressions ? (p.clicks / p.impressions) * 100 : null),
+    cpc: (p) => (p.clicks ? p.spend / p.clicks : null),
+    cpm: (p) => (p.impressions ? (p.spend / p.impressions) * 1000 : null),
+    conversieratio: (p) => (p.clicks ? (p.results / p.clicks) * 100 : null),
+    costPerResult: (p) => (p.results ? p.spend / p.results : null),
+    roas: (p) => (p.spend ? p.revenue / p.spend : null),
+    frequentie: (p) => (p.reach ? p.impressions / p.reach : null),
+  }[key];
+  if (!veld) return [];
+  return (reeks ?? []).map((p) => veld(p));
 }
 
 /**

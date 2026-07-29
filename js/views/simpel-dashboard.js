@@ -15,7 +15,7 @@
 
 import { fmt, esc, tabel, figure, getalKolom, badge } from './components.js';
 import { renderInzichten } from './insight-cards.js';
-import { combineerTotalen, alleCampagnes, adDeltas, adSegmenten, resultMetriek, gecombineerdeReeks } from '../data/ads-data.js';
+import { combineerTotalen, alleCampagnes, adDeltas, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks } from '../data/ads-data.js';
 import { bouwAdInzichten, budgetTempo } from '../data/simpel-insights.js';
 import { lineChart, barChart, donutChart, funnelChart } from '../charts.js';
 import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, toonKorteDatum } from '../filters/period.js';
@@ -199,27 +199,25 @@ const FMT = { euro: fmt.euro, euro2: fmt.euro2, getal: fmt.getal, procent: fmt.p
  */
 function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null) {
   const deltas = adDeltas(dashboard, totaal, { vergelijkingActief: vergelijking ? vergelijking.actief : true });
-  const spendSpark = dagreeks.map((p) => p.spend);
-  const resultSpark = dagreeks.map((p) => p.results);
   const rlabel = totaal.resultLabel ?? 'Resultaat';
   const rl = rlabel.toLowerCase();
   const model = dashboard.model;
   const rTip = resultMetriek(model);
   const cTip = model === 'ecommerce' ? 'cpa' : model === 'awareness' ? 'cpc' : 'cpl';
-  const vergLabel = vergelijking?.kort ?? 'de vorige periode';
 
-  const kaart = (key, label, raw, opmaak, { spark = null, primair = false, tip } = {}) =>
+  // Elke KPI krijgt een eigen sparkline uit de dagreeks (uniforme hoogte + kleur).
+  const kaart = (key, label, raw, opmaak, { primair = false, tip } = {}) =>
     kpiDelta(label, raw == null ? 'Niet te berekenen' : FMT[opmaak](raw), deltas[key], {
-      sparkData: spark, primair, vergelijkingLabel: vergLabel, tip: tip === false ? null : (tip ?? key),
+      sparkData: metriekReeks(dagreeks, key), primair, tip: tip === false ? null : (tip ?? key),
     });
 
   const kaarten = [
-    kaart('spend', 'Uitgaven', totaal.spend, 'euro', { spark: spendSpark, primair: true }),
+    kaart('spend', 'Uitgaven', totaal.spend, 'euro', { primair: true }),
     kaart('impressions', 'Vertoningen', totaal.impressions, 'getal'),
     kaart('clicks', 'Klikken', totaal.clicks, 'getal'),
     kaart('ctr', 'Doorklikratio', totaal.ctr, 'procent'),
     kaart('cpc', 'Kosten per klik', totaal.cpc, 'euro2'),
-    kaart('results', rlabel, totaal.results, 'getal', { spark: resultSpark, tip: rTip }),
+    kaart('results', rlabel, totaal.results, 'getal', { tip: rTip }),
     kaart('costPerResult', `Kosten per ${rl}`, totaal.costPerResult, 'euro2', { tip: cTip }),
   ];
   if (model === 'ecommerce') {
