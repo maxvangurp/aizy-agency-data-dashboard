@@ -45,34 +45,35 @@ test.describe('Authenticatie', () => {
 
   test('een onjuiste combinatie geeft een nette melding', async ({ page }) => {
     await page.goto('/index.html');
-    await page.waitForSelector('#loginEmail');
-    await page.fill('#loginEmail', ACCOUNTS.admin);
-    await page.fill('#loginWachtwoord', 'onjuist');
-    await page.click('#loginKnop');
+    await page.waitForSelector('#loginForm');
+    await page.fill('#loginForm [name="email"]', ACCOUNTS.admin);
+    await page.fill('#loginForm [name="wachtwoord"]', 'onjuist');
+    await page.click('#loginForm button[type="submit"]');
     await page.waitForTimeout(500);
 
-    await expect(page.locator('.banner-danger')).toContainText('klopt niet');
+    // De foutmelding verschijnt op het gebruikte paneel (volledig systeem).
+    await expect(page.locator('#loginForm .banner-danger')).toContainText('klopt niet');
     expect(await page.evaluate(() => location.hash)).toContain('/login');
   });
 
   test('een ongeldig e-mailadres wordt afgewezen', async ({ page }) => {
     await page.goto('/index.html');
-    await page.waitForSelector('#loginEmail');
-    await page.fill('#loginEmail', 'geen-adres');
-    await page.fill('#loginWachtwoord', DEMO_WACHTWOORD);
-    await page.click('#loginKnop');
+    await page.waitForSelector('#loginForm');
+    await page.fill('#loginForm [name="email"]', 'geen-adres');
+    await page.fill('#loginForm [name="wachtwoord"]', DEMO_WACHTWOORD);
+    await page.click('#loginForm button[type="submit"]');
     await page.waitForTimeout(500);
-    await expect(page.locator('.banner-danger')).toBeVisible();
+    await expect(page.locator('#loginForm .banner-danger')).toBeVisible();
   });
 
   test('een uitgenodigd account kan nog niet inloggen', async ({ page }) => {
     await page.goto('/index.html');
-    await page.waitForSelector('#loginEmail');
-    await page.fill('#loginEmail', ACCOUNTS.uitgenodigd);
-    await page.fill('#loginWachtwoord', DEMO_WACHTWOORD);
-    await page.click('#loginKnop');
+    await page.waitForSelector('#loginForm');
+    await page.fill('#loginForm [name="email"]', ACCOUNTS.uitgenodigd);
+    await page.fill('#loginForm [name="wachtwoord"]', DEMO_WACHTWOORD);
+    await page.click('#loginForm button[type="submit"]');
     await page.waitForTimeout(500);
-    await expect(page.locator('.banner-danger')).toContainText('uitnodiging');
+    await expect(page.locator('#loginForm .banner-danger')).toContainText('uitnodiging');
   });
 
   test('uitloggen beëindigt de sessie', async ({ page }) => {
@@ -105,20 +106,24 @@ test.describe('Authenticatie', () => {
 
   test('wachtwoord tonen en verbergen werkt', async ({ page }) => {
     await page.goto('/index.html');
-    await page.waitForSelector('#loginWachtwoord');
-    await expect(page.locator('#loginWachtwoord')).toHaveAttribute('type', 'password');
-    await page.click('#toonWachtwoord');
-    await expect(page.locator('#loginWachtwoord')).toHaveAttribute('type', 'text');
-    await page.click('#toonWachtwoord');
-    await expect(page.locator('#loginWachtwoord')).toHaveAttribute('type', 'password');
+    await page.waitForSelector('#loginForm');
+    const ww = page.locator('#loginForm-ww');
+    const toggle = page.locator('#loginForm [data-toon-wachtwoord]');
+    await expect(ww).toHaveAttribute('type', 'password');
+    await toggle.click();
+    await expect(ww).toHaveAttribute('type', 'text');
+    await toggle.click();
+    await expect(ww).toHaveAttribute('type', 'password');
   });
 
-  test('een demo-account vult het formulier in', async ({ page }) => {
+  test('een demo-account vult beide formulieren in', async ({ page }) => {
     await page.goto('/index.html');
     await page.waitForSelector('.demo-account');
     await page.locator('.demo-account').first().click();
-    await expect(page.locator('#loginEmail')).toHaveValue(ACCOUNTS.admin);
-    await expect(page.locator('#loginWachtwoord')).toHaveValue(DEMO_WACHTWOORD);
+    // De keuze vult zowel het simpele als het volledige paneel.
+    await expect(page.locator('#loginForm [name="email"]')).toHaveValue(ACCOUNTS.admin);
+    await expect(page.locator('#loginForm [name="wachtwoord"]')).toHaveValue(DEMO_WACHTWOORD);
+    await expect(page.locator('#startLoginForm [name="email"]')).toHaveValue(ACCOUNTS.admin);
   });
 });
 

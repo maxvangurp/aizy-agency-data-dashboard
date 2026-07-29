@@ -43,13 +43,35 @@ de calls hieronder naar de externe API's en levert exact de contractvorm terug.
       "spend": 2768, "impressions": 54280, "clicks": 1278,
       "ctr": 3.0, "cpc": 2.17, "results": 57, "costPerResult": 48.5
     }
-  ]
+  ],
+  "breakdowns": {                 // verdiepingen voor de deep-dive-pagina's
+    // Google levert advertentiegroepen + zoekwoorden; Meta ad sets + placements.
+    "adGroups": [                  // alleen Google
+      { "name": "Fysiotherapie | Algemeen", "campaign": "Search | Regio | Fysiotherapie",
+        "spend": 2400, "clicks": 440, "cpc": 5.45, "results": 26, "costPerResult": 92.3 }
+    ],
+    "keywords": [                  // alleen Google
+      { "name": "fysiotherapeut in de buurt", "matchType": "Phrase",
+        "spend": 1478, "impressions": 8760, "clicks": 300, "ctr": 3.4, "cpc": 4.93,
+        "results": 18, "costPerResult": 82.1 }
+    ],
+    "adSets": [                    // alleen Meta
+      { "name": "Lookalike 1% — NL", "spend": 1882, "impressions": 36910, "clicks": 869,
+        "ctr": 2.4, "cpc": 2.17, "results": 39, "costPerResult": 48.3 }
+    ],
+    "placements": [                // alleen Meta
+      { "name": "Facebook Feed", "spend": 2214, "impressions": 43424, "clicks": 1022,
+        "ctr": 2.4, "cpc": 2.17, "results": 46, "costPerResult": 48.1 }
+    ]
+  }
 }
 ```
 
 Het dashboard combineert de twee blokken (`combineerTotalen`, `alleCampagnes` in
 `js/data/ads-data.js`) tot de KPI-band, de Meta-vs-Google-splitsing, de
-trendgrafiek en de campagnetabel.
+trendgrafiek en de campagnetabel. De `breakdowns` voeden de per-platform
+deep-dive-pagina's (Google Ads: zoekwoorden + advertentiegroepen; Meta Ads: ad
+sets + placements). Ontbrekende arrays (`[]`) laten de betreffende tabel weg.
 
 ## Mapping vanuit de echte API's
 
@@ -68,6 +90,11 @@ Endpoint: `GET /v<versie>/act_<ad_account_id>/insights`
 | `totals.results`    | `actions[]` waar `action_type` de klant-conversie is (bijv. `purchase`, `lead`) |
 | `series[]`          | rijen met `time_increment=1` (per dag) |
 | `campaigns[].name`  | `campaign_name` |
+| `breakdowns.adSets[]`     | extra call met `level=adset` (`adset_name` + dezelfde metrics) |
+| `breakdowns.placements[]` | extra call met `breakdowns=publisher_platform` (of `platform_position`) |
+
+> In de demo zijn `adSets`/`placements` afgeleid uit de platformtotalen omdat de
+> sample geen ad-set-detail bevat; live komen ze uit de extra insights-calls hierboven.
 
 ### Google Ads API → `/api/google-ads/campaigns`
 Endpoint: `POST /v<versie>/customers/<customer_id>/googleAds:searchStream` (GAQL):
@@ -89,6 +116,13 @@ FROM campaign WHERE segments.date BETWEEN '<since>' AND '<until>'
 | `series[]`           | groeperen op `segments.date` |
 | `campaigns[].name`   | `campaign.name` |
 | `campaigns[].type`   | `campaign.advertising_channel_type` |
+| `breakdowns.adGroups[]` | `FROM ad_group` — `ad_group.name`, `campaign.name`, dezelfde `metrics.*` |
+| `breakdowns.keywords[]` | `FROM keyword_view` — `ad_group_criterion.keyword.text` + `.match_type`, `metrics.*` |
+
+De `results` in de breakdowns mappen op `metrics.conversions` (Google) resp. de
+klant-conversie in `actions[]` (Meta). Conversietype-detail (welke conversie
+telt als "aankoop" of "lead", en de secundaire conversies op de Conversies-pagina)
+komt uit de webanalytics/GA4-koppeling, niet uit de ad-API's zelf.
 
 ## Auth & backend (los van deze frontend)
 - **Meta**: Marketing API-app + OAuth (system user of gebruikerstoken met

@@ -32,9 +32,15 @@ export function startRoute(user) {
 export const ROUTES = [
   { pad: '/login', naam: 'login', publiek: true, titel: 'Inloggen' },
   { pad: '/start', naam: 'start-login', publiek: true, titel: 'Snel inzicht' },
-  // Het simpele Meta/Google Ads-dashboard: elke ingelogde rol mag hier komen
+  // Het simpele Meta/Google Ads-datadashboard: elke ingelogde rol mag hier komen
   // (agency ziet een gekozen klant, een klantgebruiker de eigen organisatie).
-  { pad: '/pulse', naam: 'simpel-dashboard', titel: 'Overzicht' },
+  // De vlag `simpel: true` markeert de routes die binnen de simpele modus vallen.
+  { pad: '/pulse', naam: 'simpel-overzicht', simpel: true, titel: 'Totaal overzicht' },
+  { pad: '/pulse/google-ads', naam: 'simpel-google', simpel: true, titel: 'Google Ads' },
+  { pad: '/pulse/meta-ads', naam: 'simpel-meta', simpel: true, titel: 'Meta Ads' },
+  { pad: '/pulse/campagnes', naam: 'simpel-campagnes', simpel: true, titel: 'Campagnes' },
+  { pad: '/pulse/conversies', naam: 'simpel-conversies', simpel: true, titel: 'Conversies' },
+  { pad: '/pulse/trends', naam: 'simpel-trends', simpel: true, titel: 'Trends' },
   { pad: '/forgot-password', naam: 'forgot-password', publiek: true, titel: 'Wachtwoord vergeten' },
   { pad: '/accept-invite', naam: 'accept-invite', publiek: true, titel: 'Uitnodiging accepteren' },
 

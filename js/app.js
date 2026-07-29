@@ -37,7 +37,7 @@ import {
 } from './auth/auth-service.js';
 import { can, Permission, standaardRoute } from './auth/permissions.js';
 import {
-  isAgencyGebruiker, primaireRol, primaireOrganisatieId, getOrganisatie, Rol,
+  isAgencyGebruiker, primaireRol, primaireOrganisatieId, getOrganisatie, Rol, DEMO_WACHTWOORD,
 } from './auth/domain.js';
 import {
   parseHash, parseQuery, bouwHash, controleerRoute, Uitkomst, navigeer,
@@ -63,10 +63,10 @@ import { DEMO_TODAY, toonBereik, toonDatum, plusDagen } from './filters/period.j
 import { dashboardtypeTerm, LABELS } from './terminology.js';
 
 import {
-  renderLogin, renderSimpelLogin, renderForgotPassword, renderAcceptInvite,
+  renderLoginKeuze, renderForgotPassword, renderAcceptInvite,
   renderGeenToegang, renderNietGevonden,
 } from './views/auth-screens.js';
-import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts } from './views/simpel-dashboard.js';
+import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg } from './views/simpel-dashboard.js';
 import { haalAdsPlatforms, combineerTotalen, alleCampagnes } from './data/ads-data.js';
 import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
@@ -271,7 +271,7 @@ function render() {
   // Publieke routes (login, uitloggen) zijn hierboven al afgehandeld, en de
   // modus-wissel zet de modus vóór het navigeren — "Volledig systeem" wordt dus
   // niet teruggestuurd.
-  if (getModus() === Modus.SIMPEL && route.naam !== 'simpel-dashboard') {
+  if (getModus() === Modus.SIMPEL && !route.simpel) {
     navigeer('#/pulse', { vervang: true });
     return;
   }
@@ -293,9 +293,9 @@ function render() {
   const actieveKlantId = getActieveKlantId();
   if (omgeving === 'client' && actieveKlantId) onthoudKlant(user.id, actieveKlantId);
 
-  // Simpele modus: eigen minimale layout, niet de volledige app-shell.
-  if (route.naam === 'simpel-dashboard') {
-    renderSimpelPagina({ user, ctx });
+  // Simpele modus: eigen minimale layout met datagerichte navigatie.
+  if (route.simpel) {
+    renderSimpelPagina({ user, ctx, route });
     laatstePad = pad;
     return;
   }
@@ -488,8 +488,8 @@ function synchroniseerUrl(pad, huidigeQuery, ctx) {
 
 function renderPubliek(route) {
   switch (route.naam) {
-    case 'login': renderAuthScherm(renderLogin(), 'Inloggen'); break;
-    case 'start-login': renderAuthScherm(renderSimpelLogin(), 'Snel inzicht'); break;
+    case 'login':
+    case 'start-login': renderAuthScherm(renderLoginKeuze(), 'Inloggen'); break;
     case 'forgot-password': renderAuthScherm(renderForgotPassword(), 'Wachtwoord vergeten'); break;
     case 'accept-invite': renderAuthScherm(renderAcceptInvite(), 'Uitnodiging'); break;
     case 'unauthorized': renderAuthScherm(renderGeenToegang({}), 'Geen toegang'); break;
@@ -505,7 +505,7 @@ let simpelToken = 0;
  * De cijfers laden async via de data-provider-seam; eerst een laadstaat, dan de
  * inhoud + grafieken.
  */
-function renderSimpelPagina({ user, ctx }) {
+function renderSimpelPagina({ user, ctx, route }) {
   const filters = ctx.resolved;
   const klanten = getAccessibleClients(user);
   const magWisselen = can(user, Permission.SWITCH_CONTEXT);
@@ -515,14 +515,32 @@ function renderSimpelPagina({ user, ctx }) {
   const voorkeur = getActieveKlantId() ?? primaireOrganisatieId(user);
   const klantId = klanten.some((k) => k.id === voorkeur) ? voorkeur : (klanten[0]?.id ?? null);
   const dashboard = klantId ? getClientDashboard(user, klantId, filters) : null;
+  const view = route.naam; // 'simpel-overzicht' | 'simpel-google' | ...
 
-  document.title = 'Snel inzicht · Aizy';
+  document.title = `${route.titel ?? 'Snel inzicht'} · Aizy`;
   document.body.dataset.shell = 'simpel';
   document.body.dataset.assistent = 'los';
 
-  app().innerHTML = renderSimpelLayout({ user, dashboard, klanten, filters, platforms: null, magWisselen });
+  app().innerHTML = renderSimpelLayout({ user, dashboard, klanten, filters, platforms: null, magWisselen, view });
 
-  if (!dashboard) return;
+  // Op mobiel is de navigatie een horizontaal scrollbare tabstrip; zorg dat de
+  // actieve pagina zichtbaar is, ook bij een deeplink naar een rechtse tab.
+  document.querySelector('.simpel-nav-item.actief')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+
+  // Geen toegankelijke klant (bijv. een medewerker zonder toewijzingen): toon een
+  // lege staat i.p.v. een blijvende laadstaat.
+  if (!dashboard) {
+    const houder = document.getElementById('simpelInhoud');
+    if (houder) {
+      houder.innerHTML = renderSimpelLeeg(
+        klanten.length ? 'Geen data beschikbaar' : 'Nog geen klanten',
+        klanten.length
+          ? 'Voor deze klant en periode zijn er geen Meta- of Google Ads-cijfers.'
+          : 'Er zijn nog geen klanten aan je account gekoppeld. Vraag je beheerder om toegang.'
+      );
+    }
+    return;
+  }
 
   const token = ++simpelToken;
   haalAdsPlatforms(dashboard, filters)
@@ -530,8 +548,8 @@ function renderSimpelPagina({ user, ctx }) {
       if (token !== simpelToken) return; // een nieuwere render heeft het overgenomen
       const houder = document.getElementById('simpelInhoud');
       if (!houder) return;
-      houder.innerHTML = renderSimpelInhoud({ dashboard, platforms });
-      drawSimpelCharts({ platforms });
+      houder.innerHTML = renderSimpelInhoud({ dashboard, platforms, view });
+      drawSimpelCharts({ dashboard, platforms, view });
     })
     .catch(() => { /* Bij een fetch-fout blijft de laadstaat staan. */ });
 }
@@ -1765,12 +1783,14 @@ async function onClick(e) {
 
   /* --- Inlogscherm --- */
   if (el.classList.contains('demo-account')) {
-    document.getElementById('loginEmail').value = el.dataset.email;
-    document.getElementById('loginWachtwoord').value = 'demo123';
+    // Vult beide login-panelen; de gebruiker kiest daarna links of rechts.
+    document.querySelectorAll('.auth-scherm [name="email"]').forEach((v) => { v.value = el.dataset.email; });
+    document.querySelectorAll('.auth-scherm [name="wachtwoord"]').forEach((v) => { v.value = DEMO_WACHTWOORD; });
     return;
   }
-  if (el.id === 'toonWachtwoord') {
-    const veld = document.getElementById('loginWachtwoord');
+  if (el.dataset.toonWachtwoord !== undefined) {
+    const veld = el.closest('.veld-met-knop')?.querySelector('input');
+    if (!veld) return;
     const zichtbaar = veld.type === 'text';
     veld.type = zichtbaar ? 'password' : 'text';
     el.textContent = zichtbaar ? 'Tonen' : 'Verbergen';
@@ -2522,12 +2542,11 @@ function sluitSidebar() {
 }
 
 async function verwerkLogin(form, modus = Modus.UITGEBREID) {
-  const knop = form.querySelector('#loginKnop');
-  const email = form.querySelector('#loginEmail').value;
-  const wachtwoord = form.querySelector('#loginWachtwoord').value;
+  const knop = form.querySelector('button[type="submit"]');
+  const email = form.querySelector('[name="email"]').value;
+  const wachtwoord = form.querySelector('[name="wachtwoord"]').value;
 
-  knop.disabled = true;
-  knop.textContent = 'Bezig met inloggen';
+  if (knop) { knop.disabled = true; knop.textContent = 'Bezig met inloggen'; }
 
   const resultaat = await login({ email, wachtwoord });
   if (resultaat.ok) {
@@ -2538,10 +2557,10 @@ async function verwerkLogin(form, modus = Modus.UITGEBREID) {
     return;
   }
 
-  const simpel = modus === Modus.SIMPEL;
-  const scherm = simpel ? renderSimpelLogin : renderLogin;
-  renderAuthScherm(scherm({ fout: resultaat.melding, email }), simpel ? 'Snel inzicht' : 'Inloggen');
-  document.getElementById('loginWachtwoord')?.focus();
+  // De fout verschijnt op het paneel waarmee is ingelogd.
+  const foutFlow = modus === Modus.SIMPEL ? 'simpel' : 'volledig';
+  renderAuthScherm(renderLoginKeuze({ fout: resultaat.melding, foutFlow, email }), 'Inloggen');
+  document.querySelector(`#${form.id} [name="wachtwoord"]`)?.focus();
 }
 
 /* ---------------------------------------------------------------

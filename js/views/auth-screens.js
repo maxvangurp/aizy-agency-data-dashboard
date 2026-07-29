@@ -25,135 +25,106 @@ function foutmelding(id, tekst) {
 }
 
 /* ---------------------------------------------------------------
-   Inloggen
-   --------------------------------------------------------------- */
-
-export function renderLogin({ fout = null, email = '' } = {}) {
-  return `
-    <div class="auth-scherm">
-      <div class="auth-kaart">
-        ${merkteken()}
-        <h1>Inloggen</h1>
-        <p class="muted">Meld je aan met je Aizy-account of je klantaccount.</p>
-
-        <form id="loginForm" novalidate>
-          ${fout ? `<div class="banner banner-danger" role="alert"><span>${esc(fout)}</span></div>` : ''}
-
-          <div class="veld">
-            <label for="loginEmail">E-mailadres</label>
-            <input type="email" id="loginEmail" name="email" autocomplete="username"
-              value="${esc(email)}" aria-describedby="loginEmailFout" required>
-            ${foutmelding('loginEmailFout')}
-          </div>
-
-          <div class="veld">
-            <label for="loginWachtwoord">Wachtwoord</label>
-            <div class="veld-met-knop">
-              <input type="password" id="loginWachtwoord" name="wachtwoord"
-                autocomplete="current-password" aria-describedby="loginWachtwoordFout" required>
-              <button type="button" class="veld-knop" id="toonWachtwoord"
-                aria-label="Wachtwoord tonen" aria-pressed="false">Tonen</button>
-            </div>
-            ${foutmelding('loginWachtwoordFout')}
-          </div>
-
-          <div class="veld-rij">
-            <label class="checkbox">
-              <input type="checkbox" id="blijfIngelogd" name="blijfIngelogd" checked>
-              <span>Ingelogd blijven</span>
-            </label>
-            <a href="#/forgot-password" class="link-klein">Wachtwoord vergeten</a>
-          </div>
-
-          <button type="submit" class="btn primary breed" id="loginKnop">Inloggen</button>
-        </form>
-
-        <p class="auth-flow-wissel">
-          Alleen je Meta &amp; Google Ads-cijfers?
-          <a href="#/start">Snel inzicht →</a>
-        </p>
-
-        <section class="demo-accounts" aria-labelledby="demoAccountsTitel">
-          <h2 id="demoAccountsTitel">Demo-accounts</h2>
-          <p class="muted">
-            Kies een account om die rol te bekijken. Het wachtwoord is voor alle
-            demo-accounts <code>${esc(DEMO_WACHTWOORD)}</code>.
-          </p>
-          <ul class="demo-account-lijst">
-            ${DEMO_ACCOUNT_SUGGESTIES.map((a) => {
-              const niveau = toegangsniveauTerm(a.rol);
-              return `<li>
-                <button type="button" class="demo-account" data-email="${esc(a.email)}"
-                  aria-label="Inloggegevens invullen van ${esc(a.naam)}, ${esc(niveau.volledig)}">
-                  <span class="demo-account-naam">${esc(a.naam)}</span>
-                  <span class="demo-account-niveau">${esc(niveau.kort)}</span>
-                  <span class="demo-account-omvang muted">${esc(a.omvang)}</span>
-                  <span class="demo-account-email muted klein">${esc(a.email)}</span>
-                </button>
-              </li>`;
-            }).join('')}
-          </ul>
-          <p class="muted klein">
-            De namen van het Aizy Performance Team zijn gebruikt om de demo
-            herkenbaar te maken. E-mailadressen, rechten, klanttoewijzingen en
-            activiteit zijn fictief. Er is geen productiebeveiliging en de
-            omgeving is niet geschikt voor echte klantgegevens.
-          </p>
-        </section>
-      </div>
-    </div>`;
-}
-
-/* ---------------------------------------------------------------
-   Simpel inloggen — de "snel inzicht"-flow (Meta & Google Ads)
+   Inloggen — twee flows naast elkaar (simpel + uitgebreid)
    --------------------------------------------------------------- */
 
 /**
- * Een bewust minimaal inlogscherm dat naar het datagerichte Meta/Google Ads-
- * dashboard leidt. Dezelfde veld-id's als het volledige scherm, maar met een
- * eigen formulier-id (`startLoginForm`) zodat de app-modus op 'simpel' wordt
- * gezet.
+ * Eén inlogscherm met twee panelen naast elkaar: links "Snel inzicht" (het
+ * datagerichte Meta/Google Ads-dashboard, modus simpel) en rechts "Volledig
+ * systeem" (het complete platform, modus uitgebreid). Elk paneel is een echt
+ * formulier; de velden staan op `name` (niet op een gedeeld id) zodat ze in één
+ * document naast elkaar kunnen bestaan. `foutFlow` bepaalt op welk paneel een
+ * foutmelding verschijnt.
  */
-export function renderSimpelLogin({ fout = null, email = '' } = {}) {
-  return `
-    <div class="auth-scherm auth-simpel">
-      <div class="auth-kaart">
-        ${merkteken()}
-        <h1>Snel inzicht</h1>
-        <p class="muted">Bekijk direct je Meta- en Google Ads-resultaten. Geen omwegen.</p>
+export function renderLoginKeuze({ fout = null, foutFlow = null, email = '' } = {}) {
+  const paneel = (flow, formId, { badge, titel, pitch, knop, extra = '' }) => `
+    <form id="${formId}" class="auth-kaart auth-keuze-kaart auth-keuze-${flow}" novalidate>
+      <span class="auth-flow-badge auth-flow-badge-${flow}">${esc(badge)}</span>
+      <h2>${titel}</h2>
+      <p class="muted">${pitch}</p>
 
-        <form id="startLoginForm" novalidate>
-          ${fout ? `<div class="banner banner-danger" role="alert"><span>${esc(fout)}</span></div>` : ''}
+      ${fout && foutFlow === flow ? `<div class="banner banner-danger" role="alert"><span>${esc(fout)}</span></div>` : ''}
 
-          <div class="veld">
-            <label for="loginEmail">E-mailadres</label>
-            <input type="email" id="loginEmail" name="email" autocomplete="username"
-              value="${esc(email)}" aria-describedby="loginEmailFout" required>
-            ${foutmelding('loginEmailFout')}
-          </div>
-
-          <div class="veld">
-            <label for="loginWachtwoord">Wachtwoord</label>
-            <div class="veld-met-knop">
-              <input type="password" id="loginWachtwoord" name="wachtwoord"
-                autocomplete="current-password" aria-describedby="loginWachtwoordFout" required>
-              <button type="button" class="veld-knop" id="toonWachtwoord"
-                aria-label="Wachtwoord tonen" aria-pressed="false">Tonen</button>
-            </div>
-            ${foutmelding('loginWachtwoordFout')}
-          </div>
-
-          <button type="submit" class="btn primary breed" id="loginKnop">Bekijk mijn cijfers</button>
-        </form>
-
-        <p class="muted klein">Demo-wachtwoord: <code>${esc(DEMO_WACHTWOORD)}</code>. Elk demo-account werkt.</p>
-
-        <p class="auth-flow-wissel">
-          Wil je het volledige systeem?
-          <a href="#/login">Naar het volledige systeem →</a>
-        </p>
+      <div class="veld">
+        <label for="${formId}-email">E-mailadres</label>
+        <input type="email" id="${formId}-email" name="email" autocomplete="username"
+          value="${esc(email)}" required>
       </div>
+
+      <div class="veld">
+        <label for="${formId}-ww">Wachtwoord</label>
+        <div class="veld-met-knop">
+          <input type="password" id="${formId}-ww" name="wachtwoord" autocomplete="current-password" required>
+          <button type="button" class="veld-knop" data-toon-wachtwoord
+            aria-label="Wachtwoord tonen" aria-pressed="false">Tonen</button>
+        </div>
+      </div>
+
+      ${extra}
+
+      <button type="submit" class="btn primary breed">${esc(knop)}</button>
+    </form>`;
+
+  return `
+    <div class="auth-scherm auth-keuze">
+      <div class="auth-keuze-kop">
+        ${merkteken()}
+        <h1>Inloggen</h1>
+        <p class="muted">Kies hoe je wilt inloggen.</p>
+      </div>
+
+      <div class="auth-keuze-grid">
+        ${paneel('simpel', 'startLoginForm', {
+          badge: 'Snel inzicht',
+          titel: 'Meta &amp; Google Ads',
+          pitch: 'Direct je advertentiecijfers en trends, zonder omwegen.',
+          knop: 'Bekijk mijn cijfers',
+        })}
+        ${paneel('volledig', 'loginForm', {
+          badge: 'Volledig systeem',
+          titel: 'Het complete platform',
+          pitch: 'Dashboards, signalen, acties, planning en rapportages.',
+          knop: 'Inloggen',
+          extra: `<div class="veld-rij">
+            <label class="checkbox"><input type="checkbox" name="blijfIngelogd" checked><span>Ingelogd blijven</span></label>
+            <a href="#/forgot-password" class="link-klein">Wachtwoord vergeten</a>
+          </div>`,
+        })}
+      </div>
+
+      ${demoAccountsSectie()}
     </div>`;
+}
+
+/** De gedeelde demo-accounts-sectie onder de twee login-panelen. */
+function demoAccountsSectie() {
+  return `<section class="demo-accounts" aria-labelledby="demoAccountsTitel">
+      <h2 id="demoAccountsTitel">Demo-accounts</h2>
+      <p class="muted">
+        Kies een account om de gegevens in te vullen; klik daarna links of rechts
+        in te loggen. Het wachtwoord is voor alle demo-accounts <code>${esc(DEMO_WACHTWOORD)}</code>.
+      </p>
+      <ul class="demo-account-lijst">
+        ${DEMO_ACCOUNT_SUGGESTIES.map((a) => {
+          const niveau = toegangsniveauTerm(a.rol);
+          return `<li>
+            <button type="button" class="demo-account" data-email="${esc(a.email)}"
+              aria-label="Inloggegevens invullen van ${esc(a.naam)}, ${esc(niveau.volledig)}">
+              <span class="demo-account-naam">${esc(a.naam)}</span>
+              <span class="demo-account-niveau">${esc(niveau.kort)}</span>
+              <span class="demo-account-omvang muted">${esc(a.omvang)}</span>
+              <span class="demo-account-email muted klein">${esc(a.email)}</span>
+            </button>
+          </li>`;
+        }).join('')}
+      </ul>
+      <p class="muted klein">
+        De namen van het Aizy Performance Team zijn gebruikt om de demo
+        herkenbaar te maken. E-mailadressen, rechten, klanttoewijzingen en
+        activiteit zijn fictief. Er is geen productiebeveiliging en de omgeving is
+        niet geschikt voor echte klantgegevens.
+      </p>
+    </section>`;
 }
 
 /* ---------------------------------------------------------------

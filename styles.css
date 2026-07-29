@@ -3604,50 +3604,79 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
    TWEE FLOWS — simpele login + datagericht Meta/Google-dashboard
    ========================================================= */
 
-/* Cross-link tussen de twee login-flows. */
-.auth-flow-wissel {
-  margin: var(--space-3) 0 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--ink-muted);
+/* ---------- Inloggen: twee panelen naast elkaar ---------- */
+.auth-scherm.auth-keuze {
+  grid-template-columns: min(960px, 100%);
+  justify-content: center;
+  align-content: start;
+  justify-items: stretch;
+  row-gap: var(--space-4);
+  padding-block: var(--space-5);
 }
-.auth-flow-wissel a { font-weight: 600; white-space: nowrap; }
+.auth-keuze-kop { display: grid; justify-items: center; gap: 8px; text-align: center; }
+.auth-keuze-kop h1 { margin: 4px 0 0; font-size: 1.5rem; }
+.auth-keuze-kop .muted { margin: 0; }
+.auth-keuze-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); align-items: start; }
+.auth-keuze-kaart { max-width: none; display: grid; gap: var(--space-3); align-content: start; }
+.auth-keuze-kaart h2 { margin: 0; font-size: 19px; letter-spacing: -0.01em; }
+.auth-keuze-kaart > .muted { margin: 0; font-size: 13px; }
+.auth-keuze-simpel { border-top: 3px solid var(--accent); }
+.auth-flow-badge {
+  justify-self: start;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 999px;
+}
+.auth-flow-badge-simpel { background: var(--accent-soft); color: var(--accent); }
+.auth-flow-badge-volledig { background: var(--surface-sunken); color: var(--ink-muted); }
+.auth-keuze .demo-accounts {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: var(--space-4); margin: 0;
+}
+@media (max-width: 720px) {
+  .auth-keuze-grid { grid-template-columns: 1fr; }
+}
 
-/* ---------- Het simpele dashboard (modus 'simpel') ---------- */
+/* ---------- Het simpele datadashboard (modus 'simpel') ---------- */
 .simpel-app {
   min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: var(--simpel-nav-breedte, 216px) minmax(0, 1fr);
   background: var(--surface-sunken, var(--surface));
 }
-.simpel-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  min-height: 60px;
-  padding: 10px clamp(16px, 2vw, 32px);
+.simpel-sidebar {
+  position: sticky; top: 0; height: 100dvh;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: 16px 12px;
   background: var(--surface-raised);
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
+  border-right: 1px solid var(--border);
 }
-.simpel-merk { display: flex; align-items: baseline; gap: 8px; flex-shrink: 0; }
+.simpel-merk { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px; }
 .simpel-merk-naam { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
-.simpel-merk-sub { font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
-.simpel-topbar-midden { display: flex; align-items: center; gap: var(--space-2); flex: 1; min-width: 0; }
-.simpel-topbar-rechts { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+.simpel-merk-sub { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
+.simpel-nav { display: grid; gap: 2px; }
+.simpel-nav-item {
+  display: block; padding: 9px 12px; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 600; color: var(--ink-muted); text-decoration: none;
+}
+.simpel-nav-item:hover { background: var(--surface-sunken); color: var(--ink); }
+.simpel-nav-item.actief { background: var(--accent-soft); color: var(--accent); }
+.simpel-sidebar-voet { margin-top: auto; display: grid; gap: 6px; }
+.btn.breed { width: 100%; justify-content: center; }
+
+.simpel-kolom { display: flex; flex-direction: column; min-width: 0; }
+.simpel-topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: var(--space-2);
+  min-height: 56px; padding: 10px clamp(16px, 2vw, 32px);
+  background: var(--surface-raised); border-bottom: 1px solid var(--border);
+}
+.simpel-topbar-midden { display: flex; align-items: center; gap: var(--space-2); flex: 1; min-width: 0; flex-wrap: wrap; }
 .simpel-kiezer { display: inline-flex; min-width: 0; }
 .simpel-kiezer select {
   height: var(--topbar-control-h, 36px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink);
-  padding: 0 10px;
-  font: inherit;
-  max-width: 100%;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink);
+  padding: 0 10px; font: inherit; max-width: 100%;
 }
 .simpel-klantnaam { font-weight: 700; font-size: 15px; }
 
@@ -3656,16 +3685,25 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 .simpel-kop h1 { font-size: clamp(22px, 2.4vw, 30px); margin: 0 0 4px; letter-spacing: -0.02em; }
 .simpel-kop .muted { margin: 0; }
 .simpel-databron { margin: var(--space-2) 0 0; display: flex; align-items: center; gap: 8px; }
-.simpel-laden {
-  display: grid;
-  place-items: center;
-  min-height: 40dvh;
-  color: var(--ink-muted);
-}
+.simpel-laden { display: grid; place-items: center; min-height: 40dvh; color: var(--ink-muted); }
 
-@media (max-width: 640px) {
-  .simpel-topbar { gap: var(--space-2); }
-  .simpel-topbar-midden { order: 3; flex-basis: 100%; }
-  .simpel-topbar-midden .simpel-kiezer { flex: 1; }
-  .simpel-topbar-midden select { width: 100%; }
+/* Op mobiel wordt de sidebar een compacte strook: merk + acties boven, de
+   pagina's als horizontaal scrollbare tabs eronder. */
+@media (max-width: 768px) {
+  .simpel-app { grid-template-columns: 1fr; }
+  .simpel-sidebar {
+    position: sticky; top: 0; height: auto; z-index: 25;
+    display: grid; grid-template-columns: 1fr auto;
+    grid-template-areas: "merk voet" "nav nav";
+    gap: 8px 12px; padding: 10px 12px;
+    border-right: 0; border-bottom: 1px solid var(--border);
+  }
+  .simpel-merk { grid-area: merk; padding: 0; align-self: center; }
+  .simpel-sidebar-voet { grid-area: voet; margin: 0; grid-auto-flow: column; gap: 6px; align-self: center; }
+  .simpel-sidebar-voet .btn { width: auto; }
+  .simpel-nav { grid-area: nav; grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; gap: 4px; padding-bottom: 2px; }
+  .simpel-nav-item { white-space: nowrap; padding: 8px 12px; }
+  /* De sidebar-strook (met de tabs) blijft bovenaan plakken; de topbar met
+     klant/periode schuift gewoon mee zodat beide niet op top:0 botsen. */
+  .simpel-topbar { position: static; }
 }

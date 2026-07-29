@@ -128,10 +128,10 @@ test.describe('Rapportage delen met de klant', () => {
   async function herloginAls(page, email) {
     await page.evaluate(() => localStorage.removeItem('aizy.session'));
     await page.reload();
-    await page.waitForSelector('#loginEmail');
-    await page.fill('#loginEmail', email);
-    await page.fill('#loginWachtwoord', 'demo123');
-    await page.click('#loginKnop');
+    await page.waitForSelector('#loginForm');
+    await page.fill('#loginForm [name="email"]', email);
+    await page.fill('#loginForm [name="wachtwoord"]', 'demo123');
+    await page.click('#loginForm button[type="submit"]');
     await page.waitForFunction(() => !location.hash.includes('/login'));
   }
 

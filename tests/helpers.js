@@ -53,10 +53,13 @@ export async function login(page, email, { theme = 'light' } = {}) {
     window.location.hash = '#/login';
   }, theme);
   await page.reload();
-  await page.waitForSelector('#loginEmail');
-  await page.fill('#loginEmail', email);
-  await page.fill('#loginWachtwoord', DEMO_WACHTWOORD);
-  await page.click('#loginKnop');
+  // Het inlogscherm toont twee panelen naast elkaar; het volledige systeem is
+  // het rechterpaneel (#loginForm). De velden staan op `name`, niet op een
+  // gedeeld id, zodat beide formulieren in één document kunnen bestaan.
+  await page.waitForSelector('#loginForm');
+  await page.fill('#loginForm [name="email"]', email);
+  await page.fill('#loginForm [name="wachtwoord"]', DEMO_WACHTWOORD);
+  await page.click('#loginForm button[type="submit"]');
   await page.waitForFunction(() => !location.hash.includes('/login'));
   await page.waitForTimeout(400);
 }
