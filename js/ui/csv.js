@@ -19,10 +19,17 @@ function cel(waarde) {
  * @param {(string|number|null)[][]} rijen  ruwe waarden per rij
  */
 export function naarCsv(kolommen, rijen) {
-  const regels = [kolommen.map(cel).join(';')];
-  for (const rij of rijen) regels.push(rij.map(cel).join(';'));
+  return csvVanRijen([kolommen, ...rijen]);
+}
+
+/**
+ * Bouwt een CSV uit een lijst rijen (elk een array cellen). Handig voor een
+ * export met meerdere secties (een sectiekop is dan één-cel-rij, een lege rij is
+ * `['']`).
+ */
+export function csvVanRijen(rijen) {
   // BOM zodat Excel de UTF-8-tekens (€, ë) goed leest.
-  return `﻿${regels.join('\r\n')}`;
+  return `﻿${rijen.map((rij) => rij.map(cel).join(';')).join('\r\n')}`;
 }
 
 /** Start een download van een CSV-string onder de gegeven bestandsnaam. */

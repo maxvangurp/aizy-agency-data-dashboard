@@ -9,7 +9,7 @@
  */
 
 import { fmt } from '../views/components.js';
-import { combineerTotalen, alleCampagnes, adDeltas, perWeekdag, gecombineerdeReeks, reeksIsDagelijks } from './ads-data.js';
+import { combineerTotalen, alleCampagnes, adDeltas, perWeekdag, adSegmenten, gecombineerdeReeks, reeksIsDagelijks } from './ads-data.js';
 import { toonKorteDatum } from '../filters/period.js';
 
 /** Betrouwbaarheid op basis van het resultaatvolume waar het inzicht op rust. */
@@ -17,6 +17,14 @@ function betrouwbaarheidVanVolume(results) {
   if (results >= 30) return 'hoog';
   if (results >= 10) return 'redelijk';
   return 'beperkt';
+}
+
+/** Mediaan van een getallenreeks (nulls genegeerd). */
+function mediaan(arr) {
+  const g = (arr ?? []).filter((v) => v != null).sort((a, b) => a - b);
+  if (!g.length) return 0;
+  const m = Math.floor(g.length / 2);
+  return g.length % 2 ? g[m] : (g[m - 1] + g[m]) / 2;
 }
 
 /** Het resultaat in enkelvoud, per klanttype (voor natuurlijke zinnen). */
@@ -149,6 +157,120 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
           { label: 'Gemiddeld', waarde: fmt.euro2(totaal.costPerResult) },
         ],
         actie: 'Overweeg meer budget in te plannen rond de sterkste dagen.',
+      });
+    }
+  }
+
+  /* 5. Budgetconcentratie: één campagne slokt een groot deel van het budget op. */
+  if (campagnes.length >= 2 && totaal.spend) {
+    const top = campagnes[0]; // alleCampagnes is aflopend op uitgaven gesorteerd
+    const aandeel = (top.spend / totaal.spend) * 100;
+    if (aandeel >= 40) {
+      inzichten.push({
+        _gewicht: 45 + (aandeel - 40),
+        categorie: 'aandachtspunt',
+        betrouwbaarheid: betrouwbaarheidVanVolume(totaal.results),
+        titel: `${fmt.procent(aandeel)} van het budget zit in één campagne`,
+        samenvatting: `${top.name} draagt het grootste deel van de uitgaven; het totale resultaat hangt sterk van deze ene campagne af.`,
+        bewijs: [
+          { label: top.name, waarde: `${fmt.euro(top.spend)} · ${fmt.procent(aandeel)} van het budget` },
+          { label: 'Totaal', waarde: fmt.euro(totaal.spend) },
+        ],
+        actie: 'Spreid het budget of houd deze campagne extra in de gaten — een dip hier raakt het geheel.',
+      });
+    }
+  }
+
+  /* 6. CTR-vs-conversie-mismatch: veel klikken, weinig resultaat. */
+  if (totaal.conversieratio != null && totaal.ctr != null) {
+    const kandidaat = campagnes
+      .filter((c) => c.clicks >= 20 && c.ctr != null && c.ctr > totaal.ctr)
+      .map((c) => ({ c, convr: c.clicks ? (c.results / c.clicks) * 100 : 0 }))
+      .filter((x) => x.convr < totaal.conversieratio * 0.6)
+      .sort((a, b) => b.c.clicks - a.c.clicks)[0];
+    if (kandidaat) {
+      const c = kandidaat.c;
+      inzichten.push({
+        _gewicht: 48,
+        categorie: 'aandachtspunt',
+        betrouwbaarheid: betrouwbaarheidVanVolume(c.results),
+        titel: `${c.name}: veel klikken, weinig resultaat`,
+        samenvatting: `Bovengemiddelde CTR (${fmt.procent(c.ctr)}), maar de conversie per klik (${fmt.procent(kandidaat.convr)}) blijft ver achter bij het gemiddelde (${fmt.procent(totaal.conversieratio)}).`,
+        bewijs: [
+          { label: c.name, waarde: `${fmt.getal(c.clicks)} klikken · ${fmt.getal(c.results)} ${meervoud}` },
+          { label: 'Conversie per klik', waarde: `${fmt.procent(kandidaat.convr)} vs ${fmt.procent(totaal.conversieratio)} gemiddeld` },
+        ],
+        actie: 'Controleer de landingspagina en of het zoekwoord/de doelgroep bij de intentie past.',
+      });
+    }
+  }
+
+  /* 7. Piekdag-anomalie: een dag die sterk afwijkt van de mediaan (alleen dagdata). */
+  const reeks = gecombineerdeReeks(platforms);
+  if (reeksIsDagelijks(reeks) && reeks.length >= 7) {
+    const spends = reeks.map((p) => p.spend);
+    const med = mediaan(spends);
+    const mad = mediaan(spends.map((v) => Math.abs(v - med))) || 1;
+    const piek = reeks.map((p) => ({ p, z: Math.abs(p.spend - med) / mad })).sort((a, b) => b.z - a.z)[0];
+    if (piek && piek.z >= 3 && med > 0) {
+      const pct = ((piek.p.spend - med) / med) * 100;
+      inzichten.push({
+        _gewicht: 42,
+        categorie: piek.p.spend > med ? 'aandachtspunt' : 'ontwikkeling',
+        betrouwbaarheid: 'redelijk',
+        titel: `Uitschieter in de uitgaven op ${toonKorteDatum(piek.p.date)}`,
+        samenvatting: `De uitgaven waren die dag ${piek.p.spend > med ? 'veel hoger' : 'veel lager'} dan gebruikelijk (${pct >= 0 ? '+' : ''}${pct.toFixed(0)}% t.o.v. de mediaan per dag).`,
+        bewijs: [
+          { label: toonKorteDatum(piek.p.date), waarde: fmt.euro(piek.p.spend) },
+          { label: 'Mediaan per dag', waarde: fmt.euro(med) },
+        ],
+        actie: 'Controleer of hier een campagnewijziging, budgetpiek of trackingfout achter zit.',
+      });
+    }
+  }
+
+  /* 8. Apparaat-efficiëntie: goedkoopste vs duurste apparaat (waar kosten bekend zijn). */
+  const devices = (adSegmenten(dashboard, platforms).devices ?? []).filter((d) => d.spend != null && d.results > 0 && d.costPerResult != null);
+  if (devices.length >= 2) {
+    const g = [...devices].sort((a, b) => a.costPerResult - b.costPerResult);
+    const beste = g[0];
+    const duurste = g[g.length - 1];
+    if (duurste.costPerResult > beste.costPerResult * 1.4) {
+      inzichten.push({
+        _gewicht: 38,
+        categorie: 'kans',
+        betrouwbaarheid: betrouwbaarheidVanVolume(beste.results),
+        titel: `${beste.name} is het efficiëntste apparaat`,
+        samenvatting: `Een ${enkel} kost op ${beste.name.toLowerCase()} ${fmt.euro2(beste.costPerResult)}, tegen ${fmt.euro2(duurste.costPerResult)} op ${duurste.name.toLowerCase()}.`,
+        bewijs: [
+          { label: beste.name, waarde: `${fmt.euro2(beste.costPerResult)} per ${enkel}` },
+          { label: duurste.name, waarde: `${fmt.euro2(duurste.costPerResult)} per ${enkel}` },
+        ],
+        actie: 'Overweeg biedingen of budget te verschuiven richting het efficiëntste apparaat.',
+      });
+    }
+  }
+
+  /* 9. Zoekwoord-/placement-uitschieter: opvallend dure regel vs de mediaan. */
+  const breakdownRijen = [
+    ...(platforms.google?.breakdowns?.keywords ?? []).map((k) => ({ ...k, soort: 'zoekwoord' })),
+    ...(platforms.meta?.breakdowns?.placements ?? []).map((k) => ({ ...k, soort: 'plaatsing' })),
+  ].filter((k) => k.results > 0 && k.costPerResult != null && (k.spend ?? 0) >= 50);
+  if (breakdownRijen.length >= 3) {
+    const medCpr = mediaan(breakdownRijen.map((k) => k.costPerResult));
+    const duurste = [...breakdownRijen].sort((a, b) => b.costPerResult - a.costPerResult)[0];
+    if (medCpr && duurste.costPerResult > medCpr * 1.8) {
+      inzichten.push({
+        _gewicht: 36,
+        categorie: 'aandachtspunt',
+        betrouwbaarheid: 'beperkt',
+        titel: `Dure ${duurste.soort}: ${duurste.name}`,
+        samenvatting: `${duurste.name} kost ${fmt.euro2(duurste.costPerResult)} per ${enkel}, ruim boven de mediaan (${fmt.euro2(medCpr)}).`,
+        bewijs: [
+          { label: duurste.name, waarde: `${fmt.euro(duurste.spend)} · ${fmt.getal(duurste.results)} ${meervoud} · ${fmt.euro2(duurste.costPerResult)}/${enkel}` },
+          { label: 'Mediaan', waarde: fmt.euro2(medCpr) },
+        ],
+        actie: `Overweeg deze ${duurste.soort} te pauzeren of het bod te verlagen.`,
       });
     }
   }

@@ -15,7 +15,7 @@
 
 import { fmt, esc, tabel, figure, getalKolom, badge } from './components.js';
 import { renderInzichten } from './insight-cards.js';
-import { combineerTotalen, alleCampagnes, adDeltas, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks } from '../data/ads-data.js';
+import { combineerTotalen, alleCampagnes, adDeltas, adTotalenVorige, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks } from '../data/ads-data.js';
 import { bouwAdInzichten, budgetTempo } from '../data/simpel-insights.js';
 import { lineChart, barChart, donutChart, funnelChart } from '../charts.js';
 import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, toonKorteDatum } from '../filters/period.js';
@@ -27,7 +27,7 @@ const VERGELIJK_KORT = {
   previous_year: 'dezelfde periode vorig jaar',
   none: 'geen vergelijking',
 };
-import { kpiDelta, metricSwitcher, chips, interactieveTabel } from './simpel-widgets.js';
+import { kpiDelta, deltaPill, metricSwitcher, chips, interactieveTabel } from './simpel-widgets.js';
 
 /* De datapagina's in de sidebar. */
 const SIMPEL_NAV = [
@@ -118,11 +118,25 @@ function renderSimpelTopbar({ dashboard, klanten, filters, magWisselen }) {
         </label>
       </div>
     </div>
+    <div class="simpel-topbar-acties">
+      <button type="button" class="btn klein" data-simpel-export-pagina>Exporteer</button>
+      <button type="button" class="btn klein" data-simpel-print>Print</button>
+    </div>
   </header>`;
 }
 
 function renderSimpelLaden() {
-  return `<div class="simpel-laden" aria-live="polite"><p class="muted">Cijfers laden…</p></div>`;
+  const kaart = `<div class="skel-kaart">
+    <span class="skel skel-label"></span>
+    <span class="skel skel-waarde"></span>
+    <span class="skel skel-pill"></span>
+    <span class="skel skel-spark"></span>
+  </div>`;
+  return `<div class="simpel-laden-skel" aria-live="polite" aria-busy="true">
+    <span class="visueel-verborgen">Cijfers laden…</span>
+    <div class="kpi-row simpel-kpi" aria-hidden="true">${kaart.repeat(5)}</div>
+    <div class="skel skel-blok" aria-hidden="true"></div>
+  </div>`;
 }
 
 /* ---------------------------------------------------------------
@@ -322,29 +336,71 @@ function trendMetrieken(platforms) {
   return opties;
 }
 
-function trendMetriekTabel(platforms, metricKey) {
+/** True wanneer een vergelijking actief is (werkt met ruwe én genormaliseerde vorm). */
+function vergelijkingActief(vergelijking) {
+  return vergelijking?.actief ?? (vergelijking?.mode ? vergelijking.mode !== 'none' : false);
+}
+
+/**
+ * De 'vorige periode'-referentiereeks voor één platform en één metriek: de
+ * huidige dagvorm van dat platform, geschaald zodat het totaal gelijk is aan de
+ * vorige-periode-waarde van dat platform. De dagreeks van de vorige periode wordt
+ * niet opgeslagen; dit is dezelfde afleiding als de rest van het dashboard.
+ */
+function platformOverlay(dashboard, blok, metricKey) {
+  if (!dashboard || !blok?.aanwezig || !blok.totals) return null;
+  const vorige = adTotalenVorige(dashboard, blok.totals);
+  const nu = blok.totals[metricKey];
+  const toen = vorige[metricKey];
+  if (nu == null || toen == null || nu === 0) return null;
+  const ratio = toen / nu;
+  return metriekReeks(blok.series ?? [], metricKey).map((v) => (v == null ? null : v * ratio));
+}
+
+/** De aanwezige platforms in vaste volgorde, met hun kleurindex. */
+function trendPlatforms(platforms) {
+  return [['meta', 'Meta Ads'], ['google', 'Google Ads']]
+    .map(([k, label], i) => ({ key: k, label, blok: platforms[k], kleurIndex: i }))
+    .filter((x) => x.blok?.aanwezig);
+}
+
+function trendMetriekTabel(platforms, metricKey, { dashboard = null, vergelijking = null } = {}) {
   const m = TREND_META[metricKey] ?? TREND_META.spend;
   const basis = reeksAs(platforms.meta, platforms.google);
-  const kolommen = ['Datum'];
-  if (platforms.meta?.aanwezig) kolommen.push(getalKolom('Meta'));
-  if (platforms.google?.aanwezig) kolommen.push(getalKolom('Google'));
+  const kols = trendPlatforms(platforms);
+  const toonVorige = vergelijkingActief(vergelijking);
+  const overlays = toonVorige ? kols.map((k) => platformOverlay(dashboard, k.blok, metricKey)) : [];
+
+  const kolommen = ['Datum', ...kols.map((k) => getalKolom(k.label.replace(' Ads', '')))];
+  if (toonVorige) kols.forEach((k) => kolommen.push(getalKolom(`${k.label.replace(' Ads', '')} vorige`)));
+
   const rijen = basis.map((p, i) => {
     const rij = [esc(toonKorteDatum(p.date))];
-    if (platforms.meta?.aanwezig) rij.push(m.opmaak(m.getVal(platforms.meta.series[i] ?? {})));
-    if (platforms.google?.aanwezig) rij.push(m.opmaak(m.getVal(platforms.google.series[i] ?? {})));
+    kols.forEach((k) => rij.push(m.opmaak(m.getVal(k.blok.series[i] ?? {}))));
+    if (toonVorige) overlays.forEach((ov) => rij.push(ov && ov[i] != null ? m.opmaak(ov[i]) : '—'));
     return rij;
   });
   return tabel(kolommen, rijen);
 }
 
+/** De metriek uit de URL-query (`metric=`), als die geldig en beschikbaar is. */
+function urlMetriek(opties) {
+  try {
+    const q = window.location.hash.split('?')[1];
+    const m = q ? new URLSearchParams(q).get('metric') : null;
+    return (m && opties.some((o) => o.key === m)) ? m : null;
+  } catch { return null; }
+}
+
 /** Trendkaart met een segmented control om de metriek te wisselen. */
-function trendMetriekFiguur(grafiekId, platforms, { titel = 'Ontwikkeling per dag', subtitel = 'Kies een metriek om de grafiek te wisselen.' } = {}) {
+function trendMetriekFiguur(grafiekId, platforms, { titel = 'Ontwikkeling per dag', subtitel = 'Kies een metriek om de grafiek te wisselen.', dashboard = null, vergelijking = null } = {}) {
   const opties = trendMetrieken(platforms);
-  const actief = opties[0]?.key ?? 'spend';
+  const actief = urlMetriek(opties) ?? opties[0]?.key ?? 'spend';
   const bron = TREND_META[actief]?.bron ?? 'Advertentiekanalen';
+  const subtekst = vergelijkingActief(vergelijking) ? `${subtitel} De stippellijn is dezelfde periode ervoor.` : subtitel;
   return `<div class="trend-blok">
     ${metricSwitcher(grafiekId, opties, actief)}
-    ${figure(grafiekId, titel, subtitel, trendMetriekTabel(platforms, actief), bron, 280)}
+    ${figure(grafiekId, titel, subtekst, trendMetriekTabel(platforms, actief, { dashboard, vergelijking }), bron, 280)}
   </div>`;
 }
 
@@ -358,13 +414,15 @@ function renderOverzichtView(dashboard, platforms, vergelijking) {
 
   return `
     ${simpelKop('Meta & Google Ads', dashboard, platforms, { vergelijking })}
+    <h2 class="visueel-verborgen">Kerncijfers</h2>
     ${kpiBandDelta(dashboard, totaal, dagreeks, vergelijking)}
+    <h2 class="visueel-verborgen">Verdeling en ontwikkeling</h2>
     <div class="dash-rij">
       <div class="dash-col" style="--span:5">
         ${figure('simpel-donut-split', 'Verdeling uitgaven', 'Aandeel van Meta en Google in het budget.', platformSplitTabel(platforms, rlabel), 'Meta Marketing API en Google Ads API', 240)}
       </div>
       <div class="dash-col" style="--span:7">
-        ${trendMetriekFiguur('simpel-trend-overzicht', platforms, { titel: 'Ontwikkeling per dag', subtitel: 'Meta en Google per dag — wissel de metriek.' })}
+        ${trendMetriekFiguur('simpel-trend-overzicht', platforms, { titel: 'Ontwikkeling per dag', subtitel: 'Meta en Google per dag — wissel de metriek.', dashboard, vergelijking })}
       </div>
     </div>
     ${budgetTempoKaart(dashboard, platforms)}
@@ -408,8 +466,10 @@ function renderPlatformView(dashboard, blok, platforms, vergelijking) {
 
   return `
     ${simpelKop(blok.label, dashboard, platforms, { vergelijking })}
+    <h2 class="visueel-verborgen">Kerncijfers</h2>
     ${kpiBandDelta(dashboard, blok.totals, blok.series ?? [], vergelijking)}
-    ${trendMetriekFiguur('simpel-trend-platform', enkelPlatform, { titel: 'Ontwikkeling per dag', subtitel: `${blok.label} per dag — wissel de metriek.` })}
+    <h2 class="visueel-verborgen">Ontwikkeling per dag</h2>
+    ${trendMetriekFiguur('simpel-trend-platform', enkelPlatform, { titel: 'Ontwikkeling per dag', subtitel: `${blok.label} per dag — wissel de metriek.`, dashboard, vergelijking })}
     <section class="card">
       <h2>Campagnes</h2>
       ${interTabel('campagnes', blok.campaigns ?? [], {})}
@@ -538,6 +598,7 @@ function renderSegmentenView(dashboard, platforms, vergelijking) {
 
   return `
     ${simpelKop('Segmenten', dashboard, platforms, { vergelijking })}
+    <h2 class="visueel-verborgen">Segmentanalyse</h2>
     ${apparaat}
     ${seg.regios.length ? `<div class="dash-rij"><div class="dash-col" style="--span:6">${regio}</div><div class="dash-col" style="--span:6">${weekdag}</div></div>` : weekdag}
     ${leeg}
@@ -559,7 +620,8 @@ function renderTrendsView(dashboard, platforms, vergelijking) {
 
   return `
     ${simpelKop('Trends', dashboard, platforms, { vergelijking })}
-    ${trendMetriekFiguur('simpel-trend-trends', platforms, { titel: 'Ontwikkeling per dag', subtitel: 'Meta en Google per dag — wissel de metriek.' })}
+    <h2 class="visueel-verborgen">Ontwikkeling per dag</h2>
+    ${trendMetriekFiguur('simpel-trend-trends', platforms, { titel: 'Ontwikkeling per dag', subtitel: 'Meta en Google per dag — wissel de metriek.', dashboard, vergelijking })}
     <section class="card">
       <h2>Uitgaven per dag — gestapeld</h2>
       <p class="muted">Meta en Google gestapeld, zodat het totale dagbudget zichtbaar is.</p>
@@ -606,8 +668,8 @@ function vergelijkingTabel(dashboard, adTotalen, vergelijking = null) {
     const nu = ad[r.key];
     const d = deltas[r.key];
     const toen = d?.vorig;
-    const verschil = d && d.procent != null && (d.status === 'gestegen' || d.status === 'gedaald')
-      ? `<span class="trend-${esc(d.richting)}">${esc(d.tekst)}</span>`
+    const verschil = d && (d.status === 'gestegen' || d.status === 'gedaald' || d.status === 'gelijk')
+      ? deltaPill(d)
       : '—';
     return [esc(r.label), nu == null ? '—' : r.fmt(nu), toen == null ? '—' : r.fmt(toen), verschil];
   });
@@ -679,18 +741,19 @@ function actieveMetriek(grafiekId) {
   return TREND_META[waarde] ? waarde : 'spend';
 }
 
-export function drawSimpelCharts({ dashboard, platforms, view = 'simpel-overzicht' }) {
+export function drawSimpelCharts({ dashboard, platforms, view = 'simpel-overzicht', vergelijking = null }) {
   if (!platforms) return;
   const meta = platforms.meta;
   const google = platforms.google;
+  const trendOpts = { dashboard, vergelijking };
 
   if (view === 'simpel-overzicht') {
-    tekenTrendMetriek('simpel-trend-overzicht', platforms, actieveMetriek('simpel-trend-overzicht'));
+    tekenTrendMetriek('simpel-trend-overzicht', platforms, actieveMetriek('simpel-trend-overzicht'), trendOpts);
     tekenSplitDonut('simpel-donut-split', meta, google);
   } else if (view === 'simpel-google' || view === 'simpel-meta') {
     const blok = view === 'simpel-google' ? google : meta;
     if (blok?.aanwezig) {
-      tekenTrendMetriek('simpel-trend-platform', { [blok.platform]: blok }, actieveMetriek('simpel-trend-platform'));
+      tekenTrendMetriek('simpel-trend-platform', { [blok.platform]: blok }, actieveMetriek('simpel-trend-platform'), trendOpts);
       const placements = blok.breakdowns?.placements ?? [];
       if (placements.length) tekenVerdeelDonut('simpel-donut-placements', placements);
     }
@@ -735,13 +798,13 @@ export function drawSimpelCharts({ dashboard, platforms, view = 'simpel-overzich
       });
     }
   } else if (view === 'simpel-trends') {
-    tekenTrendMetriek('simpel-trend-trends', platforms, actieveMetriek('simpel-trend-trends'));
+    tekenTrendMetriek('simpel-trend-trends', platforms, actieveMetriek('simpel-trend-trends'), trendOpts);
     tekenStackedSpend('simpel-stacked-spend', meta, google);
   }
 }
 
 /** Herteken de trendgrafiek voor een gekozen metriek (metric-switcher). */
-export function zetTrendMetriek(platforms, grafiekId, metricKey) {
+export function zetTrendMetriek(platforms, grafiekId, metricKey, { dashboard = null, vergelijking = null } = {}) {
   const key = TREND_META[metricKey] ? metricKey : 'spend';
   document.querySelectorAll(`[data-simpel-metric^="${grafiekId}:"]`).forEach((b) => {
     const actief = b.dataset.simpelMetric === `${grafiekId}:${key}`;
@@ -751,19 +814,25 @@ export function zetTrendMetriek(platforms, grafiekId, metricKey) {
   const canvas = document.getElementById(grafiekId);
   const fig = canvas?.closest('.chart-figure');
   const tabelHouder = fig?.querySelector('.chart-table .table-scroll');
-  if (tabelHouder) tabelHouder.innerHTML = trendMetriekTabel(platforms, key);
+  if (tabelHouder) tabelHouder.innerHTML = trendMetriekTabel(platforms, key, { dashboard, vergelijking });
   const bron = fig?.querySelector('.chart-source');
   if (bron) bron.textContent = `Bron: ${TREND_META[key]?.bron ?? 'Advertentiekanalen'}`;
-  tekenTrendMetriek(grafiekId, platforms, key);
+  tekenTrendMetriek(grafiekId, platforms, key, { dashboard, vergelijking });
 }
 
-function tekenTrendMetriek(canvasId, platforms, metricKey) {
+function tekenTrendMetriek(canvasId, platforms, metricKey, { dashboard = null, vergelijking = null } = {}) {
   const m = TREND_META[metricKey] ?? TREND_META.spend;
   const basis = reeksAs(platforms.meta, platforms.google);
   if (!basis.length) return;
-  const series = [];
-  if (platforms.meta?.aanwezig) series.push({ label: 'Meta Ads', data: platforms.meta.series.map(m.getVal) });
-  if (platforms.google?.aanwezig) series.push({ label: 'Google Ads', data: platforms.google.series.map(m.getVal) });
+  const kols = trendPlatforms(platforms);
+  const series = kols.map((k) => ({ label: k.label, data: k.blok.series.map(m.getVal), kleurIndex: k.kleurIndex }));
+  // Per platform een gestippelde 'vorige periode'-lijn in dezelfde kleur.
+  if (vergelijkingActief(vergelijking)) {
+    kols.forEach((k) => {
+      const ov = platformOverlay(dashboard, k.blok, metricKey);
+      if (ov) series.push({ label: `${k.label.replace(' Ads', '')} · vorige`, data: ov, kleurIndex: k.kleurIndex, dash: [5, 4], dun: true });
+    });
+  }
   lineChart(canvasId, { labels: basis.map((p) => toonKorteDatum(p.date)), series, valueFormatter: m.opmaak });
 }
 

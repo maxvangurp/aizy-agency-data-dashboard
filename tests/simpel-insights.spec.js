@@ -164,4 +164,51 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('#simpel-bar-weekdag')).toHaveCount(0);
     await expect(page.locator('#simpel-donut-devices')).toBeVisible();
   });
+
+  test('de trend toont vorige-periode-kolommen die verdwijnen bij geen vergelijking', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    const kolommen = () => page.evaluate(() => {
+      const fig = document.getElementById('simpel-trend-overzicht')?.closest('.chart-figure');
+      return fig ? [...fig.querySelectorAll('.chart-table thead th')].map((t) => t.textContent.trim()) : [];
+    });
+    // Standaard vergelijking = vorige periode → vorige-kolommen aanwezig.
+    expect((await kolommen()).some((c) => /vorige/i.test(c))).toBe(true);
+    await page.selectOption('#filterVergelijking', 'none');
+    await page.waitForTimeout(600);
+    expect((await kolommen()).some((c) => /vorige/i.test(c))).toBe(false);
+  });
+
+  test('de vergelijkingstabel op Trends toont delta-pills', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await naar(page, 'Trends');
+    expect(await page.locator('#simpelInhoud .kpi-delta-pill').count()).toBeGreaterThanOrEqual(3);
+  });
+
+  test('er zijn meerdere auto-inzichten (primair + aanvullend)', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    expect(await page.locator('.inzicht-kaart').count()).toBeGreaterThanOrEqual(2);
+    await expect(page.locator('.inzicht-aanvullend')).toBeVisible();
+  });
+
+  test('print- en exportknop; export downloadt een CSV van de pagina', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await expect(page.locator('[data-simpel-print]')).toBeVisible();
+    await naar(page, 'Google Ads');
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.click('[data-simpel-export-pagina]'),
+    ]);
+    expect(dl.suggestedFilename()).toMatch(/\.csv$/);
+  });
+
+  test('de gekozen trend-metriek overleeft een herlaadactie via de URL', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await page.click('[data-simpel-metric="simpel-trend-overzicht:clicks"]');
+    await page.waitForTimeout(300);
+    expect(page.url()).toContain('metric=clicks');
+    await page.reload();
+    await page.waitForTimeout(900);
+    await expect(page.locator('.metric-switch-knop.actief[data-simpel-metric^="simpel-trend-overzicht:"]'))
+      .toHaveAttribute('data-simpel-metric', 'simpel-trend-overzicht:clicks');
+  });
 });

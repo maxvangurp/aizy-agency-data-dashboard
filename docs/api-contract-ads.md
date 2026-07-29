@@ -94,6 +94,12 @@ De afgeleide metrieken in `totals` (`cpm`, `conversieratio`, `roas`, `frequentie
 worden client-side berekend uit de basiswaarden; alleen `revenue` (Meta
 `action_values`/Google `conversions_value`) en `reach` komen rechtstreeks uit de API.
 
+De **"vorige periode"-lijn** in de trendgrafiek is een *afgeleide* referentie: de
+huidige dagvorm van het platform, geschaald zodat het totaal gelijk is aan de
+vorige-periode-waarde. De dagreeks van de vorige periode wordt niet opgeslagen;
+bij een live koppeling kan die desgewenst uit een extra insights-call over het
+vergelijkingsvenster komen (`since/until` van de vergelijkingsperiode).
+
 ## Mapping vanuit de echte API's
 
 ### Meta Marketing API → `/api/meta/insights`

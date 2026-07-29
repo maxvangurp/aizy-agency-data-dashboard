@@ -67,7 +67,7 @@ import {
   renderGeenToegang, renderNietGevonden,
 } from './views/auth-screens.js';
 import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg, zetTrendMetriek } from './views/simpel-dashboard.js';
-import { naarCsv, downloadCsv } from './ui/csv.js';
+import { naarCsv, csvVanRijen, downloadCsv } from './ui/csv.js';
 import { haalAdsPlatforms } from './data/ads-data.js';
 import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
@@ -557,7 +557,7 @@ function renderSimpelPagina({ user, ctx, route }) {
       if (!houder) return;
       simpelState = { dashboard, platforms, view, vergelijking };
       houder.innerHTML = renderSimpelInhoud({ dashboard, platforms, view, vergelijking });
-      drawSimpelCharts({ dashboard, platforms, view });
+      drawSimpelCharts({ dashboard, platforms, view, vergelijking });
     })
     .catch(() => { /* Bij een fetch-fout blijft de laadstaat staan. */ });
 }
@@ -634,6 +634,30 @@ function exporteerIaTabel(id, csvNaam) {
     .filter((r) => !r.hidden)
     .map((r) => [...r.cells].map((td) => td.dataset.v ?? td.textContent.trim()));
   downloadCsv(csvNaam || id, naarCsv(kolommen, rijen));
+}
+
+/** Exporteert alle tabellen van de actieve simpele pagina als één CSV. */
+function exporteerPagina() {
+  const houder = document.getElementById('simpelInhoud');
+  if (!houder) return;
+  const rijen = [];
+  const label = (t, idx) =>
+    t.closest('.chart-figure')?.querySelector('figcaption h3')?.textContent?.trim()
+    || t.closest('section')?.querySelector('h2, h3')?.textContent?.trim()
+    || `Tabel ${idx + 1}`;
+  houder.querySelectorAll('table').forEach((t, idx) => {
+    if (rijen.length) rijen.push(['']);
+    rijen.push([`# ${label(t, idx)}`]);
+    const kop = [...(t.tHead?.rows[0]?.cells ?? [])].map((c) => c.textContent.trim());
+    if (kop.length) rijen.push(kop);
+    for (const r of t.tBodies[0]?.rows ?? []) {
+      if (r.hidden) continue;
+      rijen.push([...r.cells].map((c) => c.dataset.v ?? c.textContent.trim()));
+    }
+  });
+  if (!rijen.length) { toast('Geen tabellen om te exporteren op deze pagina.'); return; }
+  const titel = document.querySelector('#simpelInhoud h1')?.textContent?.trim() || 'pagina';
+  downloadCsv(`aizy-${titel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, csvVanRijen(rijen));
 }
 
 /** Past een platform-chip toe op de campagnetabel (Alle / Meta / Google). */
@@ -1840,12 +1864,21 @@ async function onClick(e) {
     const scope = simpelState.view === 'simpel-google' ? { google: simpelState.platforms.google, demodata: simpelState.platforms.demodata }
       : simpelState.view === 'simpel-meta' ? { meta: simpelState.platforms.meta, demodata: simpelState.platforms.demodata }
       : simpelState.platforms;
-    zetTrendMetriek(scope, grafiekId, metricKey);
+    zetTrendMetriek(scope, grafiekId, metricKey, { dashboard: simpelState.dashboard, vergelijking: simpelState.vergelijking });
+    // Bewaar de gekozen metriek in de URL (deelbaar), zonder een herrender.
+    try {
+      const [pad, q = ''] = window.location.hash.split('?');
+      const params = new URLSearchParams(q);
+      params.set('metric', metricKey);
+      window.history.replaceState(null, '', `${pad}?${params.toString()}`);
+    } catch { /* URL niet bij te werken — niet kritiek */ }
     return;
   }
   if (el.dataset.iaSort) { sorteerIaTabel(el); return; }
   if (el.dataset.iaExport) { exporteerIaTabel(el.dataset.iaExport, el.dataset.csvNaam); return; }
   if (el.dataset.simpelFilter) { pasChipFilterToe(el); return; }
+  if (el.dataset.simpelPrint !== undefined) { window.print(); return; }
+  if (el.dataset.simpelExportPagina !== undefined) { exporteerPagina(); return; }
 
   /* --- Rapportage-builder --- */
   // Een verse "Nieuwe rapportage" begint schoon; de navigatie loopt gewoon door.

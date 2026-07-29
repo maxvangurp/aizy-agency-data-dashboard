@@ -3808,3 +3808,56 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 .ia-leeg { margin: var(--space-2) 0 0; }
 
 .segment-inzicht { margin: var(--space-2) 0 0; }
+
+/* Topbar-acties (Exporteer / Print) */
+.simpel-topbar-acties { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+
+/* Delta-pill in een tabel (Verschil-kolom) rechts uitlijnen. */
+.uitlijn-rechts .kpi-delta-pill { margin-top: 0; }
+
+/* ---------- Simpel dashboard: print ---------- */
+@media print {
+  .simpel-sidebar, .simpel-topbar { display: none !important; }
+  .simpel-app { display: block !important; min-height: 0 !important; background: #fff !important; }
+  .simpel-main { overflow: visible !important; }
+  .simpel-root { gap: 16px !important; }
+  /* Leesbare kleuren forceren, ook wanneer dark mode actief is (canvas-charts
+     houden hun eigen kleuren). */
+  .simpel-app, .simpel-app :where(h1, h2, h3, p, span, td, th, a, strong, dt, dd) { color: #160d27 !important; }
+  .simpel-app .card { background: #fff !important; box-shadow: none !important; border-color: #dfe3f0 !important; }
+  .simpel-app .kpi-primair { background: #f3eefc !important; }
+  .simpel-app .kpi-delta-pill.trend-positief { color: #1f7a00 !important; background: #e7f3e0 !important; }
+  .simpel-app .kpi-delta-pill.trend-negatief { color: #a30000 !important; background: #f7e3e3 !important; }
+  .simpel-app .metric-switch, .simpel-app .ia-toolbar, .simpel-app .chip-rij { display: none !important; }
+  .simpel-app .card, .simpel-app figure.chart-figure, .simpel-app section { break-inside: avoid; }
+}
+
+/* ---------- Simpel dashboard: skeletons, sticky koppen, reduced-motion ---------- */
+.simpel-laden-skel { display: flex; flex-direction: column; gap: var(--section-gap); }
+.skel { position: relative; overflow: hidden; background: var(--surface-sunken); border-radius: var(--radius-sm); }
+.skel::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: skel-shimmer 1.3s infinite;
+}
+@keyframes skel-shimmer { 100% { transform: translateX(100%); } }
+.skel-kaart {
+  display: flex; flex-direction: column; gap: 8px; min-height: 160px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--card-padding); box-shadow: var(--shadow);
+}
+.skel-label { height: 12px; width: 45%; }
+.skel-waarde { height: 26px; width: 70%; }
+.skel-pill { height: 18px; width: 64px; border-radius: 999px; }
+.skel-spark { height: 24px; width: 100%; margin-top: auto; }
+.skel-blok { height: 300px; }
+
+/* Sticky tabelkoppen op desktop (de topbar is dan sticky, ~72px hoog). */
+@media (min-width: 769px) {
+  .simpel-root .table-scroll thead th,
+  .simpel-root .ia-table thead th { position: sticky; top: 72px; z-index: 1; background: var(--surface); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simpel-app *, .simpel-app *::before, .simpel-app *::after { transition: none !important; animation: none !important; }
+}

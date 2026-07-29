@@ -180,20 +180,27 @@ export function lineChart(canvasId, { labels, series, valueFormatter }) {
     type: 'line',
     data: {
       labels,
-      datasets: series.map((s, i) => ({
-        label: s.label,
-        data: s.data,
-        borderColor: p.series[i],
-        backgroundColor: p.series[i],
-        borderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        pointBackgroundColor: p.series[i],
-        pointBorderColor: p.surface,
-        pointBorderWidth: 2,
-        tension: 0.3,
-        fill: false,
-      })),
+      // Een reeks kan optioneel `dash` (gestippeld), `dun` (dunnere lijn zonder
+      // punten) en `kleurMuted` (grijs) meegeven — voor bijv. een referentielijn
+      // van de vorige periode. Standaardwaarden houden bestaand gedrag gelijk.
+      datasets: series.map((s, i) => {
+        const kleur = s.kleurMuted ? p.inkMuted : (s.kleur ?? p.series[s.kleurIndex ?? i]);
+        return {
+          label: s.label,
+          data: s.data,
+          borderColor: kleur,
+          backgroundColor: kleur,
+          borderWidth: s.dun ? 1.5 : 2,
+          borderDash: s.dash ?? [],
+          pointRadius: s.dun ? 0 : 4,
+          pointHoverRadius: s.dun ? 0 : 6,
+          pointBackgroundColor: kleur,
+          pointBorderColor: p.surface,
+          pointBorderWidth: 2,
+          tension: 0.3,
+          fill: false,
+        };
+      }),
     },
     options: baseOptions(p, { valueFormatter }),
   });
