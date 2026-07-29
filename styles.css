@@ -3852,12 +3852,6 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 .skel-spark { height: 24px; width: 100%; margin-top: auto; }
 .skel-blok { height: 300px; }
 
-/* Sticky tabelkoppen op desktop (de topbar is dan sticky, ~72px hoog). */
-@media (min-width: 769px) {
-  .simpel-root .table-scroll thead th,
-  .simpel-root .ia-table thead th { position: sticky; top: 72px; z-index: 1; background: var(--surface); }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .simpel-app *, .simpel-app *::before, .simpel-app *::after { transition: none !important; animation: none !important; }
 }
