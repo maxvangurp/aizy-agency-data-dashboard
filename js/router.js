@@ -40,6 +40,7 @@ export const ROUTES = [
   { pad: '/pulse/meta-ads', naam: 'simpel-meta', simpel: true, titel: 'Meta Ads' },
   { pad: '/pulse/campagnes', naam: 'simpel-campagnes', simpel: true, titel: 'Campagnes' },
   { pad: '/pulse/conversies', naam: 'simpel-conversies', simpel: true, titel: 'Conversies' },
+  { pad: '/pulse/segmenten', naam: 'simpel-segmenten', simpel: true, titel: 'Segmenten' },
   { pad: '/pulse/trends', naam: 'simpel-trends', simpel: true, titel: 'Trends' },
   { pad: '/forgot-password', naam: 'forgot-password', publiek: true, titel: 'Wachtwoord vergeten' },
   { pad: '/accept-invite', naam: 'accept-invite', publiek: true, titel: 'Uitnodiging accepteren' },

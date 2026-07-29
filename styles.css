@@ -3712,3 +3712,61 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
      klant/periode schuift gewoon mee zodat beide niet op top:0 botsen. */
   .simpel-topbar { position: static; }
 }
+
+/* ---------- Simpel dashboard: rijke widgets ---------- */
+
+/* Sparkline onder een KPI */
+.kpi-spark { margin-top: 8px; height: 26px; color: var(--accent); }
+.kpi-spark.trend-positief { color: var(--positief); }
+.kpi-spark.trend-negatief { color: var(--negatief); }
+.kpi-spark.trend-neutraal { color: var(--ink-muted); }
+.sparkline { display: block; width: 100%; height: 26px; }
+
+/* Segmented control: metric-switcher */
+.trend-blok { display: flex; flex-direction: column; }
+.metric-switch {
+  display: inline-flex; flex-wrap: wrap; gap: 2px; align-self: flex-start;
+  padding: 3px; margin-bottom: var(--space-2);
+  background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.metric-switch-knop {
+  border: 0; background: transparent; color: var(--ink-muted); cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 7px;
+}
+.metric-switch-knop:hover { color: var(--ink); }
+.metric-switch-knop.actief { background: var(--surface); color: var(--accent); box-shadow: 0 1px 2px rgba(22, 13, 39, 0.12); }
+
+/* Filter-chips (Alle / Meta / Google) */
+.card-kop-rij { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-2); }
+.card-kop-rij .muted { margin: 0; }
+.chip-rij { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink-muted); cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; padding: 5px 13px; border-radius: 999px;
+}
+.chip:hover { border-color: var(--accent); color: var(--ink); }
+.chip.actief { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+
+/* Interactieve tabel: toolbar, zoeken, export, sorteerbare koppen */
+.ia-toolbar { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; flex-wrap: wrap; margin-bottom: var(--space-2); }
+.ia-zoek-veld { flex: 1; min-width: 180px; }
+.ia-zoek {
+  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 12px; background: var(--surface-sunken); color: var(--ink); font: inherit;
+}
+.ia-zoek:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ia-table th { padding: 0; }
+.ia-sort {
+  display: inline-flex; align-items: center; gap: 5px; width: 100%;
+  border: 0; background: transparent; color: var(--ink-muted); cursor: pointer;
+  font: inherit; font-weight: 700; font-size: 12px; letter-spacing: 0.02em; text-transform: uppercase;
+  padding: 11px 14px;
+}
+.ia-table th.uitlijn-rechts .ia-sort { justify-content: flex-end; }
+.ia-sort:hover { color: var(--ink); }
+.ia-sort-pijl::after { content: '↕'; opacity: 0.35; font-size: 11px; }
+.ia-sort.sort-asc .ia-sort-pijl::after { content: '↑'; opacity: 1; color: var(--accent); }
+.ia-sort.sort-desc .ia-sort-pijl::after { content: '↓'; opacity: 1; color: var(--accent); }
+.ia-leeg { margin: var(--space-2) 0 0; }
+
+.segment-inzicht { margin: var(--space-2) 0 0; }

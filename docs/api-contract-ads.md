@@ -31,11 +31,17 @@ de calls hieronder naar de externe API's en levert exact de contractvorm terug.
     "clicks": 2556,
     "ctr": 3.0,                   // percentage (klikken/vertoningen × 100)
     "cpc": 2.17,                  // euro
+    "cpm": 50.99,                 // euro (spend/impressions × 1000)
     "results": 115,               // conversies (zie resultLabel)
-    "costPerResult": 48.13        // euro
+    "costPerResult": 48.13,       // euro
+    "conversieratio": 4.5,        // percentage (results/clicks × 100)
+    "revenue": 43800,             // euro — alleen e-commerce (null bij leadgen/awareness)
+    "roas": 7.92,                 // ratio (revenue/spend) — alleen e-commerce
+    "reach": 486300,              // uniek bereik/dag — alleen awareness
+    "frequentie": 2.64            // ratio (impressions/reach) — alleen awareness
   },
   "series": [                      // per dag binnen de periode
-    { "date": "2026-06-23", "spend": 180, "results": 4 }
+    { "date": "2026-06-23", "spend": 180, "impressions": 3600, "clicks": 84, "results": 4 }
   ],
   "campaigns": [
     {
@@ -72,6 +78,21 @@ Het dashboard combineert de twee blokken (`combineerTotalen`, `alleCampagnes` in
 trendgrafiek en de campagnetabel. De `breakdowns` voeden de per-platform
 deep-dive-pagina's (Google Ads: zoekwoorden + advertentiegroepen; Meta Ads: ad
 sets + placements). Ontbrekende arrays (`[]`) laten de betreffende tabel weg.
+
+### Segmenten (apparaat, regio/land, weekdag)
+
+De **Segmenten**-pagina (`#/pulse/segmenten`) bundelt cross-platform segmenten die
+`js/data/ads-data.js` (`adSegmenten`) samenstelt:
+
+| Segment   | Live-bron |
+|-----------|-----------|
+| Apparaat  | Meta `breakdowns=device_platform`; Google `segments.device`. In de demo: e-commerce uit Google Ads-apparaten (mét kosten), leadgen uit de analytics-apparaatverdeling (mét gebruikers). |
+| Regio/land| Meta `breakdowns=region`/`country`; Google `geographic_view`. In de demo aanwezig bij leadgen (analytics-verdelingen). |
+| Weekdag   | Afgeleid uit `series` (dagreeks gegroepeerd op weekdag) — geen aparte API-call. |
+
+De afgeleide metrieken in `totals` (`cpm`, `conversieratio`, `roas`, `frequentie`)
+worden client-side berekend uit de basiswaarden; alleen `revenue` (Meta
+`action_values`/Google `conversions_value`) en `reach` komen rechtstreeks uit de API.
 
 ## Mapping vanuit de echte API's
 

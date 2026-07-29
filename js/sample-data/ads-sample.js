@@ -59,14 +59,29 @@ function platformBlok(dashboard, platform) {
   const clicks = rij.clicks ?? 0;
   const results = rij[rveld] ?? rij.leads ?? 0;
 
+  // Account-brede totalen om omzet (e-commerce) en bereik (awareness) naar dit
+  // platform te splitsen: omzet naar resultaat-aandeel, bereik naar impressie-aandeel.
+  const acc = dashboard.totalen ?? {};
+  const accResults = acc[rveld] ?? null;
+  const revenue = (dashboard.model === 'ecommerce' && acc.revenue != null && accResults)
+    ? Math.round(acc.revenue * (results / accResults)) : null;
+  const reach = (dashboard.model === 'awareness' && acc.reach != null && acc.impressions)
+    ? Math.round(acc.reach * (impressions / acc.impressions)) : null;
+
   const totals = {
     spend,
     impressions,
     clicks,
-    ctr: ratio(clicks, impressions) != null ? ratio(clicks, impressions) * 100 : null,
-    cpc: ratio(spend, clicks),
     results,
+    ctr: impressions ? (clicks / impressions) * 100 : null,
+    cpc: ratio(spend, clicks),
+    cpm: impressions ? (spend / impressions) * 1000 : null,
     costPerResult: ratio(spend, results),
+    conversieratio: clicks ? (results / clicks) * 100 : null,
+    revenue,
+    roas: (revenue != null && spend) ? revenue / spend : null,
+    reach,
+    frequentie: reach ? impressions / reach : null,
   };
 
   // Tijdreeks. De uitgaven verdelen we naar spend-aandeel (dat reconcilieert met
@@ -91,6 +106,8 @@ function platformBlok(dashboard, platform) {
     return {
       date: p.date,
       spend: p.spend != null ? Math.round(p.spend * aandeel) : null,
+      impressions: p.impressions != null ? Math.round(p.impressions * aandeel) : null,
+      clicks: p.clicks != null ? Math.round(p.clicks * aandeel) : null,
       results: (resultSchaal != null && vorm != null) ? Math.round(vorm * resultSchaal) : null,
     };
   });

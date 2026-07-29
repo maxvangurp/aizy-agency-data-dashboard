@@ -87,7 +87,7 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
     await expect(page.locator('.simpel-sidebar')).toBeVisible();
     await expect(page.locator('.simpel-topbar')).toBeVisible();
     // Zes navigatie-items in de lichte sidebar.
-    await expect(page.locator('.simpel-nav-item')).toHaveCount(6);
+    await expect(page.locator('.simpel-nav-item')).toHaveCount(7);
     // Geen volledige systeem-sidebar in de simpele modus.
     await expect(page.locator('.app-grid .sidebar')).toHaveCount(0);
     // De overzichtspagina toont de gecombineerde KPI-band.
@@ -99,7 +99,7 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
     await expect(page.locator('.simpel-databron')).toContainText('Demodata');
   });
 
-  test('de sidebar navigeert tussen alle zes datapagina\'s zonder fouten', async ({ page }) => {
+  test('de sidebar navigeert tussen alle zeven datapagina\'s zonder fouten', async ({ page }) => {
     const fouten = [];
     page.on('pageerror', (e) => fouten.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error') fouten.push(`console: ${m.text()}`); });
@@ -111,6 +111,7 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
       { label: 'Meta Ads', hash: '/pulse/meta-ads', kop: 'Meta Ads' },
       { label: 'Campagnes', hash: '/pulse/campagnes', kop: 'Campagnes' },
       { label: 'Conversies', hash: '/pulse/conversies', kop: 'Conversies' },
+      { label: 'Segmenten', hash: '/pulse/segmenten', kop: 'Segmenten' },
       { label: 'Trends', hash: '/pulse/trends', kop: 'Trends' },
       { label: 'Totaal overzicht', hash: '/pulse', kop: 'Meta & Google Ads' },
     ];
@@ -162,7 +163,7 @@ test.describe('Twee flows — uitgebreide modus en guard', () => {
 
   test('alle #/pulse/* datapagina\'s blijven bereikbaar in de simpele modus', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.admin);
-    for (const hash of ['#/pulse/google-ads', '#/pulse/meta-ads', '#/pulse/campagnes', '#/pulse/conversies', '#/pulse/trends']) {
+    for (const hash of ['#/pulse/google-ads', '#/pulse/meta-ads', '#/pulse/campagnes', '#/pulse/conversies', '#/pulse/segmenten', '#/pulse/trends']) {
       await page.evaluate((h) => { window.location.hash = h; }, hash);
       await page.waitForTimeout(400);
       expect(page.url()).toContain(hash.slice(1));

@@ -66,7 +66,8 @@ import {
   renderLoginKeuze, renderForgotPassword, renderAcceptInvite,
   renderGeenToegang, renderNietGevonden,
 } from './views/auth-screens.js';
-import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg } from './views/simpel-dashboard.js';
+import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg, zetTrendMetriek } from './views/simpel-dashboard.js';
+import { naarCsv, downloadCsv } from './ui/csv.js';
 import { haalAdsPlatforms, combineerTotalen, alleCampagnes } from './data/ads-data.js';
 import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
@@ -499,6 +500,10 @@ function renderPubliek(route) {
 
 // Voorkomt dat een trage/verlate data-fetch de inhoud van een nieuwere render vult.
 let simpelToken = 0;
+// De laatst geladen simpele-modus-data, zodat interactieve widgets (metric-
+// switcher, sorteren, zoeken, filter-chips, CSV) client-side kunnen werken
+// zonder opnieuw te fetchen.
+let simpelState = null;
 
 /**
  * Rendert het simpele Meta/Google Ads-dashboard met een eigen minimale layout.
@@ -530,6 +535,7 @@ function renderSimpelPagina({ user, ctx, route }) {
   // Geen toegankelijke klant (bijv. een medewerker zonder toewijzingen): toon een
   // lege staat i.p.v. een blijvende laadstaat.
   if (!dashboard) {
+    simpelState = null;
     const houder = document.getElementById('simpelInhoud');
     if (houder) {
       houder.innerHTML = renderSimpelLeeg(
@@ -548,10 +554,92 @@ function renderSimpelPagina({ user, ctx, route }) {
       if (token !== simpelToken) return; // een nieuwere render heeft het overgenomen
       const houder = document.getElementById('simpelInhoud');
       if (!houder) return;
+      simpelState = { dashboard, platforms, view };
       houder.innerHTML = renderSimpelInhoud({ dashboard, platforms, view });
       drawSimpelCharts({ dashboard, platforms, view });
     })
     .catch(() => { /* Bij een fetch-fout blijft de laadstaat staan. */ });
+}
+
+/* ---------------------------------------------------------------
+   Simpel dashboard: interactieve tabellen (sorteren/zoeken/filter/CSV)
+   Client-side, zonder refetch; de widgets leggen hun gedrag vast via
+   data-attributen (zie js/views/simpel-widgets.js).
+   --------------------------------------------------------------- */
+
+/** Past de zoekterm + het platform-chipfilter toe op een interactieve tabel. */
+function pasIaFiltersToe(container) {
+  const zoek = container.dataset.zoek ?? '';
+  const platform = container.dataset.platform ?? '';
+  const table = container.querySelector('.ia-table');
+  if (!table) return;
+  let zichtbaar = 0;
+  for (const rij of table.tBodies[0].rows) {
+    const matchtZoek = !zoek || (rij.dataset.zoek ?? '').includes(zoek);
+    const matchtPlatform = !platform || rij.dataset.platform === platform;
+    const toon = matchtZoek && matchtPlatform;
+    rij.hidden = !toon;
+    if (toon) zichtbaar += 1;
+  }
+  const leeg = container.querySelector('.ia-leeg');
+  if (leeg) leeg.hidden = zichtbaar > 0;
+}
+
+/** Sorteert een interactieve tabel op een kolom; opnieuw klikken wisselt de richting. */
+function sorteerIaTabel(knop) {
+  const [id, idxStr] = knop.dataset.iaSort.split(':');
+  const idx = Number(idxStr);
+  const table = document.querySelector(`[data-ia-table="${id}"]`);
+  if (!table) return;
+  const numeriek = knop.dataset.type === 'num';
+  const huidigeIdx = table.dataset.sortIdx != null ? Number(table.dataset.sortIdx) : null;
+  const richting = (huidigeIdx === idx && table.dataset.sortDir === 'asc') ? 'desc' : 'asc';
+  const teken = richting === 'asc' ? 1 : -1;
+
+  const tbody = table.tBodies[0];
+  const rijen = [...tbody.rows];
+  rijen.sort((a, b) => {
+    const av = a.cells[idx]?.dataset.v ?? '';
+    const bv = b.cells[idx]?.dataset.v ?? '';
+    if (numeriek) return (Number(av) - Number(bv)) * teken;
+    return String(av).localeCompare(String(bv), 'nl') * teken;
+  });
+  for (const rij of rijen) tbody.appendChild(rij);
+
+  table.dataset.sortIdx = String(idx);
+  table.dataset.sortDir = richting;
+  table.querySelectorAll('.ia-sort').forEach((b) => {
+    b.closest('th')?.removeAttribute('aria-sort');
+    b.classList.remove('sort-asc', 'sort-desc');
+  });
+  knop.closest('th')?.setAttribute('aria-sort', richting === 'asc' ? 'ascending' : 'descending');
+  knop.classList.add(richting === 'asc' ? 'sort-asc' : 'sort-desc');
+}
+
+/** Exporteert de zichtbare rijen van een interactieve tabel als CSV. */
+function exporteerIaTabel(id, csvNaam) {
+  const table = document.querySelector(`[data-ia-table="${id}"]`);
+  if (!table) return;
+  const kolommen = [...table.tHead.rows[0].cells].map((th) => th.textContent.trim());
+  const rijen = [...table.tBodies[0].rows]
+    .filter((r) => !r.hidden)
+    .map((r) => [...r.cells].map((td) => td.dataset.v ?? td.textContent.trim()));
+  downloadCsv(csvNaam || id, naarCsv(kolommen, rijen));
+}
+
+/** Past een platform-chip toe op de campagnetabel (Alle / Meta / Google). */
+function pasChipFilterToe(knop) {
+  const [containerId, key] = knop.dataset.simpelFilter.split(':');
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const kaart = container.closest('section');
+  kaart?.querySelectorAll(`[data-simpel-filter^="${containerId}:"]`).forEach((c) => {
+    const actief = c.dataset.simpelFilter === `${containerId}:${key}`;
+    c.classList.toggle('actief', actief);
+    c.setAttribute('aria-pressed', actief ? 'true' : 'false');
+  });
+  container.dataset.platform = key === 'meta' ? 'Meta Ads' : key === 'google' ? 'Google Ads' : '';
+  pasIaFiltersToe(container);
 }
 
 /* ---------------------------------------------------------------
@@ -1737,6 +1825,19 @@ async function onClick(e) {
     return;
   }
 
+  /* --- Simpel dashboard: interactieve widgets (client-side, geen refetch) --- */
+  if (el.dataset.simpelMetric && simpelState) {
+    const [grafiekId, metricKey] = el.dataset.simpelMetric.split(':');
+    const scope = simpelState.view === 'simpel-google' ? { google: simpelState.platforms.google, demodata: simpelState.platforms.demodata }
+      : simpelState.view === 'simpel-meta' ? { meta: simpelState.platforms.meta, demodata: simpelState.platforms.demodata }
+      : simpelState.platforms;
+    zetTrendMetriek(scope, grafiekId, metricKey);
+    return;
+  }
+  if (el.dataset.iaSort) { sorteerIaTabel(el); return; }
+  if (el.dataset.iaExport) { exporteerIaTabel(el.dataset.iaExport, el.dataset.csvNaam); return; }
+  if (el.dataset.simpelFilter) { pasChipFilterToe(el); return; }
+
   /* --- Rapportage-builder --- */
   // Een verse "Nieuwe rapportage" begint schoon; de navigatie loopt gewoon door.
   if (el.matches?.('a[href$="/agency/reports/new"]')) { bouwerConcept = null; bouwerModusNieuw = false; }
@@ -2377,6 +2478,13 @@ let tekenRaf = null;
 function onInput(e) {
   const el = e.target;
   const d = el.dataset;
+
+  /* Simpel dashboard: zoeken in een interactieve tabel (client-side). */
+  if (d.iaZoek) {
+    const container = document.getElementById(d.iaZoek);
+    if (container) { container.dataset.zoek = el.value.trim().toLowerCase(); pasIaFiltersToe(container); }
+    return;
+  }
 
   /* Rapportage-builder: titel/intro bijwerken zonder de invoerfocus te verliezen. */
   if (d.rapportTitel !== undefined || d.rapportIntro !== undefined) {
