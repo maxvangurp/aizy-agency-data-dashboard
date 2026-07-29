@@ -37,6 +37,14 @@ function foutmelding(id, tekst) {
  * foutmelding verschijnt.
  */
 export function renderLoginKeuze({ fout = null, foutFlow = null, email = '' } = {}) {
+  // Beide panelen loggen hetzelfde account in en delen dus dezelfde onderrij
+  // (ingelogd blijven + wachtwoord vergeten). Identieke rij-opbouw geeft gelijke
+  // kaarthoogte en knoppen op één lijn, zonder leeg gat onder de linkerkaart.
+  const veldRij = `<div class="veld-rij">
+            <label class="checkbox"><input type="checkbox" name="blijfIngelogd" checked><span>Ingelogd blijven</span></label>
+            <a href="#/forgot-password" class="link-klein">Wachtwoord vergeten</a>
+          </div>`;
+
   const paneel = (flow, formId, { badge, titel, pitch, knop, extra = '' }) => `
     <form id="${formId}" class="auth-kaart auth-keuze-kaart auth-keuze-${flow}" novalidate>
       <span class="auth-flow-badge auth-flow-badge-${flow}">${esc(badge)}</span>
@@ -79,16 +87,14 @@ export function renderLoginKeuze({ fout = null, foutFlow = null, email = '' } = 
           titel: 'Meta &amp; Google Ads',
           pitch: 'Direct je advertentiecijfers en trends, zonder omwegen.',
           knop: 'Bekijk mijn cijfers',
+          extra: veldRij,
         })}
         ${paneel('volledig', 'loginForm', {
           badge: 'Volledig systeem',
           titel: 'Het complete platform',
           pitch: 'Dashboards, signalen, acties, planning en rapportages.',
           knop: 'Inloggen',
-          extra: `<div class="veld-rij">
-            <label class="checkbox"><input type="checkbox" name="blijfIngelogd" checked><span>Ingelogd blijven</span></label>
-            <a href="#/forgot-password" class="link-klein">Wachtwoord vergeten</a>
-          </div>`,
+          extra: veldRij,
         })}
       </div>
 
