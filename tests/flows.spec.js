@@ -86,8 +86,8 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
     expect(await page.evaluate(() => document.body.dataset.shell)).toBe('simpel');
     await expect(page.locator('.simpel-sidebar')).toBeVisible();
     await expect(page.locator('.simpel-topbar')).toBeVisible();
-    // Zes navigatie-items in de lichte sidebar.
-    await expect(page.locator('.simpel-nav-item')).toHaveCount(7);
+    // Acht navigatie-items in de lichte sidebar (7 datapagina's + Optimalisaties).
+    await expect(page.locator('.simpel-nav-item')).toHaveCount(8);
     // Geen volledige systeem-sidebar in de simpele modus.
     await expect(page.locator('.app-grid .sidebar')).toHaveCount(0);
     // De overzichtspagina toont de gecombineerde KPI-band.
@@ -99,7 +99,7 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
     await expect(page.locator('.simpel-databron')).toContainText('Demodata');
   });
 
-  test('de sidebar navigeert tussen alle zeven datapagina\'s zonder fouten', async ({ page }) => {
+  test('de sidebar navigeert tussen alle pagina\'s zonder fouten', async ({ page }) => {
     const fouten = [];
     page.on('pageerror', (e) => fouten.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error') fouten.push(`console: ${m.text()}`); });
@@ -113,6 +113,7 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
       { label: 'Conversies', hash: '/pulse/conversies', kop: 'Conversies' },
       { label: 'Segmenten', hash: '/pulse/segmenten', kop: 'Segmenten' },
       { label: 'Trends', hash: '/pulse/trends', kop: 'Trends' },
+      { label: 'Optimalisaties', hash: '/pulse/optimalisaties', kop: 'Optimalisaties' },
       { label: 'Totaal overzicht', hash: '/pulse', kop: 'Meta & Google Ads' },
     ];
 
