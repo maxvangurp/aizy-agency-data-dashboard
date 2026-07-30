@@ -19,7 +19,9 @@ import { renderMedewerker } from './context-header.js';
 import { metriekCatalogus } from '../data/metrics-catalog.js';
 import { PRIMARY_KPIS } from '../sample-data/shared.js';
 import { lineChart, funnelChart } from '../charts.js';
-import { toonDatum, toonKorteDatum } from '../filters/period.js';
+import {
+  toonDatum, toonKorteDatum, PERIODE_PRESETS, VERGELIJK_MODI, DATA_VOLLEDIG_TOT,
+} from '../filters/period.js';
 
 /** De metriek waaraan het resultaat van een model wordt afgelezen. */
 const HOOFDMETRIEK = { leadgen: 'leads', ecommerce: 'revenue', awareness: 'impressions' };
@@ -27,6 +29,35 @@ const HOOFDMETRIEK = { leadgen: 'leads', ecommerce: 'revenue', awareness: 'impre
 /** Alle inzichten van een dashboard als één platte, indexeerbare lijst. */
 export function alleInzichten(dashboard) {
   return [...(dashboard?.inzichten?.primair ?? []), ...(dashboard?.inzichten?.aanvullend ?? [])];
+}
+
+/**
+ * De aanbevolen vervolgstappen, automatisch afgeleid uit de acties van de gekozen
+ * inzichten. Elk inzicht draagt al een concrete `actie`; die bundelen we hier
+ * (gededupliceerd) tot een lijst met bronvermelding. Zo volgt de "richting" van
+ * de rapportage rechtstreeks uit de onderbouwde analyse.
+ */
+export function vervolgstappenUitInzichten(dashboard, inzichtIds) {
+  const alle = alleInzichten(dashboard);
+  const stappen = [];
+  const gezien = new Set();
+  for (const idx of inzichtIds ?? []) {
+    const i = alle[idx];
+    const tekst = i?.actie?.trim();
+    if (!tekst || gezien.has(tekst)) continue;
+    gezien.add(tekst);
+    stappen.push({ tekst, bron: i.titel ?? null });
+  }
+  return stappen;
+}
+
+/** De effectieve vervolgstappen: handmatig vastgelegd of automatisch afgeleid. */
+export function effectieveVervolgstappen(rapport, dashboard) {
+  const handmatig = Array.isArray(rapport?.vervolgstappen)
+    ? rapport.vervolgstappen.map((t) => String(t).trim()).filter(Boolean)
+    : null;
+  if (handmatig) return handmatig.map((tekst) => ({ tekst, bron: null }));
+  return vervolgstappenUitInzichten(dashboard, rapport?.onderdelen?.inzichtIds);
 }
 
 function metriekLabel(key) {
@@ -80,6 +111,7 @@ export function renderRapportPreview({ rapport, dashboard, verhaal }) {
       <p class="rapport-meta">
         ${esc(rapport.clientNaam || dashboard.client.name)}
         ${rapport.periodeLabel ? ` · ${esc(rapport.periodeLabel)}` : ''}
+        ${dashboard.vergelijkingActief ? ` · vergeleken met ${esc(vgl)}` : ''}
         · opgesteld door ${auteur}
       </p>
       ${rapport.intro ? `<p class="rapport-intro">${esc(rapport.intro)}</p>` : ''}
@@ -90,6 +122,7 @@ export function renderRapportPreview({ rapport, dashboard, verhaal }) {
     ${o.funnel && dashboard.funnel ? renderFunnelSectie(dashboard) : ''}
     ${o.kanalen ? renderKanalenSectie(dashboard) : ''}
     ${inzichtBlok}
+    ${o.vervolgstappen ? renderVervolgstappenSectie(rapport, dashboard) : ''}
     ${o.samenwerking ? renderSamenwerkingSectie(dashboard, verhaal) : ''}
 
     <footer class="rapport-voet">
@@ -159,6 +192,26 @@ function renderKanalenSectie(dashboard) {
   </section>`;
 }
 
+function renderVervolgstappenSectie(rapport, dashboard) {
+  const stappen = effectieveVervolgstappen(rapport, dashboard);
+  // Leeg? Sectie overslaan (net als funnel/kanalen). De builder geeft in de
+  // opties feedback dat er nog geen stappen zijn.
+  if (!stappen.length) return '';
+  const autoAfgeleid = !Array.isArray(rapport?.vervolgstappen);
+  return `<section class="rapport-sectie rapport-vervolg">
+    <h2>Aanbevolen vervolgstappen</h2>
+    <p class="muted klein">${autoAfgeleid
+      ? 'Automatisch afgeleid uit de onderbouwde inzichten hierboven.'
+      : 'Vastgelegd door je bureau.'}</p>
+    <ol class="rapport-stappen">
+      ${stappen.map((s) => `<li class="rapport-stap">
+        <span class="rapport-stap-tekst">${esc(s.tekst)}</span>
+        ${s.bron ? `<span class="rapport-stap-bron muted klein">Uit inzicht: ${esc(s.bron)}</span>` : ''}
+      </li>`).join('')}
+    </ol>
+  </section>`;
+}
+
 function renderSamenwerkingSectie(dashboard, verhaal) {
   const contact = dashboard.team?.primair
     ? `<h3>Je contactpersoon</h3>${renderMedewerker(dashboard.team.primair)}`
@@ -212,7 +265,7 @@ export function renderRapportBouwer({ user, rapport, dashboard, verhaal, klanten
   const model = dashboard?.model;
   const beschikbareKpis = model ? (dashboard ? kpiKeuzes(dashboard) : []) : [];
   const inzichten = dashboard ? alleInzichten(dashboard) : [];
-  const o = rapport?.onderdelen ?? { kpis: [], inzichtIds: [], funnel: false, kanalen: false, ontwikkeling: false, samenwerking: false };
+  const o = rapport?.onderdelen ?? { kpis: [], inzichtIds: [], funnel: false, kanalen: false, ontwikkeling: false, vervolgstappen: false, samenwerking: false };
 
   const klantOpties = (klanten ?? [])
     .map((k) => `<option value="${esc(k.id)}"${k.id === rapport?.clientId ? ' selected' : ''}>${esc(k.name)}</option>`)
@@ -222,6 +275,7 @@ export function renderRapportBouwer({ user, rapport, dashboard, verhaal, klanten
     { key: 'ontwikkeling', label: 'Ontwikkeling (grafiek)' },
     { key: 'funnel', label: 'Funnel (grafiek)', beschikbaar: Boolean(dashboard?.funnel) },
     { key: 'kanalen', label: 'Per kanaal (tabel)' },
+    { key: 'vervolgstappen', label: 'Aanbevolen vervolgstappen' },
     { key: 'samenwerking', label: 'Samenwerking en contactpersoon' },
   ];
 
@@ -237,7 +291,7 @@ export function renderRapportBouwer({ user, rapport, dashboard, verhaal, klanten
         <select data-rapport-klant>${klantOpties || '<option>Geen klanten</option>'}</select>
       </label>
 
-      ${rapport?.periodeLabel ? `<p class="rapport-periode muted klein">Periode: ${esc(rapport.periodeLabel)}</p>` : ''}
+      ${periodeControls(rapport)}
 
       <label class="rapport-veld">
         <span class="rapport-veld-label">Titel</span>
@@ -272,6 +326,8 @@ export function renderRapportBouwer({ user, rapport, dashboard, verhaal, klanten
         </div>
       </fieldset>
 
+      ${o.vervolgstappen ? vervolgstappenEditor(rapport) : ''}
+
       <p class="rapport-status">
         ${rapport?.gepubliceerd
           ? `${badge('Gepubliceerd', 'ok')} <span class="muted klein">De klant ziet deze rapportage in zijn omgeving.</span>`
@@ -304,6 +360,59 @@ function keuze(soort, waarde, label, aan) {
     <input type="checkbox" data-rapport-${soort}="${esc(waarde)}"${aan ? ' checked' : ''} />
     <span>${esc(label)}</span>
   </label>`;
+}
+
+/** Periode- en vergelijkingskeuze in de builder; stuurt de hele preview live aan. */
+function periodeControls(rapport) {
+  const f = rapport?.filters ?? {};
+  const preset = f.period?.preset ?? 'last_30_days';
+  const isCustom = preset === 'custom';
+  const van = f.period?.startDate ?? f.periode?.startDate ?? '';
+  const tot = f.period?.endDate ?? f.periode?.endDate ?? '';
+  const vgl = f.comparison?.mode ?? 'previous_period';
+  const bereik = rapport?.periodeLabel ?? '';
+  return `<fieldset class="rapport-groep rapport-periode-groep">
+    <legend>Periode &amp; vergelijking</legend>
+    <label class="rapport-veld">
+      <span class="rapport-veld-label">Periode</span>
+      <select data-rapport-periode>
+        ${PERIODE_PRESETS.map((p) => `<option value="${esc(p.key)}"${p.key === preset ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}
+      </select>
+    </label>
+    ${isCustom ? `<div class="rapport-datumbereik">
+      <label class="rapport-veld"><span class="rapport-veld-label">Van</span>
+        <input type="date" data-rapport-van value="${esc(van)}" max="${esc(DATA_VOLLEDIG_TOT)}" /></label>
+      <label class="rapport-veld"><span class="rapport-veld-label">Tot</span>
+        <input type="date" data-rapport-tot value="${esc(tot)}" max="${esc(DATA_VOLLEDIG_TOT)}" /></label>
+    </div>` : ''}
+    <label class="rapport-veld">
+      <span class="rapport-veld-label">Vergelijk met</span>
+      <select data-rapport-vergelijking>
+        ${VERGELIJK_MODI.map((m) => `<option value="${esc(m.key)}"${m.key === vgl ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}
+      </select>
+    </label>
+    ${bereik ? `<p class="rapport-periode-uitleg muted klein">Toont ${esc(bereik)}. Cijfers, grafiek en inzichten bewegen live mee.</p>` : ''}
+  </fieldset>`;
+}
+
+/**
+ * Editor voor de vervolgstappen. Bewust modus-onafhankelijk: leeg veld = stappen
+ * worden automatisch afgeleid uit de gekozen inzichten; typen = zelf vastleggen
+ * (één stap per regel). De hint en beide knoppen staan er altijd, zodat de editor
+ * nooit uit de pas loopt met de preview bij het typen (geen mode-afhankelijke
+ * chrome die een her-render nodig heeft).
+ */
+function vervolgstappenEditor(rapport) {
+  const waarde = Array.isArray(rapport?.vervolgstappen) ? rapport.vervolgstappen.join('\n') : '';
+  return `<fieldset class="rapport-groep rapport-vervolg-groep">
+    <legend>Vervolgstappen</legend>
+    <p class="muted klein">Leeg = automatisch afgeleid uit de gekozen inzichten. Typ hier om ze zelf vast te leggen (één stap per regel).</p>
+    <textarea class="rapport-vervolg-veld" data-rapport-vervolgstappen rows="4" placeholder="Eén vervolgstap per regel…">${esc(waarde)}</textarea>
+    <div class="rapport-vervolg-acties">
+      <button type="button" class="link klein" data-rapport-vervolg-vul>Vul met aanbevelingen uit de inzichten</button>
+      <button type="button" class="link klein" data-rapport-vervolg-auto>Terug naar automatisch</button>
+    </div>
+  </fieldset>`;
 }
 
 /* ===============================================================

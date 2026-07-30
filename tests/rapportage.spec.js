@@ -96,6 +96,116 @@ test.describe('Rapportage-builder', () => {
     await expect(page.locator('[data-rapport-titel]')).toHaveValue('Heropenbaar rapport');
   });
 
+  test('de periodekiezer in de builder verandert de cijfers en het periodelabel live', async ({ page }) => {
+    const fouten = foutenVerzamelen(page);
+    await login(page, ACCOUNTS.admin);
+    await openNieuweBouwer(page);
+
+    const metaVoor = await page.locator('.rapport-meta').textContent();
+    const kpiVoor = await page.locator('#rapportPreview .kpi-row .kpi').first().textContent();
+    await page.selectOption('[data-rapport-periode]', 'last_7_days');
+    await page.waitForTimeout(500);
+    expect(await page.locator('.rapport-meta').textContent()).not.toBe(metaVoor);
+    expect(await page.locator('#rapportPreview .kpi-row .kpi').first().textContent()).not.toBe(kpiVoor);
+    expect(fouten, fouten.join('\n')).toEqual([]);
+  });
+
+  test('een aangepast datumbereik toont van/tot-velden in de builder', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await openNieuweBouwer(page);
+    await expect(page.locator('[data-rapport-van]')).toHaveCount(0);
+    await page.selectOption('[data-rapport-periode]', 'custom');
+    await page.waitForTimeout(400);
+    await expect(page.locator('[data-rapport-van]')).toBeVisible();
+    await expect(page.locator('[data-rapport-tot]')).toBeVisible();
+  });
+
+  test('vergelijking uitzetten haalt het vergelijkingslabel weg', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await openNieuweBouwer(page);
+    await expect(page.locator('.rapport-meta')).toContainText('vergeleken met');
+    await page.selectOption('[data-rapport-vergelijking]', 'none');
+    await page.waitForTimeout(500);
+    await expect(page.locator('.rapport-meta')).not.toContainText('vergeleken met');
+  });
+
+  test('de rapportage toont automatische vervolgstappen die je kunt overschrijven', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await openNieuweBouwer(page);
+    // Automatisch afgeleide stappen met bronvermelding naar het inzicht.
+    expect(await page.locator('#rapportPreview .rapport-stap').count()).toBeGreaterThan(0);
+    await expect(page.locator('#rapportPreview .rapport-stap-bron').first()).toContainText('Uit inzicht');
+    // Zelf vastleggen: de tekst verschijnt als stap, zonder bronvermelding.
+    await page.fill('[data-rapport-vervolgstappen]', 'Eigen stap één\nEigen stap twee');
+    await page.waitForTimeout(400);
+    expect(await page.locator('#rapportPreview .rapport-stap-tekst').allTextContents())
+      .toEqual(['Eigen stap één', 'Eigen stap twee']);
+    await expect(page.locator('#rapportPreview .rapport-stap-bron')).toHaveCount(0);
+  });
+
+  test('de vervolgstappen-editor toont beide knoppen en een vaste hint (geen desync)', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await openNieuweBouwer(page);
+    // Beide knoppen staan er altijd, ongeacht auto/handmatig — de editor kan zo
+    // niet uit de pas lopen met de preview.
+    await expect(page.locator('[data-rapport-vervolg-vul]')).toBeVisible();
+    await expect(page.locator('[data-rapport-vervolg-auto]')).toBeVisible();
+    // Na inline typen (preview wordt handmatig) blijven beide knoppen staan.
+    await page.fill('[data-rapport-vervolgstappen]', 'Eigen stap');
+    await page.waitForTimeout(400);
+    await expect(page.locator('#rapportPreview .rapport-stap-tekst')).toHaveText(['Eigen stap']);
+    await expect(page.locator('[data-rapport-vervolg-auto]')).toBeVisible();
+    // "Terug naar automatisch" herstelt de auto-afleiding.
+    await page.click('[data-rapport-vervolg-auto]');
+    await page.waitForTimeout(400);
+    await expect(page.locator('[data-rapport-vervolgstappen]')).toHaveValue('');
+    await expect(page.locator('#rapportPreview .rapport-stap-bron').first()).toContainText('Uit inzicht');
+  });
+
+  test('een klantwissel behoudt de gekozen periode', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await openNieuweBouwer(page);
+    const klanten = await page.locator('[data-rapport-klant] option').count();
+    test.skip(klanten < 2, 'minder dan twee klanten beschikbaar');
+    await page.selectOption('[data-rapport-periode]', 'last_7_days');
+    await page.waitForTimeout(400);
+    const opties = await page.locator('[data-rapport-klant] option').all();
+    const huidige = await page.locator('[data-rapport-klant]').inputValue();
+    const andere = (await Promise.all(opties.map((o) => o.getAttribute('value')))).find((v) => v && v !== huidige);
+    await page.selectOption('[data-rapport-klant]', andere);
+    await page.waitForTimeout(500);
+    // De gekozen periode blijft staan na de klantwissel.
+    await expect(page.locator('[data-rapport-periode]')).toHaveValue('last_7_days');
+  });
+
+  test('de vervolgstappen-sectie is uit te zetten', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await openNieuweBouwer(page);
+    await expect(page.locator('#rapportPreview .rapport-vervolg')).toBeVisible();
+    await page.locator('[data-rapport-sectie="vervolgstappen"]').uncheck();
+    await page.waitForTimeout(300);
+    await expect(page.locator('#rapportPreview .rapport-vervolg')).toHaveCount(0);
+  });
+
+  test('de gekozen periode en vervolgstappen overleven opslaan en heropenen', async ({ page }) => {
+    await login(page, ACCOUNTS.admin);
+    await openNieuweBouwer(page);
+    await page.selectOption('[data-rapport-periode]', 'last_7_days');
+    await page.waitForTimeout(400);
+    await page.fill('[data-rapport-vervolgstappen]', 'Bewaarde eigen stap');
+    await page.waitForTimeout(400);
+    await page.fill('[data-rapport-titel]', 'Rapport met eigen periode');
+    await page.waitForTimeout(300);
+    await page.click('[data-rapport-opslaan]');
+    await page.waitForTimeout(400);
+
+    await ga(page, '#/agency/reports', { wacht: 500 });
+    await page.click('.link', { hasText: 'Rapport met eigen periode' });
+    await page.waitForTimeout(600);
+    await expect(page.locator('[data-rapport-periode]')).toHaveValue('last_7_days');
+    await expect(page.locator('[data-rapport-vervolgstappen]')).toHaveValue('Bewaarde eigen stap');
+  });
+
   test('een klantgebruiker kan de agency-builder niet openen', async ({ page }) => {
     await login(page, ACCOUNTS.klantAdmin);
     await ga(page, '#/agency/reports/new', { wacht: 400 });

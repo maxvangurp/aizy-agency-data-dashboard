@@ -3529,17 +3529,30 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 }
 .rapport-veld input,
 .rapport-veld textarea,
+.rapport-vervolg-veld,
 .rapport-opties select {
   width: 100%; box-sizing: border-box;
   padding: 8px 10px;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   font: inherit; background: var(--surface); color: var(--ink);
 }
-.rapport-veld textarea { resize: vertical; }
+.rapport-veld textarea,
+.rapport-vervolg-veld { resize: vertical; }
 .rapport-veld input:focus,
 .rapport-veld textarea:focus,
+.rapport-vervolg-veld:focus,
 .rapport-opties select:focus { border-color: var(--accent); outline: none; }
 .rapport-periode { margin: 0; }
+
+/* Periode & vergelijking in de builder */
+.rapport-periode-groep { display: grid; gap: var(--space-3); }
+.rapport-datumbereik { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.rapport-periode-uitleg { margin: 0; }
+
+/* Vervolgstappen-editor in de builder */
+.rapport-vervolg-groep { display: grid; gap: 8px; }
+.rapport-vervolg-groep p { margin: 0; }
+.rapport-vervolg-acties { display: flex; flex-wrap: wrap; gap: 14px; }
 .rapport-groep { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); margin: 0; min-width: 0; }
 .rapport-groep legend { font-size: 12px; font-weight: 700; padding: 0 6px; }
 .rapport-keuzes { display: grid; gap: 7px; max-height: 240px; overflow-y: auto; }
@@ -3571,7 +3584,29 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 .rapport-intro { margin: var(--space-3) 0 0; font-size: 15px; line-height: 1.6; max-width: var(--content-reading-width); }
 .rapport-sectie { display: grid; gap: var(--space-3); }
 .rapport-sectie > h2 { font-size: var(--fs-section); margin: 0; letter-spacing: -0.01em; }
+.rapport-sectie > p.muted { margin: 0; }
 .rapport-voet { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+
+/* Aanbevolen vervolgstappen: genummerde, scanbare acties met accent-teller. */
+.rapport-stappen { list-style: none; counter-reset: stap; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rapport-stap {
+  counter-increment: stap;
+  position: relative;
+  display: grid; gap: 2px;
+  padding: 12px 14px 12px 44px;
+  background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.rapport-stap::before {
+  content: counter(stap);
+  position: absolute; left: 12px; top: 12px;
+  width: 22px; height: 22px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+  /* Behoud de gekleurde teller bij printen; anders zou wit-op-wit verdwijnen. */
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.rapport-stap-tekst { font-size: 14px; line-height: 1.45; }
+.rapport-stap-bron { display: block; }
 
 /* Opgeslagen-lijst */
 .rapport-lijst-kop {
@@ -3597,6 +3632,9 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
     height: auto !important; max-height: none !important; padding: 0 !important; margin: 0 !important;
   }
   .rapport-preview { box-shadow: none; border: none; max-width: 100%; padding: 0; }
+  /* Terugval als de browser de gekleurde teller-achtergrond tóch weglaat:
+     een omlijnd accentnummer blijft dan zichtbaar (niet wit-op-wit). */
+  .rapport-stap::before { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
   body { background: #fff; }
 }
 

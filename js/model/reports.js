@@ -50,16 +50,22 @@ export function nieuwConcept({ client, model, dashboard, auteur, periodeLabel, f
     titel: `Rapportage ${client.name}`,
     intro: '',
     periodeLabel: periodeLabel ?? '',
-    // De filters worden bevroren zodat de rapportage overal dezelfde cijfers
+    // De filters worden opgeslagen zodat de rapportage overal dezelfde cijfers
     // toont, ongeacht wie hem bekijkt of welke periode er op dat moment is
-    // geselecteerd. De demo-data is deterministisch per periode+kanalen.
+    // geselecteerd. De demo-data is deterministisch per periode+kanalen. In de
+    // builder is de periode nu wél aanpasbaar; bij opslaan blijft de keuze staan.
     filters: filters ?? null,
+    // Vervolgstappen: null = automatisch afgeleid uit de acties van de gekozen
+    // inzichten (leeft mee met periode/selectie); een array = door de agency
+    // handmatig vastgelegde stappen (één string per stap).
+    vervolgstappen: null,
     onderdelen: {
       kpis,
       inzichtIds,
       funnel: Boolean(dashboard?.funnel),
       kanalen: true,
       ontwikkeling: true,
+      vervolgstappen: true,
       samenwerking: true,
     },
     auteur: auteur ?? null,
@@ -126,6 +132,7 @@ export function dupliceerRapportage(id) {
     id: nieuwId('rap'),
     titel: `${bron.titel} (kopie)`,
     onderdelen: { ...bron.onderdelen, kpis: [...bron.onderdelen.kpis], inzichtIds: [...bron.onderdelen.inzichtIds] },
+    vervolgstappen: Array.isArray(bron.vervolgstappen) ? [...bron.vervolgstappen] : null,
     gepubliceerd: false,
     gepubliceerdOp: null,
     aangemaaktOp: nu(),

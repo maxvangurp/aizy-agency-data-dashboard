@@ -60,6 +60,7 @@ import {
 } from './filters/filter-store.js';
 import { kanaalLabel, ADVERTENTIEKANAAL_KEYS } from './filters/channels.js';
 import { DEMO_TODAY, toonBereik, toonDatum, plusDagen } from './filters/period.js';
+import { resolveFilters } from './filters/filter-context.js';
 import { dashboardtypeTerm, LABELS } from './terminology.js';
 
 import {
@@ -113,7 +114,7 @@ import {
 import { renderAgencyClientDetail, drawAgencyClientCharts } from './views/agency-client-detail.js';
 import {
   renderRapportBouwer, renderRapportPreview, drawRapportCharts, renderOpgeslagenRapportages,
-  renderGepubliceerdeRapportages, renderRapportWeergave,
+  renderGepubliceerdeRapportages, renderRapportWeergave, vervolgstappenUitInzichten, alleInzichten,
 } from './views/report-builder.js';
 import {
   laadRapportages, getRapportage, nieuwConcept, opslaanRapportage,
@@ -1312,8 +1313,12 @@ function zetRapportKeuze(veld, waarde, aan) {
 /** Wisselt de klant van het concept: nieuwe standaard-onderdelen, titel/intro blijven. */
 function wisselRapportKlant(clientId) {
   if (!bouwerConcept) return;
+  wisPendingRapportTimers();
   const user = getCurrentUser();
-  const filters = getActieveFilters()?.resolved;
+  // De in de builder gekozen periode/vergelijking behouden bij een klantwissel
+  // (val terug op de app-brede filters als er nog geen keuze is). KPI's, inzichten
+  // en secties worden wél opnieuw standaard gezet — die zijn klant-afhankelijk.
+  const filters = bouwerConcept.filters ?? getActieveFilters()?.resolved;
   const client = getClientById(user, clientId);
   if (!client || !filters) return;
   const vers = conceptVoorKlant(user, client, filters);
@@ -1324,6 +1329,67 @@ function wisselRapportKlant(clientId) {
     intro: bouwerConcept.intro,
     auteur: bouwerConcept.auteur,
   };
+  render();
+}
+
+/**
+ * Past de periode/vergelijking van het lopende concept aan. De ruwe filters komen
+ * uit de opgeslagen (opgeloste) rapportfilters + de patch; die her-resolven we,
+ * werken het periodelabel bij en herstellen de inzicht-selectie (indices zijn
+ * periode-afhankelijk). Een volledige render toont de nieuwe cijfers overal.
+ */
+function zetRapportPeriode(patch) {
+  if (!bouwerConcept) return;
+  wisPendingRapportTimers();
+  const user = getCurrentUser();
+  const basis = bouwerConcept.filters ?? getActieveFilters()?.resolved;
+  if (!user || !basis) return;
+  const ruw = {
+    period: { ...(basis.period ?? {}), ...(patch.period ?? {}) },
+    comparison: { ...(basis.comparison ?? {}), ...(patch.comparison ?? {}) },
+    channels: basis.channels,
+    conversionScope: basis.conversionScope,
+  };
+  const resolved = resolveFilters(ruw);
+  // Houd de ruwe periode gelijk aan de opgeloste: bij een ongeldig/onvolledig
+  // eigen bereik valt resolvePeriode terug, en anders zouden de invoervelden de
+  // ongeldige invoer tonen terwijl de preview de teruggevallen periode toont.
+  resolved.period = {
+    preset: resolved.periode.preset,
+    startDate: resolved.periode.startDate,
+    endDate: resolved.periode.endDate,
+  };
+  bouwerConcept.filters = resolved;
+  bouwerConcept.periodeLabel = toonBereik(resolved.periode.startDate, resolved.periode.endDate);
+  // Inzichten zijn periode-afhankelijk (index in de platte lijst); voor de nieuwe
+  // periode weer alle inzichten selecteren, net als een vers concept.
+  const dashboard = getClientDashboard(user, bouwerConcept.clientId, resolved);
+  bouwerConcept.onderdelen = {
+    ...bouwerConcept.onderdelen,
+    inzichtIds: alleInzichten(dashboard).map((_, i) => i),
+    funnel: Boolean(dashboard?.funnel) && bouwerConcept.onderdelen.funnel,
+  };
+  render();
+  // Meld het als een eigen bereik werd hersteld (net als de gewone filterbalk).
+  if (resolved.periode.melding) toast(resolved.periode.melding);
+}
+
+/** Vult de vervolgstappen met de huidige automatische aanbevelingen (bewerkbaar). */
+function vulRapportVervolgstappen() {
+  if (!bouwerConcept) return;
+  wisPendingRapportTimers();
+  const user = getCurrentUser();
+  const { dashboard } = rapportData(user, bouwerConcept, getActieveFilters()?.resolved);
+  const auto = vervolgstappenUitInzichten(dashboard, bouwerConcept.onderdelen.inzichtIds).map((s) => s.tekst);
+  bouwerConcept.vervolgstappen = auto.length ? auto : null;
+  render();
+}
+
+/** Zet de vervolgstappen terug op automatisch afgeleid uit de inzichten. */
+function herstelRapportVervolgstappenAuto() {
+  if (!bouwerConcept) return;
+  wisPendingRapportTimers();
+  bouwerConcept.vervolgstappen = null;
   render();
 }
 
@@ -1922,6 +1988,8 @@ async function onClick(e) {
     render();
     return;
   }
+  if (el.dataset.rapportVervolgVul !== undefined) { vulRapportVervolgstappen(); return; }
+  if (el.dataset.rapportVervolgAuto !== undefined) { herstelRapportVervolgstappenAuto(); return; }
   if (el.dataset.rapportPrint !== undefined) { window.print(); return; }
   if (el.dataset.rapportDupliceer) {
     if (dupliceerRapportage(el.dataset.rapportDupliceer)) toast('Rapportage gedupliceerd.');
@@ -2497,6 +2565,27 @@ function onChange(e) {
 
   /* Rapportage-builder */
   if (d.rapportKlant !== undefined) { wisselRapportKlant(el.value); return; }
+  if (d.rapportPeriode !== undefined) {
+    const preset = el.value;
+    const huidig = bouwerConcept?.filters?.periode;
+    zetRapportPeriode({
+      period: preset === 'custom'
+        ? { preset, startDate: huidig?.startDate, endDate: huidig?.endDate }
+        : { preset, startDate: null, endDate: null },
+    });
+    return;
+  }
+  if (d.rapportVan !== undefined || d.rapportTot !== undefined) {
+    zetRapportPeriode({
+      period: {
+        preset: 'custom',
+        startDate: document.querySelector('[data-rapport-van]')?.value,
+        endDate: document.querySelector('[data-rapport-tot]')?.value,
+      },
+    });
+    return;
+  }
+  if (d.rapportVergelijking !== undefined) { zetRapportPeriode({ comparison: { mode: el.value } }); return; }
   if (d.rapportKpi !== undefined) { zetRapportKeuze('kpis', d.rapportKpi, el.checked); return; }
   if (d.rapportInzicht !== undefined) { zetRapportKeuze('inzichtIds', Number(d.rapportInzicht), el.checked); return; }
   if (d.rapportSectie !== undefined) {
@@ -2539,7 +2628,15 @@ function onChange(e) {
 
 let zoekTimer = null;
 let rapportTimer = null;
+let rapportVervolgTimer = null;
 let tekenRaf = null;
+
+/** Wist openstaande rapport-debounces vóór een volledige render/knopactie, zodat
+ *  een late timer een net gezette waarde niet meer kan overschrijven. */
+function wisPendingRapportTimers() {
+  window.clearTimeout(rapportTimer);
+  window.clearTimeout(rapportVervolgTimer);
+}
 
 function onInput(e) {
   const el = e.target;
@@ -2559,6 +2656,21 @@ function onInput(e) {
     const waarde = el.value;
     rapportTimer = window.setTimeout(() => {
       if (bouwerConcept) { bouwerConcept[veld] = waarde; herrenderRapportPreview(); }
+    }, 220);
+    return;
+  }
+
+  /* Rapportage-builder: vervolgstappen (leeg = automatisch, gevuld = handmatig).
+     Eigen debounce-timer, los van titel/intro, zodat snel wisselen tussen velden
+     geen elkaars nog-niet-doorgevoerde aanslag laat vallen. */
+  if (d.rapportVervolgstappen !== undefined) {
+    window.clearTimeout(rapportVervolgTimer);
+    const waarde = el.value;
+    rapportVervolgTimer = window.setTimeout(() => {
+      if (!bouwerConcept) return;
+      const regels = waarde.split('\n').map((r) => r.trim()).filter(Boolean);
+      bouwerConcept.vervolgstappen = regels.length ? regels : null;
+      herrenderRapportPreview();
     }, 220);
     return;
   }
