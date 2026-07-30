@@ -119,6 +119,7 @@ function renderSimpelTopbar({ dashboard, klanten, filters, magWisselen }) {
       </div>
     </div>
     <div class="simpel-topbar-acties">
+      <a class="btn primary klein" href="#/pulse/rapportage">Rapportage</a>
       <button type="button" class="btn klein" data-simpel-export-pagina>Exporteer</button>
       <button type="button" class="btn klein" data-simpel-print>Print</button>
     </div>
@@ -156,6 +157,7 @@ export function renderSimpelInhoud({ dashboard, platforms, view = 'simpel-overzi
     case 'simpel-conversies': return renderConversiesView(dashboard, platforms, v);
     case 'simpel-segmenten': return renderSegmentenView(dashboard, platforms, v);
     case 'simpel-trends': return renderTrendsView(dashboard, platforms, v);
+    case 'simpel-rapportage': return renderSimpelRapportageView(dashboard, platforms, v);
     default: return renderOverzichtView(dashboard, platforms, v);
   }
 }
@@ -475,12 +477,12 @@ function actieveTrendMetriek({ switcherOpties = null, kaartKeys = null } = {}) {
  * de grafiek (geen aparte switcher); op Trends staat wél een switcher, want daar
  * zijn geen KPI's. `actief` geeft de startmetriek.
  */
-function trendMetriekFiguur(grafiekId, platforms, { titel = 'Ontwikkeling per dag', dashboard = null, vergelijking = null, toonSwitcher = false, actief = 'spend' } = {}) {
+function trendMetriekFiguur(grafiekId, platforms, { titel = 'Ontwikkeling per dag', dashboard = null, vergelijking = null, toonSwitcher = false, actief = 'spend', hint = !toonSwitcher } = {}) {
   const opties = trendMetrieken(platforms);
   const key = TREND_META[actief] ? actief : 'spend';
   const rlabel = platforms.meta?.resultLabel ?? platforms.google?.resultLabel ?? 'Resultaat';
   const bron = trendBron(platforms);
-  const subtitel = trendOndertitel(key, rlabel, { hint: !toonSwitcher, vergelijking, platforms });
+  const subtitel = trendOndertitel(key, rlabel, { hint, vergelijking, platforms });
   return `<div class="trend-blok">
     ${toonSwitcher ? metricSwitcher(grafiekId, opties, key) : ''}
     ${figure(grafiekId, titel, subtitel, trendMetriekTabel(platforms, key, { dashboard, vergelijking }), bron, 280)}
@@ -735,6 +737,96 @@ function renderTrendsView(dashboard, platforms, vergelijking) {
   `;
 }
 
+/* ---------- Rapportage: nette, meerdelige print/PDF-samenvatting ---------- */
+
+/** De vervolgstappen voor de rapportage: de acties van de auto-inzichten, ontdubbeld. */
+function simpelVervolgstappen(inzichten) {
+  const alle = [...(inzichten?.primair ?? []), ...(inzichten?.aanvullend ?? [])];
+  const stappen = [];
+  const gezien = new Set();
+  for (const i of alle) {
+    const tekst = i?.actie?.trim();
+    if (!tekst || gezien.has(tekst)) continue;
+    gezien.add(tekst);
+    stappen.push({ tekst, bron: i.titel ?? null });
+  }
+  return stappen;
+}
+
+/**
+ * Een op zichzelf staande, print-/PDF-klare samenvatting van de pulse-data:
+ * KPI's + deltas, de verdeling, de ontwikkeling, de auto-inzichten én de daaruit
+ * afgeleide vervolgstappen. Hergebruikt de bestaande secties; de actiebalk valt
+ * bij printen weg (data-print-verbergen), zodat alleen het rapport op papier komt.
+ */
+function renderSimpelRapportageView(dashboard, platforms, vergelijking) {
+  const totaal = combineerTotalen(platforms);
+  if (!totaal) return renderSimpelLeeg('Geen data om te rapporteren', 'Er zijn voor deze klant en periode geen Meta- of Google Ads-cijfers.');
+  const rlabel = totaal.resultLabel ?? 'Resultaat';
+  const dagreeks = gecombineerdeReeks(platforms);
+  const inzichten = bouwAdInzichten(dashboard, platforms, vergelijking);
+  const stappen = simpelVervolgstappen(inzichten);
+
+  const periodeLabel = dashboard?.periode ? toonBereik(dashboard.periode.startDate, dashboard.periode.endDate) : '';
+  const vergLabel = (vergelijking?.actief && vergelijking.startDate && vergelijking.endDate)
+    ? `vergeleken met ${toonBereik(vergelijking.startDate, vergelijking.endDate)}`
+    : '';
+
+  const stappenBlok = stappen.length ? `
+    <section class="simpel-rapport-sectie rapport-vervolg">
+      <h2>Aanbevolen vervolgstappen</h2>
+      <p class="muted klein">Automatisch afgeleid uit de inzichten hierboven.</p>
+      <ol class="rapport-stappen">
+        ${stappen.map((s) => `<li class="rapport-stap">
+          <span class="rapport-stap-tekst">${esc(s.tekst)}</span>
+          ${s.bron ? `<span class="rapport-stap-bron muted klein">Uit inzicht: ${esc(s.bron)}</span>` : ''}
+        </li>`).join('')}
+      </ol>
+    </section>` : '';
+
+  return `
+    <div class="simpel-rapport-balk" data-print-verbergen>
+      <a class="btn klein" href="#/pulse">← Terug naar het dashboard</a>
+      <button type="button" class="btn primary" data-simpel-print>Download / printen (PDF)</button>
+    </div>
+    <article class="simpel-rapport">
+      <header class="simpel-rapport-kop">
+        <p class="simpel-rapport-merk">Aizy · Snel inzicht</p>
+        <h1>Rapportage — Meta &amp; Google Ads</h1>
+        <p class="muted">${esc(dashboard?.client?.name ?? '')}${periodeLabel ? ` · ${esc(periodeLabel)}` : ''}${vergLabel ? ` · ${esc(vergLabel)}` : ''}</p>
+      </header>
+
+      <section class="simpel-rapport-sectie">
+        <h2>De cijfers</h2>
+        ${kpiBandDelta(dashboard, totaal, dagreeks, vergelijking, { actief: null })}
+      </section>
+
+      <section class="simpel-rapport-sectie">
+        <h2>Verdeling en ontwikkeling</h2>
+        <div class="dash-rij">
+          <div class="dash-col" style="--span:5">
+            ${figure('simpel-rapport-donut', 'Verdeling uitgaven', 'Aandeel van Meta en Google in het budget.', platformSplitTabel(platforms, rlabel), trendBron(platforms), 220)}
+          </div>
+          <div class="dash-col" style="--span:7">
+            ${trendMetriekFiguur('simpel-rapport-trend', platforms, { titel: 'Ontwikkeling per dag', dashboard, vergelijking, toonSwitcher: false, actief: 'spend', hint: false })}
+          </div>
+        </div>
+      </section>
+
+      <section class="simpel-rapport-sectie">
+        <h2 class="visueel-verborgen">Inzichten</h2>
+        ${adInzichtenBlok(dashboard, platforms, vergelijking)}
+      </section>
+
+      ${stappenBlok}
+
+      <footer class="simpel-rapport-voet">
+        <p class="muted klein">Samengesteld met Aizy Snel inzicht. De cijfers volgen de gekozen periode en kanalen; grafieken en tabellen komen uit dezelfde bron als het dashboard.${platforms?.demodata ? ' Demodata — sluit de Meta/Google API\'s aan voor live cijfers.' : ''}</p>
+      </footer>
+    </article>
+  `;
+}
+
 /* ---------- Vergelijkingstabel ---------- */
 
 /**
@@ -905,6 +997,9 @@ export function drawSimpelCharts({ dashboard, platforms, view = 'simpel-overzich
   } else if (view === 'simpel-trends') {
     tekenTrendMetriek('simpel-trend-trends', platforms, actieveMetriek('simpel-trend-trends'), trendOpts);
     tekenStackedSpend('simpel-stacked-spend', meta, google);
+  } else if (view === 'simpel-rapportage') {
+    tekenTrendMetriek('simpel-rapport-trend', platforms, 'spend', trendOpts);
+    tekenSplitDonut('simpel-rapport-donut', meta, google);
   }
 }
 

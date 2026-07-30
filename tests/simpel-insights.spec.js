@@ -261,6 +261,26 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('.card:has(#simpel-stacked-spend) details.chart-table table')).toHaveCount(1);
   });
 
+  test('de Rapportage-knop opent een print-klare samenvatting met KPI\'s, inzichten en vervolgstappen', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await page.click('.simpel-topbar-acties a[href="#/pulse/rapportage"]');
+    await page.waitForTimeout(700);
+    await expect(page.locator('.simpel-rapport')).toBeVisible();
+    // Kernsecties: KPI's, ontwikkelingsgrafiek en auto-inzichten.
+    await expect(page.locator('.simpel-rapport .simpel-kpi .kpi').first()).toBeVisible();
+    await expect(page.locator('#simpel-rapport-trend')).toBeVisible();
+    expect(await page.locator('.simpel-rapport .inzicht-kaart').count()).toBeGreaterThanOrEqual(1);
+    // De KPI's in het rapport zijn niet klikbaar (statische samenvatting).
+    await expect(page.locator('.simpel-rapport .kpi.kpi-klik')).toHaveCount(0);
+    await expect(page.locator('.simpel-rapport .kpi.is-actief')).toHaveCount(0);
+    // Vervolgstappen, afgeleid uit de inzichten (met bronvermelding).
+    expect(await page.locator('.simpel-rapport .rapport-stap').count()).toBeGreaterThanOrEqual(1);
+    await expect(page.locator('.simpel-rapport .rapport-stap-bron').first()).toContainText('Uit inzicht');
+    // Actiebalk: terug naar het dashboard + download/printen.
+    await expect(page.locator('.simpel-rapport-balk a[href="#/pulse"]')).toBeVisible();
+    await expect(page.locator('.simpel-rapport-balk [data-simpel-print]')).toBeVisible();
+  });
+
   test('de gekozen trend-metriek overleeft een herlaadactie via de URL', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
     await page.click('.simpel-kpi .kpi[data-simpel-metric="simpel-trend-overzicht:clicks"]');

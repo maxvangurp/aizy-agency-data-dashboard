@@ -3883,15 +3883,41 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
   .simpel-root .inzicht-grid { grid-template-columns: 1fr; }
 }
 
-/* Topbar-acties (Exporteer / Print) */
+/* Topbar-acties (Rapportage / Exporteer / Print) */
 .simpel-topbar-acties { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+
+/* Rapportage: een op zichzelf staand, print-klaar "document". */
+.simpel-rapport-balk {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4);
+}
+.simpel-rapport {
+  display: grid; gap: var(--section-gap);
+  max-width: 980px;
+  background: var(--surface-raised); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: clamp(20px, 3vw, 40px);
+}
+.simpel-rapport-kop { border-bottom: 2px solid var(--border); padding-bottom: var(--space-3); }
+.simpel-rapport-merk {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--accent); margin: 0 0 6px;
+}
+.simpel-rapport-kop h1 { font-size: clamp(22px, 3vw, 30px); line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.02em; }
+.simpel-rapport-kop .muted { margin: 0; font-size: 13px; }
+.simpel-rapport-sectie { display: grid; gap: var(--space-3); }
+.simpel-rapport-sectie > h2 { font-size: var(--fs-section); margin: 0; letter-spacing: -0.01em; }
+.simpel-rapport-sectie > p.muted { margin: 0; }
+.simpel-rapport-voet { border-top: 1px solid var(--border); padding-top: var(--space-3); }
 
 /* Delta-pill in een tabel (Verschil-kolom) rechts uitlijnen. */
 .uitlijn-rechts .kpi-delta-pill { margin-top: 0; }
 
 /* ---------- Simpel dashboard: print ---------- */
 @media print {
-  .simpel-sidebar, .simpel-topbar { display: none !important; }
+  .simpel-sidebar, .simpel-topbar, .simpel-rapport-balk, [data-print-verbergen] { display: none !important; }
+  /* Het rapport vult op papier de volle breedte, zonder kaartrand/schaduw. */
+  .simpel-rapport { max-width: 100% !important; border: none !important; box-shadow: none !important; padding: 0 !important; background: #fff !important; }
   .simpel-app { display: block !important; min-height: 0 !important; background: #fff !important; }
   .simpel-main { overflow: visible !important; }
   .simpel-root { gap: 16px !important; }
