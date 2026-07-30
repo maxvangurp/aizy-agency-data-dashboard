@@ -94,13 +94,17 @@ function renderActie(actie) {
 function renderAanvullend(aanvullend) {
   return `<details class="inzicht-aanvullend">
     <summary>Nog ${aanvullend.length} ${aanvullend.length === 1 ? 'bevinding' : 'bevindingen'}</summary>
-    <ul class="inzicht-lijst-compact">
-      ${aanvullend.map((i) => `<li>
-        <strong>${esc(i.titel)}</strong>
-        <span class="muted klein">${esc(i.samenvatting)}</span>
-        ${i.actie ? `<span class="klein"><span class="eyebrow">${esc(LABELS.actie)}</span> ${esc(i.actie)}</span>` : ''}
-      </li>`).join('')}
-    </ul>
+    <div class="inzicht-grid inzicht-aanvullend-grid">
+      ${aanvullend.map((i) => {
+        const categorie = inzichtCategorieTerm(i.categorie);
+        return `<article class="card inzicht-mini" data-categorie="${esc(i.categorie)}">
+          <div class="inzicht-mini-kop">${badge(categorie.kort, categorie.variant ?? 'muted')}</div>
+          <h4 class="inzicht-mini-titel">${esc(i.titel)}</h4>
+          <p class="inzicht-mini-samenvatting">${esc(i.samenvatting)}</p>
+          ${i.actie ? `<p class="inzicht-mini-actie"><span class="eyebrow">${esc(LABELS.actie)}</span> ${esc(i.actie)}</p>` : ''}
+        </article>`;
+      }).join('')}
+    </div>
   </details>`;
 }
 

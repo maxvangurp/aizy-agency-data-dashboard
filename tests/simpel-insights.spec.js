@@ -210,10 +210,16 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     expect(await page.locator('#simpelInhoud .kpi-delta-pill').count()).toBeGreaterThanOrEqual(3);
   });
 
-  test('er zijn meerdere auto-inzichten (primair + aanvullend)', async ({ page }) => {
+  test('er zijn meerdere auto-inzichten (primair + aanvullend als nette kaartjes)', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
     expect(await page.locator('.inzicht-kaart').count()).toBeGreaterThanOrEqual(2);
     await expect(page.locator('.inzicht-aanvullend')).toBeVisible();
+    // De aanvullende bevindingen zijn nu compacte kaartjes met een categorie-badge,
+    // niet meer een kale tekstlijst.
+    await page.locator('.inzicht-aanvullend > summary').click();
+    await page.waitForTimeout(200);
+    expect(await page.locator('.inzicht-mini').count()).toBeGreaterThanOrEqual(1);
+    await expect(page.locator('.inzicht-mini .badge').first()).toBeVisible();
   });
 
   test('print- en exportknop; export downloadt een CSV met ruwe (niet-opgemaakte) getallen', async ({ page }) => {
