@@ -2432,6 +2432,13 @@ body { font-size: var(--fs-body); line-height: 1.5; }
 .werkgebied, .main, .pagina-inhoud, .page-root { min-width: 0; }
 .chart-canvas, .chart-canvas canvas, .card canvas { max-width: 100%; }
 
+/* Op smalle schermen krijgen grafieken iets meer hoogte, zodat de lijn ademt
+   naast de as-labels. min-height overschrijft de inline height niet maar wint als
+   hij groter is (effectieve hoogte = max), dus geen !important nodig. */
+@media (max-width: 640px) {
+  .chart-canvas { min-height: 320px; }
+}
+
 /* Sluitstuk tegen horizontale pagina-overloop: het echte scrollgebied is
    .werkgebied, dus de body zelf hoeft nooit horizontaal te scrollen. Wide
    content (tabellen, grafieken) scrolt binnen zijn eigen container. */

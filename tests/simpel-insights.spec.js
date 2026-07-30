@@ -281,6 +281,29 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('.simpel-rapport-balk [data-simpel-print]')).toBeVisible();
   });
 
+  test('op een smal scherm dunt de trendgrafiek zijn datumlabels uit en staat de donut-legenda onderaan', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    // Geen horizontale overloop op de trendpagina.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(false);
+    // De lijn-as dunt uit (autoSkip) en houdt de datumlabels horizontaal (maxRotation 0).
+    const lijn = await page.evaluate(() => {
+      const c = window.Chart.getChart('simpel-trend-overzicht');
+      return { autoSkip: c?.options?.scales?.x?.ticks?.autoSkip, maxRotation: c?.options?.scales?.x?.ticks?.maxRotation };
+    });
+    expect(lijn.autoSkip).toBe(true);
+    expect(lijn.maxRotation).toBe(0);
+    // De donut-legenda staat op mobiel onderaan (niet rechts, dat drukt de donut plat).
+    const donutPos = await page.evaluate(() => window.Chart.getChart('simpel-donut-split')?.options?.plugins?.legend?.position);
+    expect(donutPos).toBe('bottom');
+  });
+
+  test('op een ruim scherm staat de donut-legenda rechts', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce); // desktop-project = 1440
+    const donutPos = await page.evaluate(() => window.Chart.getChart('simpel-donut-split')?.options?.plugins?.legend?.position);
+    expect(donutPos).toBe('right');
+  });
+
   test('de gekozen trend-metriek overleeft een herlaadactie via de URL', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
     await page.click('.simpel-kpi .kpi[data-simpel-metric="simpel-trend-overzicht:clicks"]');

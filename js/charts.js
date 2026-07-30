@@ -81,7 +81,12 @@ export function destroyAllCharts() {
   registry.clear();
 }
 
-function baseOptions(p, { stacked = false, horizontal = false, valueFormatter } = {}) {
+/** True op smalle (telefoon)schermen. Guard voor omgevingen zonder matchMedia. */
+function isSmalScherm() {
+  return Boolean(window.matchMedia?.('(max-width: 640px)').matches);
+}
+
+function baseOptions(p, { stacked = false, horizontal = false, valueFormatter, tijdAs = false } = {}) {
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -120,7 +125,7 @@ function baseOptions(p, { stacked = false, horizontal = false, valueFormatter } 
           : undefined,
       },
     },
-    scales: buildScales(p, { stacked, horizontal, valueFormatter }),
+    scales: buildScales(p, { stacked, horizontal, valueFormatter, tijdAs }),
   };
 }
 
@@ -129,13 +134,21 @@ function baseOptions(p, { stacked = false, horizontal = false, valueFormatter } 
  * De waardeopmaak hoort alleen op de waarde-as, anders worden categorienamen
  * als bedragen weergegeven.
  */
-function buildScales(p, { stacked, horizontal, valueFormatter }) {
+function buildScales(p, { stacked, horizontal, valueFormatter, tijdAs = false }) {
   const tickFont = { family: "'Plus Jakarta Sans', sans-serif", size: 12 };
 
   const categorieAs = {
     stacked,
     grid: { display: false, drawBorder: false },
-    ticks: { color: p.inkMuted, font: tickFont, autoSkip: false },
+    // Een tijd-as (lijn over veel dagen) dunt zijn labels uit en houdt ze
+    // horizontaal, zodat er niet 30 gedraaide datums op elkaar geplet raken op
+    // smalle schermen. Chart.js toont alleen wat past (breedte-afhankelijk),
+    // terwijl álle datapunten, de tooltip en de tabelweergave volledig blijven.
+    // Categorie-assen met weinig, betekenisvolle labels (staaf/funnel) tonen
+    // álles (autoSkip: false).
+    ticks: tijdAs
+      ? { color: p.inkMuted, font: tickFont, autoSkip: true, maxRotation: 0, minRotation: 0, autoSkipPadding: 8 }
+      : { color: p.inkMuted, font: tickFont, autoSkip: false },
   };
 
   const waardeAs = {
@@ -202,7 +215,8 @@ export function lineChart(canvasId, { labels, series, valueFormatter }) {
         };
       }),
     },
-    options: baseOptions(p, { valueFormatter }),
+    // tijdAs: de x-as is een dagreeks — labels uitdunnen i.p.v. 30 datums forceren.
+    options: baseOptions(p, { valueFormatter, tijdAs: true }),
   });
 }
 
@@ -294,7 +308,10 @@ export function donutChart(canvasId, { labels, data, colors, valueFormatter }) {
       cutout: '62%',
       plugins: {
         legend: {
-          position: 'right',
+          // Rechts naast de donut op ruime schermen; op mobiel eronder, anders
+          // drukt de legenda de donut tot een sliver. De positie wordt bij het
+          // (her)tekenen bepaald; na een pure resize klopt hij bij de volgende render.
+          position: isSmalScherm() ? 'bottom' : 'right',
           labels: {
             color: p.inkMuted,
             font: { family: "'Plus Jakarta Sans', sans-serif", size: 12 },
