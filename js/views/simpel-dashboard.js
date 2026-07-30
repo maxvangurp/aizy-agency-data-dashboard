@@ -15,10 +15,12 @@
 
 import { fmt, esc, tabel, figure, getalKolom, badge } from './components.js';
 import { renderInzichten } from './insight-cards.js';
+import { inzichtCategorieTerm } from '../terminology.js';
 import { combineerTotalen, alleCampagnes, adDeltas, adTotalenVorige, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks, afgeleideRatios } from '../data/ads-data.js';
 import { bouwAdInzichten, budgetTempo } from '../data/simpel-insights.js';
+import { optimalisatiesVoor, OptimStatus } from '../model/optimalisaties.js';
 import { lineChart, barChart, donutChart, funnelChart } from '../charts.js';
-import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, toonKorteDatum } from '../filters/period.js';
+import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, toonKorteDatum, toonDatum } from '../filters/period.js';
 
 /** Korte, in-zin bruikbare tekst per vergelijkingsmodus (voor 't.o.v. …'). */
 const VERGELIJK_KORT = {
@@ -38,6 +40,7 @@ const SIMPEL_NAV = [
   { naam: 'simpel-conversies', pad: '#/pulse/conversies', label: 'Conversies' },
   { naam: 'simpel-segmenten', pad: '#/pulse/segmenten', label: 'Segmenten' },
   { naam: 'simpel-trends', pad: '#/pulse/trends', label: 'Trends' },
+  { naam: 'simpel-optimalisatie', pad: '#/pulse/optimalisaties', label: 'Optimalisaties' },
 ];
 
 /* ---------------------------------------------------------------
@@ -157,6 +160,7 @@ export function renderSimpelInhoud({ dashboard, platforms, view = 'simpel-overzi
     case 'simpel-conversies': return renderConversiesView(dashboard, platforms, v);
     case 'simpel-segmenten': return renderSegmentenView(dashboard, platforms, v);
     case 'simpel-trends': return renderTrendsView(dashboard, platforms, v);
+    case 'simpel-optimalisatie': return renderOptimalisatiesView(dashboard, platforms, v);
     case 'simpel-rapportage': return renderSimpelRapportageView(dashboard, platforms, v);
     default: return renderOverzichtView(dashboard, platforms, v);
   }
@@ -917,10 +921,125 @@ function adInzichtenBlok(dashboard, platforms, vergelijking, max = 3) {
   // Wat niet in 'primair' past, schuift door naar 'aanvullend' — nooit weggegooid.
   const primair = inzichten.primair.slice(0, max);
   const aanvullend = [...inzichten.primair.slice(max), ...inzichten.aanvullend];
+  // Elke aanbevolen optimalisatie krijgt een "Oppakken"-knop of, als hij al wordt
+  // bijgehouden, een statuschip (client-side; wijzigingen hertekenen via de store).
+  const tracked = new Map(optimalisatiesVoor(dashboard?.client?.id).map((o) => [o.sleutel, o]));
   return renderInzichten(
     { primair, aanvullend },
-    { titel: 'Wat valt op', toonAanvullend: true },
+    { titel: 'Wat valt op', toonAanvullend: true, slotVoor: (i) => trackControl(i, tracked) },
   );
+}
+
+/* ---------------------------------------------------------------
+   Optimalisaties bijhouden
+   --------------------------------------------------------------- */
+
+const OPTIM_STATUS_META = {
+  [OptimStatus.OPEN]: { label: 'Open', variant: 'muted' },
+  [OptimStatus.BEZIG]: { label: 'Bezig', variant: 'middel' },
+  [OptimStatus.AFGEROND]: { label: 'Afgerond', variant: 'ok' },
+  [OptimStatus.NIET_NU]: { label: 'Niet nu', variant: 'muted' },
+};
+const OPTIM_STATUS_VOLGORDE = [OptimStatus.OPEN, OptimStatus.BEZIG, OptimStatus.AFGEROND, OptimStatus.NIET_NU];
+
+/** De "Oppakken"-knop of statuschip onder een inzichtkaart (alleen trackbare inzichten). */
+function trackControl(inzicht, trackedBySleutel) {
+  if (!inzicht.sleutel || !inzicht.actie) return '';
+  const bestaand = trackedBySleutel.get(inzicht.sleutel);
+  if (bestaand) {
+    const m = OPTIM_STATUS_META[bestaand.status] ?? OPTIM_STATUS_META[OptimStatus.OPEN];
+    return `<div class="optim-slot is-getrackt">
+      <span class="optim-slot-status">${badge(m.label, m.variant)}</span>
+      <a class="link klein" href="#/pulse/optimalisaties">Beheer</a>
+    </div>`;
+  }
+  return `<div class="optim-slot">
+    <button type="button" class="btn klein" data-optim-oppak="${esc(inzicht.sleutel)}">Oppakken</button>
+  </div>`;
+}
+
+/** Eén statuskiezer (segmented) voor een bijgehouden optimalisatie. */
+function optimStatusKiezer(o) {
+  return `<div class="optim-status" role="group" aria-label="Status">
+    ${OPTIM_STATUS_VOLGORDE.map((s) => `<button type="button" class="optim-status-knop${o.status === s ? ' actief' : ''}" aria-pressed="${o.status === s}" data-optim-status="${esc(o.id)}:${esc(s)}">${esc(OPTIM_STATUS_META[s].label)}</button>`).join('')}
+  </div>`;
+}
+
+/** Eén bijgehouden optimalisatie als rij. */
+function optimRij(o) {
+  const cat = o.categorie ? inzichtCategorieTerm(o.categorie) : null;
+  const datum = o.aangemaaktOp ? toonDatum(String(o.aangemaaktOp).slice(0, 10)) : '';
+  return `<article class="optim-rij" data-status="${esc(o.status)}">
+    <div class="optim-rij-kop">
+      ${cat ? badge(cat.kort, cat.variant ?? 'muted') : ''}
+      ${datum ? `<span class="muted klein">Op je lijst sinds ${esc(datum)}</span>` : ''}
+    </div>
+    <h3 class="optim-rij-titel">${esc(o.titel)}</h3>
+    ${o.actie ? `<p class="optim-rij-actie">${esc(o.actie)}</p>` : ''}
+    <div class="optim-rij-voet">
+      ${optimStatusKiezer(o)}
+      <button type="button" class="link klein gevaar" data-optim-verwijder="${esc(o.id)}">Verwijderen</button>
+    </div>
+  </article>`;
+}
+
+/** Eén nog-niet-opgepakte aanbeveling als rij, met een "Oppakken"-knop. */
+function aanbevelingRij(i) {
+  const cat = i.categorie ? inzichtCategorieTerm(i.categorie) : null;
+  return `<article class="optim-rij is-aanbeveling" data-categorie="${esc(i.categorie ?? '')}">
+    <div class="optim-rij-kop">
+      ${cat ? badge(cat.kort, cat.variant ?? 'muted') : ''}
+    </div>
+    <h3 class="optim-rij-titel">${esc(i.titel)}</h3>
+    ${i.actie ? `<p class="optim-rij-actie">${esc(i.actie)}</p>` : ''}
+    <div class="optim-rij-voet">
+      <button type="button" class="btn klein primary" data-optim-oppak="${esc(i.sleutel)}">Oppakken</button>
+    </div>
+  </article>`;
+}
+
+/**
+ * De Optimalisaties-pagina: een samenvatting, jouw bijgehouden optimalisaties met
+ * hun status, en de aanbevelingen uit de inzichten die je nog niet hebt opgepakt.
+ */
+function renderOptimalisatiesView(dashboard, platforms, vergelijking) {
+  const clientId = dashboard?.client?.id;
+  const getrackt = optimalisatiesVoor(clientId);
+  const trackedSleutels = new Set(getrackt.map((o) => o.sleutel));
+
+  const inzichten = bouwAdInzichten(dashboard, platforms, vergelijking);
+  const aanbevelingen = [...inzichten.primair, ...inzichten.aanvullend].filter((i) => i.sleutel && i.actie);
+  const nieuw = aanbevelingen.filter((i) => !trackedSleutels.has(i.sleutel));
+
+  // Op status sorteren (open/bezig eerst), daarbinnen nieuwste eerst.
+  const rang = { [OptimStatus.OPEN]: 0, [OptimStatus.BEZIG]: 1, [OptimStatus.AFGEROND]: 2, [OptimStatus.NIET_NU]: 3 };
+  const gesorteerd = [...getrackt].sort((a, b) =>
+    (rang[a.status] ?? 9) - (rang[b.status] ?? 9) || String(b.aangemaaktOp).localeCompare(String(a.aangemaaktOp)));
+
+  const telling = OPTIM_STATUS_VOLGORDE.map((s) => ({ s, n: getrackt.filter((o) => o.status === s).length }));
+  const samenvatting = getrackt.length
+    ? `<div class="optim-samenvatting">${telling.map(({ s, n }) => `<span class="optim-telling" data-status="${esc(s)}">${badge(String(n), OPTIM_STATUS_META[s].variant)} ${esc(OPTIM_STATUS_META[s].label)}</span>`).join('')}</div>`
+    : '';
+
+  return `
+    ${simpelKop('Optimalisaties', dashboard, platforms, { vergelijking, ondertitel: `${getrackt.length} bijgehouden` })}
+    <p class="muted optim-intro">Houd bij welke aanbevolen optimalisaties je oppakt en volg hun status — puur voor jou, per klant bewaard.</p>
+    ${samenvatting}
+
+    <section class="card">
+      <h2>Jouw optimalisaties</h2>
+      ${getrackt.length
+        ? `<div class="optim-lijst">${gesorteerd.map(optimRij).join('')}</div>`
+        : '<p class="empty">Je houdt nog geen optimalisaties bij. Pak er hieronder een op, of gebruik de "Oppakken"-knop bij "Wat valt op".</p>'}
+    </section>
+
+    <section class="card">
+      <h2>Aanbevolen om op te pakken</h2>
+      ${nieuw.length
+        ? `<div class="optim-lijst">${nieuw.map(aanbevelingRij).join('')}</div>`
+        : `<p class="empty">${aanbevelingen.length ? 'Alle huidige aanbevelingen staan al op je lijst.' : 'Er zijn nu geen aanbevolen optimalisaties voor deze klant en periode.'}</p>`}
+    </section>
+  `;
 }
 
 /* ---------------------------------------------------------------

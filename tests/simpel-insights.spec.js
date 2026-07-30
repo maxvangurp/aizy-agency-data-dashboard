@@ -320,4 +320,48 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('.simpel-kpi .kpi.is-actief[data-simpel-metric^="simpel-trend-overzicht:"]'))
       .toHaveAttribute('data-simpel-metric', 'simpel-trend-overzicht:clicks');
   });
+
+  test('een aanbevolen optimalisatie oppakken zet hem op de Optimalisaties-lijst (status Open)', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    // "Wat valt op" draagt "Oppakken"-knoppen (alleen inzichten met een actie).
+    expect(await page.locator('#inzichten [data-optim-oppak]').count()).toBeGreaterThanOrEqual(1);
+    await page.locator('#inzichten [data-optim-oppak]').first().click();
+    await page.waitForTimeout(900);
+    // De kaart toont nu een statuschip i.p.v. de knop.
+    await expect(page.locator('.optim-slot.is-getrackt').first()).toBeVisible();
+    // Op de Optimalisaties-pagina staat het item onder "Jouw optimalisaties", status Open.
+    await naar(page, 'Optimalisaties');
+    await page.waitForTimeout(300);
+    expect(await page.locator('.optim-rij:not(.is-aanbeveling)').count()).toBe(1);
+    await expect(page.locator('.optim-rij:not(.is-aanbeveling)').first()).toHaveAttribute('data-status', 'open');
+    // De rest van de aanbevelingen staat onder "Aanbevolen om op te pakken".
+    expect(await page.locator('.optim-rij.is-aanbeveling').count()).toBeGreaterThanOrEqual(1);
+  });
+
+  test('de status van een optimalisatie is aanpasbaar en overleeft een herlaadactie', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await page.locator('#inzichten [data-optim-oppak]').first().click();
+    await page.waitForTimeout(900);
+    await naar(page, 'Optimalisaties');
+    await page.waitForTimeout(300);
+    await page.locator('.optim-rij:not(.is-aanbeveling) [data-optim-status$=":afgerond"]').first().click();
+    await page.waitForTimeout(800);
+    await expect(page.locator('.optim-rij:not(.is-aanbeveling)').first()).toHaveAttribute('data-status', 'afgerond');
+    // localStorage: overleeft een herlaadactie.
+    await page.reload();
+    await page.waitForTimeout(1000);
+    await expect(page.locator('.optim-rij:not(.is-aanbeveling)').first()).toHaveAttribute('data-status', 'afgerond');
+  });
+
+  test('een optimalisatie kan worden verwijderd', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await page.locator('#inzichten [data-optim-oppak]').first().click();
+    await page.waitForTimeout(900);
+    await naar(page, 'Optimalisaties');
+    await page.waitForTimeout(300);
+    expect(await page.locator('.optim-rij:not(.is-aanbeveling)').count()).toBe(1);
+    await page.locator('.optim-rij:not(.is-aanbeveling) [data-optim-verwijder]').first().click();
+    await page.waitForTimeout(700);
+    expect(await page.locator('.optim-rij:not(.is-aanbeveling)').count()).toBe(0);
+  });
 });

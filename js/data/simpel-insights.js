@@ -27,6 +27,19 @@ function mediaan(arr) {
   return g.length % 2 ? g[m] : (g[m - 1] + g[m]) / 2;
 }
 
+/**
+ * Stabiele, korte sleutel uit een naam/datum — identificeert een aanbevolen
+ * optimalisatie over renders/periodes heen (de titel bevat live cijfers en is
+ * dus niet stabiel). Gebruikt om optimalisaties bij te houden zonder duplicaten.
+ */
+function slug(s) {
+  return String(s ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || 'item';
+}
+
 /** Het resultaat in enkelvoud, per klanttype (voor natuurlijke zinnen). */
 function resultEnkelvoud(model) {
   if (model === 'ecommerce') return 'aankoop';
@@ -77,6 +90,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
     const verwachtTotaal = verspild.reduce((s, c) => s + (verwachtResultaat(c) ?? 0), 0);
     inzichten.push({
       _gewicht: 100 + (aandeel ?? 0),
+      sleutel: 'verspild-budget',
       categorie: 'aandachtspunt',
       betrouwbaarheid: convBasis != null ? betrouwbaarheidVanVolume(Math.round(verwachtTotaal)) : 'beperkt',
       titel: `${fmt.euro(som)} ging naar campagnes zonder ${meervoud}`,
@@ -126,6 +140,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
 
       inzichten.push({
         _gewicht: 55 + Math.max(onder, 0),
+        sleutel: `campagne-goedkoop:${slug(beste.name)}`,
         categorie: 'kans',
         betrouwbaarheid: betrouwbaarheidVanVolume(beste.results),
         titel: `${beste.name} levert het goedkoopste resultaat`,
@@ -140,6 +155,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
       if (boven > 20) {
         inzichten.push({
           _gewicht: 50 + boven,
+          sleutel: `campagne-duur:${slug(duurste.name)}`,
           categorie: 'aandachtspunt',
           betrouwbaarheid: betrouwbaarheidVanVolume(duurste.results),
           titel: `${duurste.name} heeft de duurste conversies`,
@@ -162,6 +178,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
     if (onder > 8) {
       inzichten.push({
         _gewicht: 40 + onder,
+        sleutel: `weekdag:${slug(beste.name)}`,
         categorie: 'kans',
         betrouwbaarheid: betrouwbaarheidVanVolume(beste.results),
         titel: `${beste.name} is de sterkste dag`,
@@ -185,6 +202,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
     if (aandeel >= Math.max(40, 200 / campagnes.length)) {
       inzichten.push({
         _gewicht: 45 + (aandeel - 40),
+        sleutel: `budgetconcentratie:${slug(top.name)}`,
         categorie: 'aandachtspunt',
         betrouwbaarheid: betrouwbaarheidVanVolume(totaal.results),
         titel: `${fmt.procent(aandeel)} van het budget zit in één campagne`,
@@ -211,6 +229,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
       const c = kandidaat.c;
       inzichten.push({
         _gewicht: 48,
+        sleutel: `ctr-conversie:${slug(c.name)}`,
         categorie: 'aandachtspunt',
         betrouwbaarheid: betrouwbaarheidVanVolume(c.results),
         titel: `${c.name}: veel klikken, weinig resultaat`,
@@ -238,6 +257,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
       const pct = ((piek.p.spend - med) / med) * 100;
       inzichten.push({
         _gewicht: 42,
+        sleutel: `piekdag:${piek.p.date}`,
         categorie: piek.p.spend > med ? 'aandachtspunt' : 'ontwikkeling',
         betrouwbaarheid: 'redelijk',
         titel: `Uitschieter in de uitgaven op ${toonKorteDatum(piek.p.date)}`,
@@ -260,6 +280,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
     if (duurste.costPerResult > beste.costPerResult * 1.4) {
       inzichten.push({
         _gewicht: 38,
+        sleutel: `apparaat:${slug(beste.name)}`,
         categorie: 'kans',
         betrouwbaarheid: betrouwbaarheidVanVolume(beste.results),
         titel: `${beste.name} is het efficiëntste apparaat`,
@@ -295,6 +316,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
     const { duurste, medCpr } = uitschieter;
     inzichten.push({
       _gewicht: 36,
+      sleutel: `${duurste.soort}:${slug(duurste.name)}`,
       categorie: 'aandachtspunt',
       betrouwbaarheid: 'beperkt',
       titel: `Dure ${duurste.soort}: ${duurste.name}`,

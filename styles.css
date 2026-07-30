@@ -3926,6 +3926,54 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 .simpel-rapport-sectie > p.muted { margin: 0; }
 .simpel-rapport-voet { border-top: 1px solid var(--border); padding-top: var(--space-3); }
 
+/* ---------- Optimalisaties bijhouden (simpele modus) ---------- */
+
+/* Inline "Oppakken"/statuschip onder een inzichtkaart. */
+.optim-slot { display: flex; align-items: center; gap: 10px; margin-top: var(--space-2); }
+.optim-slot-status { display: inline-flex; }
+
+/* Pagina: intro + samenvatting-chips. */
+.optim-intro { margin: 0 0 var(--space-3); max-width: var(--content-reading-width); }
+.optim-samenvatting { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--section-gap); }
+.optim-telling { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-muted); }
+
+/* Lijst met (aanbevolen of bijgehouden) optimalisaties. */
+.optim-lijst { display: grid; gap: var(--space-2); }
+.optim-rij {
+  display: grid; gap: 6px;
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.optim-rij.is-aanbeveling { background: var(--surface); }
+.optim-rij[data-status="afgerond"], .optim-rij[data-status="niet_nu"] { opacity: 0.72; }
+.optim-rij-kop { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.optim-rij-titel { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.35; }
+.optim-rij-actie { margin: 0; font-size: 13px; color: var(--ink-muted); }
+.optim-rij-voet { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; margin-top: 4px; }
+
+/* Segmented statuskiezer (Open/Bezig/Afgerond/Niet nu). */
+.optim-status {
+  display: inline-flex; flex-wrap: wrap; gap: 2px;
+  padding: 3px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.optim-status-knop {
+  border: 0; background: transparent; color: var(--ink-muted); cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 7px;
+}
+.optim-status-knop:hover { color: var(--ink); }
+.optim-status-knop.actief { background: var(--accent-soft); color: var(--accent); }
+.optim-status-knop:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Print: de tracker-bediening valt weg; de lijst zelf blijft leesbaar. */
+@media print {
+  .simpel-app .optim-slot,
+  .simpel-app .optim-status,
+  .simpel-app [data-optim-verwijder],
+  .simpel-app [data-optim-oppak] { display: none !important; }
+}
+
 /* Delta-pill in een tabel (Verschil-kolom) rechts uitlijnen. */
 .uitlijn-rechts .kpi-delta-pill { margin-top: 0; }
 

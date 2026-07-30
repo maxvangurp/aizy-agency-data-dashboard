@@ -68,6 +68,8 @@ import {
   renderGeenToegang, renderNietGevonden,
 } from './views/auth-screens.js';
 import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg, zetTrendMetriek } from './views/simpel-dashboard.js';
+import { bouwAdInzichten } from './data/simpel-insights.js';
+import { oppakOptimalisatie, zetOptimalisatieStatus, verwijderOptimalisatie } from './model/optimalisaties.js';
 import { naarCsv, csvVanRijen, downloadCsv, nlGetalNaarRuw } from './ui/csv.js';
 import { haalAdsPlatforms } from './data/ads-data.js';
 import {
@@ -1931,6 +1933,27 @@ function kiesSimpelMetriek(grafiekId, metricKey) {
   } catch { /* URL niet bij te werken — niet kritiek */ }
 }
 
+/**
+ * Neemt een aanbevolen optimalisatie op in de tracker. Het inzicht wordt op zijn
+ * stabiele sleutel opnieuw afgeleid uit de huidige simpel-data (i.p.v. de lange
+ * titel/actie via data-attributen te sjouwen), en als snapshot opgeslagen.
+ */
+function oppakSimpelOptimalisatie(sleutel) {
+  if (!simpelState) return;
+  const { dashboard, platforms, vergelijking } = simpelState;
+  const inzichten = bouwAdInzichten(dashboard, platforms, vergelijking);
+  const inzicht = [...inzichten.primair, ...inzichten.aanvullend].find((i) => i.sleutel === sleutel);
+  if (!inzicht) return;
+  oppakOptimalisatie({
+    clientId: dashboard?.client?.id,
+    sleutel: inzicht.sleutel,
+    titel: inzicht.titel,
+    actie: inzicht.actie,
+    categorie: inzicht.categorie,
+  });
+  // De store-schrijf hertekent de shell via onDemoWijziging(() => render()).
+}
+
 async function onClick(e) {
   // Ook klikbare KPI-kaarten (article[data-simpel-metric]) meenemen, naast knoppen/links.
   const el = e.target.closest('button, a, [data-simpel-metric]');
@@ -1969,6 +1992,16 @@ async function onClick(e) {
   if (el.dataset.simpelFilter) { pasChipFilterToe(el); return; }
   if (el.dataset.simpelPrint !== undefined) { window.print(); return; }
   if (el.dataset.simpelExportPagina !== undefined) { exporteerPagina(); return; }
+
+  /* --- Simpel dashboard: optimalisaties bijhouden (persisteren in de demo-store;
+         een store-schrijf hertekent vanzelf via onDemoWijziging). --- */
+  if (el.dataset.optimOppak !== undefined) { oppakSimpelOptimalisatie(el.dataset.optimOppak); return; }
+  if (el.dataset.optimStatus) {
+    const [id, status] = el.dataset.optimStatus.split(':');
+    zetOptimalisatieStatus(id, status);
+    return;
+  }
+  if (el.dataset.optimVerwijder) { verwijderOptimalisatie(el.dataset.optimVerwijder); return; }
 
   /* --- Rapportage-builder --- */
   // Een verse "Nieuwe rapportage" begint schoon; de navigatie loopt gewoon door.

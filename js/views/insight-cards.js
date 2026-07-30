@@ -19,7 +19,13 @@ import {
  * @param {{primair: object[], aanvullend: object[]}} inzichten
  * @param {{titel?: string, toonAanvullend?: boolean}} opties
  */
-export function renderInzichten(inzichten, { titel = 'Wat er is veranderd', toonAanvullend = true } = {}) {
+/**
+ * @param {{primair: object[], aanvullend: object[]}} inzichten
+ * @param {{titel?: string, toonAanvullend?: boolean, slotVoor?: (inzicht) => string}} opties
+ *   `slotVoor` geeft optioneel extra HTML onderaan elke kaart (bv. een
+ *   "Oppakken"-knop in de simpele modus); niet meegeven = ongewijzigd.
+ */
+export function renderInzichten(inzichten, { titel = 'Wat er is veranderd', toonAanvullend = true, slotVoor = null } = {}) {
   const primair = inzichten?.primair ?? [];
   const aanvullend = inzichten?.aanvullend ?? [];
 
@@ -36,13 +42,13 @@ export function renderInzichten(inzichten, { titel = 'Wat er is veranderd', toon
   return `<section class="inzichten-blok" id="inzichten" aria-labelledby="inzichtenTitel">
     <h2 id="inzichtenTitel" class="sectie-titel">${esc(titel)}</h2>
     <div class="inzicht-grid">
-      ${primair.map((i, index) => renderInzichtkaart(i, { dominant: index === 0 })).join('')}
+      ${primair.map((i, index) => renderInzichtkaart(i, { dominant: index === 0, slot: slotVoor ? slotVoor(i) : '' })).join('')}
     </div>
-    ${toonAanvullend && aanvullend.length ? renderAanvullend(aanvullend) : ''}
+    ${toonAanvullend && aanvullend.length ? renderAanvullend(aanvullend, slotVoor) : ''}
   </section>`;
 }
 
-export function renderInzichtkaart(inzicht, { dominant = false } = {}) {
+export function renderInzichtkaart(inzicht, { dominant = false, slot = '' } = {}) {
   const categorie = inzichtCategorieTerm(inzicht.categorie);
   const zekerheid = betrouwbaarheidTerm(inzicht.betrouwbaarheid);
 
@@ -62,6 +68,7 @@ export function renderInzichtkaart(inzicht, { dominant = false } = {}) {
     ${inzicht.herkomst ? `<p class="inzicht-herkomst"><span class="eyebrow">${esc(LABELS.context)}</span> ${esc(inzicht.herkomst)}</p>` : ''}
     ${inzicht.betrouwbaarheidRedenen?.length ? renderKanttekening(inzicht.betrouwbaarheidRedenen) : ''}
     ${inzicht.actie ? renderActie(inzicht.actie) : ''}
+    ${slot ?? ''}
   </article>`;
 }
 
@@ -91,7 +98,7 @@ function renderActie(actie) {
   </p>`;
 }
 
-function renderAanvullend(aanvullend) {
+function renderAanvullend(aanvullend, slotVoor = null) {
   return `<details class="inzicht-aanvullend">
     <summary>Nog ${aanvullend.length} ${aanvullend.length === 1 ? 'bevinding' : 'bevindingen'}</summary>
     <div class="inzicht-grid inzicht-aanvullend-grid">
@@ -102,6 +109,7 @@ function renderAanvullend(aanvullend) {
           <h4 class="inzicht-mini-titel">${esc(i.titel)}</h4>
           <p class="inzicht-mini-samenvatting">${esc(i.samenvatting)}</p>
           ${i.actie ? `<p class="inzicht-mini-actie"><span class="eyebrow">${esc(LABELS.actie)}</span> ${esc(i.actie)}</p>` : ''}
+          ${slotVoor ? (slotVoor(i) ?? '') : ''}
         </article>`;
       }).join('')}
     </div>
