@@ -1791,27 +1791,56 @@ code {
   height: calc(100dvh - 55px);
   position: sticky; top: 55px;
   display: flex; flex-direction: column;
+  /* Zachte schaduw langs de linkerrand, zodat het paneel als een net "vel" boven
+     de lijst zweeft in plaats van er met een harde lijn tegenaan te plakken. */
+  box-shadow: -10px 0 28px -18px rgba(22, 13, 39, 0.28);
 }
 .detailpaneel[hidden] { display: none; }
 .detailpaneel-kop {
   display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);
-  padding: var(--space-3) var(--space-3) var(--space-2);
-  border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; background: var(--surface);
 }
-.detailpaneel-kop h2 { font-size: 17px; }
-.detailpaneel-inhoud { padding: var(--space-3); display: grid; gap: var(--space-3); }
+.detailpaneel-kop h2 { font-size: 17px; line-height: 1.25; letter-spacing: -0.01em; }
+.detailpaneel-kop > div { min-width: 0; display: grid; gap: 2px; }
+/* Elke directe sectie (blok, formulier of labelrij) krijgt dezelfde padding en een
+   hairline-scheiding, zodat de opeenvolgende delen niet in elkaar overlopen —
+   consistent over álle paneelvarianten (opbouw, klant, actie, signaal). */
+.detailpaneel-inhoud { padding: 0 var(--space-3); display: grid; gap: 0; }
+.detailpaneel-inhoud > * { padding: var(--space-3) 0; }
+.detailpaneel-inhoud > * + * { border-top: 1px solid var(--border); }
+.detailpaneel-inhoud > :last-child { padding-bottom: var(--space-3); }
+/* Sunken kaart-secties zijn al een eigen omkaderd blok: geen hairline over hun
+   ronde bovenrand, en ruimte via margin i.p.v. een deelscheiding. */
+.detailpaneel-inhoud > .verwerk-blok,
+.detailpaneel-inhoud > .plan-samenvatting { border-top: 0; margin-top: var(--space-2); }
 .detailpaneel-voet {
   margin-top: auto; padding: var(--space-3); border-top: 1px solid var(--border);
   display: flex; gap: var(--space-2); flex-wrap: wrap; position: sticky; bottom: 0; background: var(--surface);
 }
-.paneel-blok { display: grid; gap: 6px; }
-.paneel-blok h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-subtle); }
+
+.paneel-blok { display: grid; gap: 8px; }
+.paneel-blok h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); margin: 0; }
+/* Definitie-/tekstalinea's laten hun eigen marges vallen; de grid-gap regelt de ruimte. */
+.paneel-blok > p { margin: 0; }
 .paneel-labels { display: flex; gap: 6px; flex-wrap: wrap; }
-.paneel-cijfers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
-.paneel-cijfers dt { font-size: 11px; color: var(--ink-subtle); }
-.paneel-cijfers dd { margin: 0; font-weight: 700; }
-.paneel-lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.paneel-lijst li { display: grid; gap: 1px; }
+
+/* Cijferblok als nette stat-grid: cellen op een hairline-raster (sunken-bg schijnt
+   als scheidingslijnen door). Gedeeld door alle paneelvarianten. */
+.paneel-cijfers {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0;
+  background: var(--border); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;
+}
+.paneel-cijfers > div { display: grid; gap: 3px; padding: 9px 11px; background: var(--surface); }
+/* Oneven aantal cijfers: de laatste vult de rij, zodat er geen lege cel overblijft. */
+.paneel-cijfers > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+/* Lange, zin-brede waarden (bv. reden/uitkomst/aanbeveling) vullen de volle rij,
+   zodat ze geen scheve, half-hoge cel naast een korte waarde vormen. */
+.paneel-cijfers > div.paneel-cijfer-breed { grid-column: 1 / -1; }
+.paneel-cijfers dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-muted); }
+.paneel-cijfers dd { margin: 0; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.paneel-lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.paneel-lijst li { display: grid; gap: 2px; }
 .paneel-form { display: grid; gap: var(--space-2); }
 
 /* ---------- KPI-rijen ---------- */
@@ -2161,11 +2190,15 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
 
 /* ---------- Opbouw in het detailpaneel ---------- */
 
-.opbouw-lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.opbouw-rij { display: grid; gap: 3px; }
-.opbouw-rij-kop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.opbouw-balk { background: var(--surface-sunken); border-radius: 999px; height: 6px; overflow: hidden; }
-.opbouw-balk > span { display: block; height: 100%; background: var(--aizy-gradient); }
+.opbouw-lijst { list-style: none; margin: 0; padding: 0; display: grid; gap: 11px; }
+.opbouw-rij { display: grid; gap: 5px; }
+.opbouw-rij-kop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
+.opbouw-rij-kop strong { font-variant-numeric: tabular-nums; }
+/* Balk + compact aandeel op één regel; geen aparte "X procent van het totaal"-regel. */
+.opbouw-balk-rij { display: flex; align-items: center; gap: 8px; }
+.opbouw-balk { flex: 1; background: var(--surface-sunken); border-radius: 999px; height: 6px; overflow: hidden; }
+.opbouw-balk > span { display: block; height: 100%; background: var(--aizy-gradient); border-radius: 999px; }
+.opbouw-aandeel { flex: none; min-width: 38px; text-align: right; font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .bron-chip { font-size: 11px; color: var(--ink-subtle); cursor: help; border-bottom: 1px dotted var(--border-strong); }
 
 /* =========================================================

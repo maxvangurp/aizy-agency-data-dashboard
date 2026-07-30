@@ -78,10 +78,12 @@ function renderSectie(sectie) {
             : `<span>${esc(r.label)}</span>`}
           <strong>${esc(waarde(r.waarde, sectie.formaat))}</strong>
         </div>
-        ${r.aandeel != null ? `<div class="opbouw-balk" role="img" aria-label="${r.aandeel.toFixed(0)} procent aandeel">
-          <span style="width:${Math.min(100, r.aandeel).toFixed(1)}%"></span>
-        </div>
-        <span class="muted klein">${r.aandeel.toFixed(1)} procent van het totaal</span>` : ''}
+        ${r.aandeel != null ? `<div class="opbouw-balk-rij">
+          <div class="opbouw-balk" role="img" aria-label="${r.aandeel.toFixed(0)} procent aandeel">
+            <span style="width:${Math.min(100, r.aandeel).toFixed(1)}%"></span>
+          </div>
+          <span class="opbouw-aandeel">${aandeelLabel(r.aandeel)}</span>
+        </div>` : ''}
       </li>`).join('')}
     </ul>
   </section>`;
@@ -89,6 +91,11 @@ function renderSectie(sectie) {
 
 function waarde(v, formaat) {
   return v == null ? 'Niet beschikbaar' : formatteerMetriek(v, formaat);
+}
+
+/** Compact aandeel-label: "62%" voor grote aandelen, "5.4%" voor kleine (detail behouden). */
+function aandeelLabel(a) {
+  return a >= 10 ? `${Math.round(a)}%` : `${a.toFixed(1)}%`;
 }
 
 function badgeVerandering(delta) {

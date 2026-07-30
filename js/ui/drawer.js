@@ -211,13 +211,15 @@ export function actieDetail({ actie, medewerkers, magBewerken, user }) {
         <button type="button" class="btn klein gevaar" data-actie-verwijder="${esc(actie.id)}">Actie verwijderen</button>
       </div>
     </form>`
-    : `<dl class="paneel-cijfers">
-        <div><dt>Status</dt><dd>${badge(actie.statusTerm.kort, actie.statusTerm.variant)}</dd></div>
-        <div><dt>${esc(LABELS.prioriteit)}</dt><dd>${badge(actie.prioriteitTerm.kort, actie.prioriteitTerm.variant)}</dd></div>
-        <div><dt>Deadline</dt><dd>${actie.deadline ? esc(toonDatum(actie.deadline)) : 'Geen deadline'}</dd></div>
-        <div><dt>${esc(LABELS.verantwoordelijke)}</dt><dd>${esc(actie.verantwoordelijkeNaam)}</dd></div>
-      </dl>
-      <p>${esc(actie.omschrijving)}</p>`;
+    : `<section class="paneel-blok">
+        <dl class="paneel-cijfers">
+          <div><dt>Status</dt><dd>${badge(actie.statusTerm.kort, actie.statusTerm.variant)}</dd></div>
+          <div><dt>${esc(LABELS.prioriteit)}</dt><dd>${badge(actie.prioriteitTerm.kort, actie.prioriteitTerm.variant)}</dd></div>
+          <div><dt>Deadline</dt><dd>${actie.deadline ? esc(toonDatum(actie.deadline)) : 'Geen deadline'}</dd></div>
+          <div><dt>${esc(LABELS.verantwoordelijke)}</dt><dd>${esc(actie.verantwoordelijkeNaam)}</dd></div>
+        </dl>
+        <p>${esc(actie.omschrijving)}</p>
+      </section>`;
 
   return {
     titel: actie.titel,
@@ -315,7 +317,7 @@ export function signaalPlanning({ signaal, medewerkers = [], magPlannen, vandaag
         <dl class="paneel-cijfers">
           <div><dt>${esc(LABELS.klant)}</dt><dd>${esc(signaal.klantNaam)}</dd></div>
           <div><dt>Kanaal</dt><dd>${esc(signaal.kanaalLabel)}</dd></div>
-          <div><dt>Voorgestelde actie</dt><dd>${esc(signaal.aanbeveling)}</dd></div>
+          <div class="paneel-cijfer-breed"><dt>Voorgestelde actie</dt><dd>${esc(signaal.aanbeveling)}</dd></div>
         </dl>
       </section>
 
@@ -490,8 +492,8 @@ export function signaalDetail({ signaal, magVerwerken, medewerkers = [] }) {
           <div><dt>${esc(LABELS.verantwoordelijke)}</dt><dd>${esc(signaal.verantwoordelijkeNaam)}</dd></div>
           ${signaal.plannedAt ? `<div><dt>Ingepland</dt><dd>${esc(toonDatum(signaal.plannedAt))}</dd></div>` : ''}
           ${signaal.nextReviewAt ? `<div><dt>Resultaatcontrole</dt><dd>${esc(toonDatum(signaal.nextReviewAt))}</dd></div>` : ''}
-          ${signaal.reden ? `<div><dt>Reden van negeren</dt><dd>${esc(signaal.reden)}</dd></div>` : ''}
-          ${signaal.resolutionNote ? `<div><dt>Uitkomst</dt><dd>${esc(signaal.resolutionNote)}</dd></div>` : ''}
+          ${signaal.reden ? `<div class="paneel-cijfer-breed"><dt>Reden van negeren</dt><dd>${esc(signaal.reden)}</dd></div>` : ''}
+          ${signaal.resolutionNote ? `<div class="paneel-cijfer-breed"><dt>Uitkomst</dt><dd>${esc(signaal.resolutionNote)}</dd></div>` : ''}
         </dl>
       </section>
 

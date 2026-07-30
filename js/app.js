@@ -1934,6 +1934,22 @@ function kiesSimpelMetriek(grafiekId, metricKey) {
 }
 
 /**
+ * Ververst alleen de inhoud van het simpele dashboard (niet de hele shell), zodat
+ * een client-side wijziging — bv. een optimalisatie oppakken — de scrollpositie van
+ * `.simpel-main` behoudt. Gebruikt de gecachte `simpelState` (geen refetch). Geeft
+ * `false` als er niets te verversen valt, zodat de aanroeper op `render()` terugvalt.
+ */
+function herrenderSimpelInhoud() {
+  if (!simpelState) return false;
+  const houder = document.getElementById('simpelInhoud');
+  if (!houder) return false;
+  const { dashboard, platforms, view, vergelijking } = simpelState;
+  houder.innerHTML = renderSimpelInhoud({ dashboard, platforms, view, vergelijking });
+  drawSimpelCharts({ dashboard, platforms, view, vergelijking });
+  return true;
+}
+
+/**
  * Neemt een aanbevolen optimalisatie op in de tracker. Het inzicht wordt op zijn
  * stabiele sleutel opnieuw afgeleid uit de huidige simpel-data (i.p.v. de lange
  * titel/actie via data-attributen te sjouwen), en als snapshot opgeslagen.
@@ -2949,8 +2965,13 @@ async function init() {
   grids.initGrids(render);
 
   // Iedere wijziging in de demo-opslag leidt tot één hertekening. Daardoor
-  // tonen lijst, bord en agenda per definitie dezelfde gegevens.
-  onDemoWijziging(() => render());
+  // tonen lijst, bord en agenda per definitie dezelfde gegevens. In de simpele
+  // modus verversen we alleen de inhoud (behoudt de scrollpositie); een volledige
+  // render zou .simpel-main opnieuw opbouwen en de pagina naar boven laten springen.
+  onDemoWijziging(() => {
+    if (document.body.dataset.shell === 'simpel' && herrenderSimpelInhoud()) return;
+    render();
+  });
 
   await restoreSession();
 

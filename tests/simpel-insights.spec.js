@@ -353,6 +353,23 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('.optim-rij:not(.is-aanbeveling)').first()).toHaveAttribute('data-status', 'afgerond');
   });
 
+  test('oppakken behoudt de scrollpositie (springt niet naar boven)', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    // Scroll omlaag naar "Wat valt op" en pak een zichtbare kaart op (de kaart
+    // wisselt in-place naar een statuschip, dus de scrollpositie hoort te blijven).
+    const knop = page.locator('#inzichten [data-optim-oppak]').first();
+    await knop.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const voor = await page.evaluate(() => document.scrollingElement.scrollTop);
+    expect(voor).toBeGreaterThan(80);
+    await knop.click();
+    await page.waitForTimeout(600);
+    const na = await page.evaluate(() => document.scrollingElement.scrollTop);
+    // Geen sprong naar boven (vóór de fix zou een volledige render naar 0 springen).
+    expect(Math.abs(voor - na)).toBeLessThan(80);
+  });
+
   test('een optimalisatie kan worden verwijderd', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
     await page.locator('#inzichten [data-optim-oppak]').first().click();

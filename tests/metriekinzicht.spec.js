@@ -175,7 +175,9 @@ test.describe('Metriekopbouw', () => {
     await spend.locator('.kpi-drill').click();
     await page.waitForTimeout(400);
     await expect(page.locator('.opbouw-lijst').first()).toBeVisible();
-    await expect(page.locator('.detailpaneel')).toContainText('procent van het totaal');
+    // Elke kanaalregel toont een compact aandeel-label (bijv. "62%") naast de balk.
+    await expect(page.locator('.opbouw-lijst .opbouw-aandeel').first()).toBeVisible();
+    await expect(page.locator('.opbouw-lijst .opbouw-aandeel').first()).toContainText('%');
   });
 
   test('de opbouw is deelbaar via de URL', async ({ page }) => {
