@@ -131,11 +131,14 @@ function bouwSamenvatting(user, pageType, { filters, clientId, clientName }) {
 export function bouwAssistantContext({
   user, route, params = {}, filters = null, omgeving = 'agency',
   tab = null, clientId = null, clientName = null, pagina = null, openPaneel = null,
+  summary = null,
 }) {
   const pageType = route?.naam ?? 'onbekend';
   const rol = user?.memberships?.[0]?.rol ?? null;
 
-  const summary = bouwSamenvatting(user, pageType, { filters, clientId, clientName });
+  // Een vooraf berekende summary (bijv. de ads-cijfers van de simpele modus, die
+  // async laden) heeft voorrang; anders leiden we hem hier af uit de repositories.
+  const samenvatting = summary ?? bouwSamenvatting(user, pageType, { filters, clientId, clientName });
 
   const rechten = {
     beheertActies: can(user, Permission.MANAGE_ACTIONS),
@@ -153,7 +156,7 @@ export function bouwAssistantContext({
     userId: user?.id ?? null,
     userRole: rol,
     clientId,
-    clientName: clientName ?? summary.clientName ?? null,
+    clientName: clientName ?? samenvatting.clientName ?? null,
     activeTab: tab,
     openDrawer: openPaneel ? { soort: openPaneel.soort, id: openPaneel.id } : null,
     selectedPeriod: filters?.periode
@@ -169,8 +172,8 @@ export function bouwAssistantContext({
     },
     pageTitle: pagina?.titel ?? route?.titel ?? null,
     pageModel: pagina?.model ?? null,
-    gebruikteContext: beschrijfContext({ filters, clientName: clientName ?? summary.clientName ?? null }),
-    summary,
+    gebruikteContext: beschrijfContext({ filters, clientName: clientName ?? samenvatting.clientName ?? null }),
+    summary: samenvatting,
     permissions: rechten,
   };
 }

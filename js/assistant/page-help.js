@@ -12,6 +12,23 @@
  */
 
 const euro = (n) => (typeof n === 'number' ? `€${n.toLocaleString('nl-NL', { maximumFractionDigits: 0 })}` : '—');
+// Kleine bedragen (kosten per resultaat kan € 0,45 zijn) verdienen twee decimalen,
+// anders toont een echte € 0,45 als "€0".
+const euro2 = (n) => (typeof n === 'number'
+  ? `€${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  : '—');
+const getal = (n) => (typeof n === 'number' ? n.toLocaleString('nl-NL', { maximumFractionDigits: 0 }) : '—');
+
+/** Eén insight-regel voor een pulse-pagina: uitgaven + resultaat + rendement. */
+function pulseInsight(c, aanhef) {
+  const s = c.summary ?? {};
+  if (s.spend == null) return `${aanhef} over ${c.periodeLabel}.`;
+  const res = s.results != null ? ` · ${getal(s.results)} ${(s.resultLabel ?? 'resultaten').toLowerCase()}` : '';
+  const rendement = s.roas != null
+    ? ` · ROAS ${s.roas}×`
+    : s.costPerResult != null ? ` · ${euro2(s.costPerResult)} ${s.costPer ?? 'per resultaat'}` : '';
+  return `${aanhef} over ${c.periodeLabel}: ${euro(s.spend)} uitgaven${res}${rendement}.`;
+}
 
 /** Terugvalhulp voor pagina's zonder eigen inhoudelijke analyse. */
 const STANDAARD = {
@@ -387,6 +404,108 @@ const CATALOGUS = {
     tips: ['Een alleen-lezen gebruiker kan meekijken maar niets wijzigen.'],
     navActions: [],
     insight: () => 'Je bekijkt de gebruikers van deze klantomgeving.',
+  },
+
+  /* ---- Simpele modus (Snel inzicht · Meta & Google Ads) ---- */
+
+  'simpel-overzicht': {
+    naam: 'Totaal overzicht',
+    doel: 'De gecombineerde Meta- en Google Ads-cijfers in één blik: KPI\'s, verdeling, ontwikkeling en wat opvalt.',
+    capabilities: [
+      'De kern-KPI\'s met verandering t.o.v. de vorige periode bekijken',
+      'Op een KPI klikken om die in de grafiek te tonen',
+      'De auto-inzichten lezen en een optimalisatie oppakken',
+    ],
+    suggestedQuestions: [
+      'Wat valt op in deze cijfers?',
+      'Hoe presteert Meta t.o.v. Google?',
+      'Wat is ROAS?',
+      'Welke optimalisatie pak ik het beste op?',
+      'Hoe maak ik een rapportage?',
+    ],
+    tips: ['Klik op een KPI-kaart om die metriek in de grafiek eronder te zien.'],
+    navActions: ['open-pulse-optimalisaties', 'open-pulse-rapportage'],
+    insight: (c) => pulseInsight(c, 'Je bekijkt Meta & Google Ads'),
+  },
+
+  'simpel-google': {
+    naam: 'Google Ads',
+    doel: 'De Google Ads-cijfers met verdieping naar advertentiegroepen en zoekwoorden.',
+    capabilities: ['De Google-KPI\'s bekijken', 'Zoekwoorden en advertentiegroepen doorzoeken', 'Een optimalisatie oppakken'],
+    suggestedQuestions: ['Wat valt op bij Google Ads?', 'Welk zoekwoord is te duur?', 'Wat is CPC?'],
+    tips: ['Sorteer de tabellen op kosten per resultaat om de uitschieters te vinden.'],
+    navActions: ['open-pulse-optimalisaties'],
+    insight: (c) => pulseInsight(c, 'Je bekijkt Google Ads'),
+  },
+
+  'simpel-meta': {
+    naam: 'Meta Ads',
+    doel: 'De Meta Ads-cijfers met verdieping naar ad sets en plaatsingen.',
+    capabilities: ['De Meta-KPI\'s bekijken', 'Ad sets en plaatsingen doorzoeken', 'Een optimalisatie oppakken'],
+    suggestedQuestions: ['Wat valt op bij Meta Ads?', 'Welke plaatsing presteert het best?', 'Wat is CPM?'],
+    tips: ['Vergelijk plaatsingen op kosten per resultaat, niet op uitgaven alleen.'],
+    navActions: ['open-pulse-optimalisaties'],
+    insight: (c) => pulseInsight(c, 'Je bekijkt Meta Ads'),
+  },
+
+  'simpel-campagnes': {
+    naam: 'Campagnes',
+    doel: 'Alle campagnes over Meta en Google, sorteerbaar en doorzoekbaar.',
+    capabilities: ['Campagnes sorteren, zoeken en filteren op platform', 'De tabel als CSV exporteren'],
+    suggestedQuestions: ['Welke campagne presteert het slechtst?', 'Welke campagne is het duurst per resultaat?', 'Wat betekent CTR?'],
+    tips: ['Sorteer op kosten per resultaat om snel te zien waar budget weglekt.'],
+    navActions: ['open-pulse-optimalisaties'],
+    insight: (c) => pulseInsight(c, 'Je bekijkt de campagnes'),
+  },
+
+  'simpel-conversies': {
+    naam: 'Conversies',
+    doel: 'De conversies en de funnel: van vertoning tot resultaat.',
+    capabilities: ['De conversietypes bekijken', 'De funnel-doorstroom zien'],
+    suggestedQuestions: ['Waar moet ik eerst op letten in de funnel?', 'Wat is de conversie per klik?', 'Wat betekent conversieratio?'],
+    tips: ['De grootste uitvalstap is meestal het meest lonend om te verbeteren.'],
+    navActions: ['open-pulse-optimalisaties'],
+    insight: (c) => pulseInsight(c, 'Je bekijkt de conversies'),
+  },
+
+  'simpel-segmenten': {
+    naam: 'Segmenten',
+    doel: 'De verdeling per apparaat, regio en weekdag.',
+    capabilities: ['Per apparaat, regio en weekdag de bijdrage bekijken'],
+    suggestedQuestions: ['Welk apparaat is het efficiëntst?', 'Welke dag presteert het best?', 'Waar komen de meeste resultaten vandaan?'],
+    tips: ['Verschuif budget richting het efficiëntste apparaat of de sterkste dag.'],
+    navActions: ['open-pulse-optimalisaties'],
+    insight: (c) => pulseInsight(c, 'Je bekijkt de segmenten'),
+  },
+
+  'simpel-trends': {
+    naam: 'Trends',
+    doel: 'De ontwikkeling per dag en de vergelijking met de vorige periode.',
+    capabilities: ['De trend per metriek bekijken', 'De vergelijking met de vorige periode zien'],
+    suggestedQuestions: ['Wat is de grootste verandering?', 'Loopt de trend op of af?', 'Wat is ROAS?'],
+    tips: ['De gestippelde lijn is dezelfde periode ervoor; kijk naar de richting, niet één dag.'],
+    navActions: ['open-pulse-optimalisaties', 'open-pulse-rapportage'],
+    insight: (c) => pulseInsight(c, 'Je bekijkt de ontwikkeling'),
+  },
+
+  'simpel-optimalisatie': {
+    naam: 'Optimalisaties',
+    doel: 'De aanbevolen optimalisaties bijhouden: oppakken en de status volgen.',
+    capabilities: ['Een aanbeveling oppakken', 'De status volgen (open/bezig/afgerond)', 'Je lijst beheren'],
+    suggestedQuestions: ['Welke optimalisatie pak ik het beste op?', 'Wat staat er nog open?', 'Hoe houd ik voortgang bij?'],
+    tips: ['Begin met de aanbeveling met de grootste impact die nog openstaat.'],
+    navActions: ['open-pulse-rapportage'],
+    insight: (c) => `Je houdt hier de aanbevolen optimalisaties bij over ${c.periodeLabel}.`,
+  },
+
+  'simpel-rapportage': {
+    naam: 'Rapportage',
+    doel: 'Een nette, print-/PDF-klare samenvatting van de pulse-data met vervolgstappen.',
+    capabilities: ['De samenvatting bekijken', 'Downloaden of printen als PDF'],
+    suggestedQuestions: ['Wat staat er in deze rapportage?', 'Hoe download ik hem als PDF?', 'Wat zijn de aanbevolen vervolgstappen?'],
+    tips: ['De cijfers volgen de gekozen periode en vergelijking uit de balk bovenaan.'],
+    navActions: ['open-pulse-optimalisaties'],
+    insight: (c) => pulseInsight(c, 'Je bekijkt de rapportage'),
   },
 };
 

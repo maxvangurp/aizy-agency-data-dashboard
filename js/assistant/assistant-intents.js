@@ -13,6 +13,7 @@ import { metriekCatalogus } from '../data/metrics-catalog.js';
 const euro = (n, d = 0) => (typeof n === 'number'
   ? `€${n.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d })}`
   : '—');
+const getal = (n) => (typeof n === 'number' ? n.toLocaleString('nl-NL', { maximumFractionDigits: 0 }) : String(n ?? '—'));
 
 /** Natuurlijke termen → metrieksleutel. */
 const METRIEK_TERMEN = [
@@ -136,6 +137,12 @@ function antwoordSamenvatting(context, hulp) {
   } else if (context.pageType === 'agency-dataquality') {
     if (s.dekkingProblemen != null) cijfers.push({ label: 'Onvolledige dekking', waarde: String(s.dekkingProblemen) });
     if (s.trackingProblemen != null) cijfers.push({ label: 'Trackingproblemen', waarde: String(s.trackingProblemen) });
+  } else if (context.pageType?.startsWith('simpel-')) {
+    if (s.spend != null) cijfers.push({ label: 'Uitgaven', waarde: euro(s.spend) });
+    if (s.results != null) cijfers.push({ label: s.resultLabel ?? 'Resultaat', waarde: getal(s.results) });
+    if (s.roas != null) cijfers.push({ label: 'ROAS', waarde: `${s.roas}×` });
+    else if (s.costPerResult != null) cijfers.push({ label: s.costLabel ?? 'Kosten per resultaat', waarde: euro(s.costPerResult, 2) });
+    if (s.grootsteVerandering) cijfers.push({ label: 'Grootste verandering', waarde: s.grootsteVerandering });
   }
 
   return {
@@ -189,6 +196,22 @@ function antwoordPrioritering(context, hulp) {
 }
 
 function antwoordNavigatie(tekst, context, hulp) {
+  // In de simpele modus wijzen we naar de pulse-pagina's, niet het volledige systeem.
+  if (context.environment === 'simpel') {
+    const simpelDoelen = [
+      [/optimalisatie|aanbevel|verbeter/, 'open-pulse-optimalisaties', 'De optimalisaties houd je bij onder Optimalisaties.'],
+      [/rapport/, 'open-pulse-rapportage', 'De rapportage maak je onder Rapportage.'],
+      [/trend|ontwikkeling|verloop/, 'open-pulse-trends', 'De ontwikkeling per dag staat onder Trends.'],
+    ];
+    for (const [patroon, sleutel, uitleg] of simpelDoelen) {
+      if (patroon.test(tekst)) return { tekst: uitleg, acties: [sleutel], demo: true };
+    }
+    return {
+      tekst: 'Vertel me waar je heen wilt — bijvoorbeeld de campagnes, conversies, segmenten, trends, optimalisaties of de rapportage — dan wijs ik je de weg.',
+      acties: hulp.navActions,
+      demo: true,
+    };
+  }
   const doelen = [
     [/campagne/, 'open-campagnes', 'De campagnes staan onder Performance → Campagnes.'],
     [/budget/, 'open-budgetten', 'De budgetten staan onder Performance → Budgetten.'],

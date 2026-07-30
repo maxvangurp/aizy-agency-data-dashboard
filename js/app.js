@@ -71,7 +71,7 @@ import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelL
 import { bouwAdInzichten } from './data/simpel-insights.js';
 import { oppakOptimalisatie, zetOptimalisatieStatus, verwijderOptimalisatie } from './model/optimalisaties.js';
 import { naarCsv, csvVanRijen, downloadCsv, nlGetalNaarRuw } from './ui/csv.js';
-import { haalAdsPlatforms } from './data/ads-data.js';
+import { haalAdsPlatforms, combineerTotalen, adDeltas } from './data/ads-data.js';
 import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
   renderPaginatabs, renderDetailpaneel, actieveTab,
@@ -510,6 +510,94 @@ let simpelState = null;
 // De vorige simpel-view, om focus alléén bij een echte paginawissel te verplaatsen.
 let vorigeSimpelView = null;
 
+/** Op de Google-/Meta-pagina telt alleen dat platform mee, net als in de KPI-band. */
+function pulsePlatformScope(route) {
+  if (route?.naam === 'simpel-google') return 'google';
+  if (route?.naam === 'simpel-meta') return 'meta';
+  return null;
+}
+
+/**
+ * Compacte, API-ready samenvatting voor de Aizy-assistent in de simpele modus.
+ * Puur uit reeds geladen data (geen extra fetch): de (voor de Google-/Meta-pagina
+ * platform-gescoopte) totalen plus de grootste verandering t.o.v. de vorige
+ * periode. Zonder ads-data valt alles weg op de klantnaam, zodat de assistent nog
+ * steeds algemeen kan helpen.
+ */
+function pulseSamenvatting(dashboard, platforms, scope = null) {
+  const naam = dashboard?.client?.name ?? null;
+  // Scope de bron zodat de Google-/Meta-pagina niet de gecombineerde cijfers toont
+  // onder een enkel-platform-koptekst ("Je bekijkt Google Ads"): dan alleen dat blok.
+  const bron = scope && platforms ? { [scope]: platforms[scope] } : platforms;
+  const totaal = platforms ? combineerTotalen(bron) : null;
+  if (!totaal) return { clientName: naam };
+  const model = dashboard?.model;
+  const ecommerce = model === 'ecommerce';
+  const resultLabel = totaal.resultLabel ?? 'Resultaat';
+  // Het resultaat in enkelvoud, per klanttype, voor natuurlijke kostenlabels
+  // ("kosten per lead" / "per interactie" / "per aankoop") — nooit hardgecodeerd
+  // "lead", want dat klopt niet voor een awareness- of e-commerceklant.
+  const enkelvoud = ecommerce ? 'aankoop' : model === 'awareness' ? 'interactie' : 'lead';
+  const costLabel = `Kosten per ${enkelvoud}`;
+  const rond = (n, d = 2) => (n == null ? null : Math.round(n * 10 ** d) / 10 ** d);
+  // De grootste échte verandering (%-tekst) onder de kernmetrieken.
+  const deltas = adDeltas(dashboard, totaal, { vergelijkingActief: true });
+  const grootste = ['results', 'spend', 'ctr', ecommerce ? 'roas' : 'costPerResult']
+    .map((k) => (deltas[k] ? { k, d: deltas[k] } : null))
+    .filter((x) => x && x.d.procent != null && x.d.tekst?.includes('%'))
+    .sort((a, b) => Math.abs(b.d.procent) - Math.abs(a.d.procent))[0];
+  // De resultaat- en kostenmetriek hun dashboardnaam geven (bijv. "Aankopen",
+  // "Kosten per interactie") i.p.v. de catalogusterm van de onderliggende
+  // richtingsmetriek ("Transacties", of voor awareness zelfs "Kosten per klik").
+  const veranderingLabel = grootste && (
+    grootste.k === 'results' ? resultLabel
+      : grootste.k === 'costPerResult' ? costLabel
+        : grootste.d.label
+  );
+  return {
+    clientName: naam,
+    resultLabel,
+    spend: totaal.spend ?? null,
+    results: totaal.results ?? null,
+    roas: ecommerce ? rond(totaal.roas, 2) : null,
+    // De kosten-per-resultaat met een klanttype-passend label (geen "lead"-aanname).
+    costPerResult: ecommerce ? null : rond(totaal.costPerResult, 2),
+    costLabel,
+    costPer: `per ${enkelvoud}`,
+    ctr: rond(totaal.ctr, 2),
+    grootsteVerandering: grootste ? `${veranderingLabel} ${grootste.d.tekst}` : null,
+  };
+}
+
+/**
+ * Monteert de Aizy-assistent in de simpele modus. Dezelfde mount als het volledige
+ * systeem (zetContext/zetVerversCallback/data-assistent/renderAssistent), maar met
+ * een vooraf berekende pulse-summary — de ads-cijfers laden async — en de omgeving
+ * 'simpel', zodat paginahulp en navacties naar de pulse-pagina's wijzen.
+ */
+function monteerSimpelAssistent({ user, route, filters, dashboard, platforms }) {
+  const context = bouwAssistantContext({
+    user,
+    route,
+    filters,
+    omgeving: 'simpel',
+    clientId: dashboard?.client?.id ?? null,
+    clientName: dashboard?.client?.name ?? null,
+    pagina: { titel: route?.titel ?? 'Snel inzicht', model: dashboard?.model ?? null },
+    summary: pulseSamenvatting(dashboard, platforms, pulsePlatformScope(route)),
+  });
+  assistent.zetContext(context);
+  assistent.zetVerversCallback(herrenderAssistent);
+  document.body.dataset.assistent = assistent.isVastgezet() ? 'vast' : 'los';
+  // Vervang een eventueel bestaande laag i.p.v. blind toevoegen: tijdens de async
+  // laadtijd kan een toetsenbord-toggle al een (verouderde) laag hebben gemonteerd;
+  // zonder deze vervanging zouden er twee panelen ontstaan.
+  const html = renderAssistent(context);
+  const bestaand = document.querySelector('.assistent-laag');
+  if (bestaand) bestaand.outerHTML = html;
+  else app().insertAdjacentHTML('beforeend', html);
+}
+
 /**
  * Rendert het simpele Meta/Google Ads-dashboard met een eigen minimale layout.
  * De cijfers laden async via de data-provider-seam; eerst een laadstaat, dan de
@@ -546,6 +634,9 @@ function renderSimpelPagina({ user, ctx, route }) {
   // lege staat i.p.v. een blijvende laadstaat.
   if (!dashboard) {
     simpelState = null;
+    // Een lopende fetch van een vorige render invalideren, zodat die de lege staat
+    // niet alsnog overschrijft (en geen tweede assistent monteert).
+    simpelToken += 1;
     const houder = document.getElementById('simpelInhoud');
     if (houder) {
       houder.innerHTML = renderSimpelLeeg(
@@ -556,6 +647,8 @@ function renderSimpelPagina({ user, ctx, route }) {
       );
       if (paginaGewisseld) houder.focus({ preventScroll: true });
     }
+    // Ook zonder data begeleidt de assistent (algemene pulse-hulp, geen cijfers).
+    monteerSimpelAssistent({ user, route, filters, dashboard: null, platforms: null });
     return;
   }
 
@@ -572,8 +665,15 @@ function renderSimpelPagina({ user, ctx, route }) {
       // Na een paginawissel de focus in de inhoud zetten, zodat hij niet naar
       // <body> valt en schermlezer/toetsenbord bij de nieuwe pagina beginnen.
       if (paginaGewisseld) houder.focus({ preventScroll: true });
+      // De assistent mét de echte pulse-cijfers monteren (na de async data-load).
+      monteerSimpelAssistent({ user, route, filters, dashboard, platforms });
     })
-    .catch(() => { /* Bij een fetch-fout blijft de laadstaat staan. */ });
+    .catch(() => {
+      // Bij een fetch-fout blijft de laadstaat staan, maar de assistent hoort er
+      // wél te zijn (algemene hulp, zonder cijfers) — mits deze render nog actueel is.
+      if (token !== simpelToken) return;
+      monteerSimpelAssistent({ user, route, filters, dashboard, platforms: null });
+    });
 }
 
 /* ---------------------------------------------------------------

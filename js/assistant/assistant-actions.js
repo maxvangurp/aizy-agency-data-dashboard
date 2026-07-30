@@ -27,7 +27,9 @@ const DEFINITIES = {
   'open-integraties': (c) => (c.permissions.isAgency ? N('Open integraties', '#/agency/integrations') : null),
   'maak-rapportage': (c) => (c.environment === 'client'
     ? N('Rapportage maken', '#/client/report?tab=rapportages')
-    : N('Rapportage maken', '#/agency/reports/new')),
+    : c.environment === 'simpel'
+      ? N('Rapportage maken', '#/pulse/rapportage')
+      : N('Rapportage maken', '#/agency/reports/new')),
   'open-assistent-instellingen': (c) => (c.permissions.isAgency
     ? N('Assistent-instellingen', '#/agency/settings?sectie=assistent')
     : N('Assistent-instellingen', '#/client/report')),
@@ -43,7 +45,26 @@ const DEFINITIES = {
   'open-analyse': (c) => (c.environment === 'client' ? N('Open analyse', '#/client/analysis') : null),
   'open-samenwerking': (c) => (c.environment === 'client' ? N('Open samenwerking', '#/client/collaboration') : null),
   'open-rapportage': (c) => (c.environment === 'client' ? N('Open rapportage', '#/client/report') : null),
+
+  // Simpele modus (pulse) — voor elke ingelogde gebruiker in de simpele modus.
+  'open-pulse-optimalisaties': () => N('Naar optimalisaties', '#/pulse/optimalisaties'),
+  // Zelfde label als 'maak-rapportage' in de simpele modus, zodat resolveActies de
+  // twee ontdubbelt wanneer een samenvatting de rapportage-vervolgstap toevoegt.
+  'open-pulse-rapportage': () => N('Rapportage maken', '#/pulse/rapportage'),
+  'open-pulse-trends': () => N('Bekijk de trends', '#/pulse/trends'),
 };
+
+/**
+ * In de simpele modus blijft de gebruiker binnen de pulse-pagina's. Een generieke
+ * intent (bijv. de uitleg van "betrouwbaarheid" of "budget pacing") kan een agency-
+ * actie voorstellen; die zou de gebruiker uit de simpele modus katapulteren. Dit
+ * vangnet houdt in de simpele modus alleen pulse-navigatie over — ongeacht welke
+ * intent de actie aandroeg.
+ */
+function toegestaanInModus(actie, context) {
+  if (context?.environment !== 'simpel') return true;
+  return actie.type === 'nav' && typeof actie.hash === 'string' && actie.hash.startsWith('#/pulse/');
+}
 
 /**
  * Zet een lijst actiesleutels om in concrete, toegestane vervolgacties.
@@ -57,7 +78,7 @@ export function resolveActies(sleutels, context) {
     const maker = DEFINITIES[sleutel];
     if (!maker) continue;
     const actie = maker(context);
-    if (actie && !gezien.has(actie.label)) {
+    if (actie && toegestaanInModus(actie, context) && !gezien.has(actie.label)) {
       gezien.add(actie.label);
       uit.push({ ...actie, sleutel });
     }
