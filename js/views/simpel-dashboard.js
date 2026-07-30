@@ -15,7 +15,7 @@
 
 import { fmt, esc, tabel, figure, getalKolom, badge } from './components.js';
 import { renderInzichten } from './insight-cards.js';
-import { combineerTotalen, alleCampagnes, adDeltas, adTotalenVorige, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks } from '../data/ads-data.js';
+import { combineerTotalen, alleCampagnes, adDeltas, adTotalenVorige, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks, afgeleideRatios } from '../data/ads-data.js';
 import { bouwAdInzichten, budgetTempo } from '../data/simpel-insights.js';
 import { lineChart, barChart, donutChart, funnelChart } from '../charts.js';
 import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, toonKorteDatum } from '../filters/period.js';
@@ -51,7 +51,7 @@ export function renderSimpelLayout({ user, dashboard, klanten = [], filters, pla
       <div class="simpel-kolom">
         ${renderSimpelTopbar({ dashboard, klanten, filters, magWisselen })}
         <main class="simpel-main">
-          <div class="page-root simpel-root" id="simpelInhoud">
+          <div class="page-root simpel-root" id="simpelInhoud" tabindex="-1">
             ${platforms ? renderSimpelInhoud({ dashboard, platforms, view }) : renderSimpelLaden()}
           </div>
         </main>
@@ -248,7 +248,12 @@ function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafie
     // catalogus definieert 'conversieratio' als aandeel van sessies (GA4), niet klikken.
     kaarten.push(kaart('conversieratio', 'Conversie per klik', totaal.conversieratio, 'procent', { tip: false }));
   }
-  return `<div class="kpi-row simpel-kpi">${kaarten.join('')}</div>`;
+  // Zichtbare, hover-onafhankelijke hint dat de kaarten de grafiek sturen — de
+  // enige affordance die ook op touch werkt (waar cursor/hover ontbreekt).
+  const hint = grafiekId
+    ? '<p class="kpi-band-hint muted">Tik of klik een kaart om die in de grafiek hieronder te tonen.</p>'
+    : '';
+  return `${hint}<div class="kpi-row simpel-kpi">${kaarten.join('')}</div>`;
 }
 
 /* ---------------------------------------------------------------
@@ -317,21 +322,36 @@ function reeksAs(meta, google) {
    Trend met metric-switcher
    --------------------------------------------------------------- */
 
+// getVal voor de ratio's leunt op dezelfde `afgeleideRatios` als de rest van de
+// datalaag — geen aparte formulekopieën die uiteen kunnen lopen.
 const TREND_META = {
   spend: { getVal: (p) => p.spend, opmaak: fmt.euro, label: 'Uitgaven' },
   impressions: { getVal: (p) => p.impressions, opmaak: fmt.getal, label: 'Vertoningen' },
   clicks: { getVal: (p) => p.clicks, opmaak: fmt.getal, label: 'Klikken' },
-  ctr: { getVal: (p) => (p.impressions ? (p.clicks / p.impressions) * 100 : null), opmaak: fmt.procent, label: 'Doorklikratio' },
-  cpc: { getVal: (p) => (p.clicks ? p.spend / p.clicks : null), opmaak: fmt.euro2, label: 'Kosten per klik' },
-  cpm: { getVal: (p) => (p.impressions ? (p.spend / p.impressions) * 1000 : null), opmaak: fmt.euro2, label: 'CPM' },
+  ctr: { getVal: (p) => afgeleideRatios(p).ctr, opmaak: fmt.procent, label: 'Doorklikratio' },
+  cpc: { getVal: (p) => afgeleideRatios(p).cpc, opmaak: fmt.euro2, label: 'Kosten per klik' },
+  cpm: { getVal: (p) => afgeleideRatios(p).cpm, opmaak: fmt.euro2, label: 'CPM' },
   results: { getVal: (p) => p.results, opmaak: fmt.getal, label: 'Resultaat' },
-  costPerResult: { getVal: (p) => (p.results ? p.spend / p.results : null), opmaak: fmt.euro2, label: 'Kosten per resultaat' },
-  conversieratio: { getVal: (p) => (p.clicks ? (p.results / p.clicks) * 100 : null), opmaak: fmt.procent, label: 'Conversie per klik' },
+  costPerResult: { getVal: (p) => afgeleideRatios(p).costPerResult, opmaak: fmt.euro2, label: 'Kosten per resultaat' },
+  conversieratio: { getVal: (p) => afgeleideRatios(p).conversieratio, opmaak: fmt.procent, label: 'Conversie per klik' },
   revenue: { getVal: (p) => p.revenue, opmaak: fmt.euro, label: 'Omzet' },
-  roas: { getVal: (p) => (p.spend ? p.revenue / p.spend : null), opmaak: fmt.ratio, label: 'ROAS' },
+  roas: { getVal: (p) => afgeleideRatios(p).roas, opmaak: fmt.ratio, label: 'ROAS' },
   reach: { getVal: (p) => p.reach, opmaak: fmt.getal, label: 'Bereik' },
-  frequentie: { getVal: (p) => (p.reach ? p.impressions / p.reach : null), opmaak: fmt.ratio, label: 'Frequentie' },
+  frequentie: { getVal: (p) => afgeleideRatios(p).frequentie, opmaak: fmt.ratio, label: 'Frequentie' },
 };
+
+/**
+ * De metriek-sleutels die als KPI-kaart in de band staan, per klanttype — de
+ * enige geldige "actieve" metrieken op het overzicht/de platformpagina's. Moet
+ * gelijk lopen met de kaarten in `kpiBandDelta`.
+ */
+function kpiMetriekKeys(model) {
+  const keys = ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'results', 'costPerResult'];
+  if (model === 'ecommerce') keys.push('revenue', 'roas');
+  else if (model === 'awareness') keys.push('reach', 'frequentie');
+  else keys.push('cpm', 'conversieratio');
+  return keys;
+}
 
 /** Bronvermelding op basis van de aanwezige kanalen (per kanaal correct). */
 function trendBron(platforms) {
@@ -345,6 +365,26 @@ function trendSubtitel(metricKey, rlabel, { hint = true } = {}) {
   return `${label} per dag${hint ? ' — klik op een KPI hierboven om te wisselen.' : ''}`;
 }
 
+/** "over beide platforms" bij twee kanalen, anders "voor <kanaal>" (single-channel klant). */
+function kanalenZin(platforms) {
+  const kols = trendPlatforms(platforms);
+  return kols.length > 1 ? 'over beide platforms' : `voor ${kols[0]?.label ?? 'dit kanaal'}`;
+}
+
+/** De vorige-periode-zin voor de trend; meervoud bij twee kanalen (twee overlays). */
+function stippelZin(platforms) {
+  return trendPlatforms(platforms).length > 1
+    ? ' De stippellijnen zijn dezelfde periode ervoor.'
+    : ' De stippellijn is dezelfde periode ervoor.';
+}
+
+/** De volledige trendondertitel: metriek-per-dag (+ evt. klik-hint) + stippel-zin. */
+function trendOndertitel(metricKey, rlabel, { hint, vergelijking, platforms }) {
+  const basis = trendSubtitel(metricKey, rlabel, { hint });
+  if (!vergelijkingActief(vergelijking)) return basis;
+  return `${basis.endsWith('.') ? basis : `${basis}.`}${stippelZin(platforms)}`;
+}
+
 /** De beschikbare trend-metrieken, afhankelijk van wat de dagreeks bevat. */
 function trendMetrieken(platforms) {
   const meta = platforms.meta?.series ?? [];
@@ -352,10 +392,12 @@ function trendMetrieken(platforms) {
   const alle = [...meta, ...google];
   const heeft = (veld) => alle.some((p) => p?.[veld] != null);
   const rlabel = platforms.meta?.resultLabel ?? platforms.google?.resultLabel ?? 'Resultaten';
-  const opties = [{ key: 'spend', label: 'Uitgaven' }];
-  if (heeft('clicks')) opties.push({ key: 'clicks', label: 'Klikken' });
+  // Labels uit TREND_META, zodat de switcher-knop en de grafiekondertitel dezelfde
+  // term gebruiken (voorheen zei de knop "CTR" en de ondertitel "Doorklikratio").
+  const opties = [{ key: 'spend', label: TREND_META.spend.label }];
+  if (heeft('clicks')) opties.push({ key: 'clicks', label: TREND_META.clicks.label });
   if (heeft('results')) opties.push({ key: 'results', label: rlabel });
-  if (heeft('clicks') && heeft('impressions')) opties.push({ key: 'ctr', label: 'CTR' });
+  if (heeft('clicks') && heeft('impressions')) opties.push({ key: 'ctr', label: TREND_META.ctr.label });
   return opties;
 }
 
@@ -395,7 +437,7 @@ function trendMetriekTabel(platforms, metricKey, { dashboard = null, vergelijkin
   const overlays = toonVorige ? kols.map((k) => platformOverlay(dashboard, k.blok, metricKey)) : [];
 
   const kolommen = ['Datum', ...kols.map((k) => getalKolom(k.label.replace(' Ads', '')))];
-  if (toonVorige) kols.forEach((k) => kolommen.push(getalKolom(`${k.label.replace(' Ads', '')} vorige`)));
+  if (toonVorige) kols.forEach((k) => kolommen.push(getalKolom(`${k.label.replace(' Ads', '')} · vorige`)));
 
   const rijen = basis.map((p, i) => {
     const rij = [esc(toonKorteDatum(p.date))];
@@ -416,13 +458,16 @@ function urlMetriekRaw() {
 
 /**
  * De actieve trend-metriek. `switcherOpties` = de beperkte set van de switcher
- * (Trends-pagina); zonder switcher mag elke KPI-metriek gekozen zijn (via een
- * klik op een KPI). Valt terug op 'spend'.
+ * (Trends-pagina); `kaartKeys` = de metrieken die als klikbare KPI-kaart bestaan
+ * (overzicht/platform). De URL-metriek moet in die set zitten, anders valt de
+ * grafiek terug op 'spend' — voorkomt dat kop/tabel bijv. ROAS tonen terwijl de
+ * grafiek (die geen bijbehorende kaart vindt) stilzwijgend Uitgaven tekent.
  */
-function actieveTrendMetriek({ switcherOpties = null } = {}) {
+function actieveTrendMetriek({ switcherOpties = null, kaartKeys = null } = {}) {
   const m = urlMetriekRaw();
   if (switcherOpties) return (m && switcherOpties.some((o) => o.key === m)) ? m : (switcherOpties[0]?.key ?? 'spend');
-  return (m && TREND_META[m]) ? m : 'spend';
+  const geldig = kaartKeys ? kaartKeys.includes(m) : Boolean(m && TREND_META[m]);
+  return geldig ? m : 'spend';
 }
 
 /**
@@ -435,10 +480,11 @@ function trendMetriekFiguur(grafiekId, platforms, { titel = 'Ontwikkeling per da
   const key = TREND_META[actief] ? actief : 'spend';
   const rlabel = platforms.meta?.resultLabel ?? platforms.google?.resultLabel ?? 'Resultaat';
   const bron = trendBron(platforms);
-  const subtitel = `${trendSubtitel(key, rlabel, { hint: !toonSwitcher })}${vergelijkingActief(vergelijking) ? ' De stippellijn is dezelfde periode ervoor.' : ''}`;
+  const subtitel = trendOndertitel(key, rlabel, { hint: !toonSwitcher, vergelijking, platforms });
   return `<div class="trend-blok">
     ${toonSwitcher ? metricSwitcher(grafiekId, opties, key) : ''}
     ${figure(grafiekId, titel, subtitel, trendMetriekTabel(platforms, key, { dashboard, vergelijking }), bron, 280)}
+    <p class="visueel-verborgen" aria-live="polite" data-trend-live></p>
   </div>`;
 }
 
@@ -449,7 +495,7 @@ function renderOverzichtView(dashboard, platforms, vergelijking) {
   const rlabel = totaal?.resultLabel ?? 'Resultaat';
   const campagnes = alleCampagnes(platforms).slice(0, 8);
   const dagreeks = gecombineerdeReeks(platforms);
-  const actiefMetriek = actieveTrendMetriek();
+  const actiefMetriek = actieveTrendMetriek({ kaartKeys: kpiMetriekKeys(dashboard.model) });
 
   return `
     ${simpelKop('Meta & Google Ads', dashboard, platforms, { vergelijking })}
@@ -467,7 +513,7 @@ function renderOverzichtView(dashboard, platforms, vergelijking) {
     ${budgetTempoKaart(dashboard, platforms)}
     <section class="card">
       <h2>Top campagnes</h2>
-      <p class="muted">De grootste campagnes over beide platforms.</p>
+      <p class="muted">De grootste campagnes ${kanalenZin(platforms)}.</p>
       <div class="table-scroll">${prestatieTabel(campagnes, rlabel, { metPlatform: true })}</div>
     </section>
     ${adInzichtenBlok(dashboard, platforms, vergelijking)}
@@ -488,7 +534,7 @@ function renderPlatformView(dashboard, blok, platforms, vergelijking) {
   const rl = rlabel.toLowerCase();
   const bd = blok.breakdowns ?? {};
   const enkelPlatform = { [blok.platform]: blok };
-  const actiefMetriek = actieveTrendMetriek();
+  const actiefMetriek = actieveTrendMetriek({ kaartKeys: kpiMetriekKeys(dashboard.model) });
 
   const interTabel = (id, items, opts) => interactieveTabel(id, prestatieKolommen(rlabel, opts), items, { csvNaam: `${blok.platform}-${id}` });
 
@@ -531,13 +577,15 @@ function renderCampagnesView(dashboard, platforms, vergelijking) {
   const platformOpties = [{ key: 'alle', label: 'Alle' }];
   if (platforms.meta?.aanwezig) platformOpties.push({ key: 'meta', label: 'Meta Ads' });
   if (platforms.google?.aanwezig) platformOpties.push({ key: 'google', label: 'Google Ads' });
+  // De platform-chips (en dus de 'filter'-belofte) hebben alleen zin bij >1 kanaal.
+  const metFilter = platformOpties.length > 2;
 
   return `
     ${simpelKop('Campagnes', dashboard, platforms, { ondertitel: `${campagnes.length} campagnes`, vergelijking })}
     <section class="card">
       <div class="card-kop-rij">
-        <p class="muted">Alle campagnes over beide platforms — sorteer, zoek, filter of exporteer.</p>
-        ${platformOpties.length > 2 ? chips('campagnes-alle', platformOpties, 'alle') : ''}
+        <p class="muted">Alle campagnes ${kanalenZin(platforms)} — sorteer, zoek${metFilter ? ', filter' : ''} of exporteer.</p>
+        ${metFilter ? chips('campagnes-alle', platformOpties, 'alle') : ''}
       </div>
       ${interactieveTabel('campagnes-alle', prestatieKolommen(rlabel, { metPlatform: true }), campagnes, {
         csvNaam: 'campagnes', rijAttr: (c) => `data-platform="${esc(c.platform)}"`,
@@ -659,14 +707,26 @@ function renderTrendsView(dashboard, platforms, vergelijking) {
   const titel = vergelijking?.actief ? `Vergelijking met ${vergelijking.kort}` : 'Vergelijking met de vorige periode';
   const actiefMetriek = actieveTrendMetriek({ switcherOpties: trendMetrieken(platforms) });
 
+  // "Gestapeld" en "Meta en Google" gelden alleen bij twee kanalen.
+  const stapelKols = trendPlatforms(platforms);
+  const stapelMeerdere = stapelKols.length > 1;
+  const stapelTitel = `Uitgaven per dag${stapelMeerdere ? ' — gestapeld' : ''}`;
+  const stapelSub = stapelMeerdere
+    ? 'Meta en Google gestapeld, zodat het totale dagbudget zichtbaar is.'
+    : `${stapelKols[0]?.label ?? 'Advertenties'} per dag.`;
+
   return `
     ${simpelKop('Trends', dashboard, platforms, { vergelijking })}
     <h2 class="visueel-verborgen">Ontwikkeling per dag</h2>
     ${trendMetriekFiguur('simpel-trend-trends', platforms, { titel: 'Ontwikkeling per dag', dashboard, vergelijking, toonSwitcher: true, actief: actiefMetriek })}
     <section class="card">
-      <h2>Uitgaven per dag — gestapeld</h2>
-      <p class="muted">Meta en Google gestapeld, zodat het totale dagbudget zichtbaar is.</p>
-      <div class="chart-canvas" style="height:260px"><canvas id="simpel-stacked-spend"></canvas></div>
+      <h2>${esc(stapelTitel)}</h2>
+      <p class="muted">${esc(stapelSub)}</p>
+      <div class="chart-canvas" style="height:260px"><canvas id="simpel-stacked-spend" role="img" aria-label="${esc(`${stapelTitel}. ${stapelSub} Zie de tabelweergave voor de cijfers per dag.`)}"></canvas></div>
+      <details class="chart-table">
+        <summary>Tabelweergave</summary>
+        <div class="table-scroll">${trendMetriekTabel(platforms, 'spend', { dashboard })}</div>
+      </details>
     </section>
     <section class="card">
       <h2>${esc(titel)}</h2>
@@ -870,17 +930,19 @@ export function zetTrendMetriek(platforms, grafiekId, metricKey, { dashboard = n
   });
   const canvas = document.getElementById(grafiekId);
   const fig = canvas?.closest('.chart-figure');
+  const rlabel = platforms.meta?.resultLabel ?? platforms.google?.resultLabel ?? 'Resultaat';
   const tabelHouder = fig?.querySelector('.chart-table .table-scroll');
   if (tabelHouder) tabelHouder.innerHTML = trendMetriekTabel(platforms, key, { dashboard, vergelijking });
   // Ondertitel volgt de metriek; de KPI-hint alleen tonen waar KPI's klikbaar zijn.
   const onder = fig?.querySelector('figcaption p.muted');
   if (onder) {
-    const rlabel = platforms.meta?.resultLabel ?? platforms.google?.resultLabel ?? 'Resultaat';
-    const suffix = vergelijkingActief(vergelijking) ? ' De stippellijn is dezelfde periode ervoor.' : '';
-    onder.textContent = `${trendSubtitel(key, rlabel, { hint: kpis.length > 0 })}${suffix}`;
+    onder.textContent = trendOndertitel(key, rlabel, { hint: kpis.length > 0, vergelijking, platforms });
   }
   const bron = fig?.querySelector('.chart-source');
   if (bron) bron.textContent = `Bron: ${trendBron(platforms)}`;
+  // Kondig de wissel aan voor schermlezers (de grafiek zelf is geen tekst).
+  const live = fig?.closest('.trend-blok')?.querySelector('[data-trend-live]');
+  if (live) live.textContent = `Grafiek toont nu ${trendSubtitel(key, rlabel, { hint: false })}.`;
   tekenTrendMetriek(grafiekId, platforms, key, { dashboard, vergelijking });
 }
 

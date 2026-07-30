@@ -58,19 +58,33 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
   const deltas = adDeltas(dashboard, totaal, { vergelijkingActief: vergActief });
   const inzichten = [];
 
-  /* 1. Verspild budget: campagnes met uitgaven maar een gemeten nul aan resultaat. */
-  const verspild = campagnes.filter((c) => (c.spend ?? 0) > 0 && c.results === 0);
+  /* 1. Verspild budget: campagnes met uitgaven maar een gemeten nul aan resultaat.
+        Alleen flaggen als er bij het accountgemiddelde ook echt ≥1 resultaat te
+        verwachten was — anders is het klikvolume simpelweg te klein om iets te
+        concluderen (een dip van nul zegt bij 3 klikken niets). */
+  const convBasis = (totaal.conversieratio != null && totaal.conversieratio > 0) ? totaal.conversieratio / 100 : null;
+  const verwachtResultaat = (c) => (convBasis != null ? (c.clicks ?? 0) * convBasis : null);
+  const verspild = campagnes.filter((c) => {
+    if ((c.spend ?? 0) <= 0 || c.results !== 0) return false;
+    const verw = verwachtResultaat(c);
+    return verw != null ? verw >= 1 : (c.clicks ?? 0) >= 20;
+  });
   if (verspild.length) {
     const som = verspild.reduce((s, c) => s + (c.spend ?? 0), 0);
     const aandeel = totaal.spend ? (som / totaal.spend) * 100 : null;
+    // Betrouwbaarheid op het verwachte resultaatvolume dat uitbleef (bewijskracht),
+    // niet op het account-totaal.
+    const verwachtTotaal = verspild.reduce((s, c) => s + (verwachtResultaat(c) ?? 0), 0);
     inzichten.push({
       _gewicht: 100 + (aandeel ?? 0),
       categorie: 'aandachtspunt',
-      betrouwbaarheid: betrouwbaarheidVanVolume(totaal.results),
+      betrouwbaarheid: convBasis != null ? betrouwbaarheidVanVolume(Math.round(verwachtTotaal)) : 'beperkt',
       titel: `${fmt.euro(som)} ging naar campagnes zonder ${meervoud}`,
       samenvatting: `${verspild.length} ${verspild.length === 1 ? 'campagne besteedde' : 'campagnes besteedden'} budget zonder één ${enkel}${aandeel != null ? `, ${fmt.procent(aandeel)} van de totale uitgaven` : ''}.`,
-      bewijs: verspild.slice(0, 4).map((c) => ({ label: c.name, waarde: `${fmt.euro(c.spend)} · 0 ${meervoud}` })),
-      herkomst: 'Campagnes met uitgaven in de periode maar een gemeten nul aan resultaat.',
+      bewijs: verspild.slice(0, 4).map((c) => ({ label: c.name, waarde: `${fmt.euro(c.spend)} · ${fmt.getal(c.clicks)} klikken · 0 ${meervoud}` })),
+      herkomst: convBasis != null
+        ? `Campagnes met uitgaven maar nul resultaat, terwijl er bij het accountgemiddelde (${fmt.procent(totaal.conversieratio)} conversie per klik) samen ±${fmt.getal(Math.round(verwachtTotaal))} ${meervoud} te verwachten waren.`
+        : 'Campagnes met uitgaven en voldoende klikken, maar een gemeten nul aan resultaat.',
       actie: 'Pauzeer of herzie deze campagnes en verschuif het budget naar wat wél levert.',
     });
   }
@@ -92,7 +106,7 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
       titel: `${label.charAt(0).toUpperCase()}${label.slice(1)} ${gestegen ? 'omhoog' : 'omlaag'} met ${Math.abs(d.procent).toFixed(1)}%`,
       samenvatting: `De grootste procentuele verschuiving onder de kernmetrieken t.o.v. ${vergKort}, over Meta en Google samen.`,
       bewijs: [{ label: METRIEK_LABEL[grootste.k], waarde: `${d.tekst} t.o.v. ${vergKort}` }],
-      herkomst: `Vergelijking van de gecombineerde ad-totalen met ${vergKort}.`,
+      herkomst: `Vergelijking van de gecombineerde ad-totalen met ${vergKort}. De vorige-periodewaarde is afgeleid uit de account-brede periode-over-periode-verhouding, geen los gemeten advertentiehistorie.`,
     });
   }
 
@@ -161,11 +175,14 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
     }
   }
 
-  /* 5. Budgetconcentratie: één campagne slokt een groot deel van het budget op. */
-  if (campagnes.length >= 2 && totaal.spend) {
+  /* 5. Budgetconcentratie: één campagne slokt een groot deel van het budget op.
+        Pas zinvol vanaf ≥4 campagnes (bij 2-3 is een hoog aandeel bijna
+        onvermijdelijk), en het aandeel moet ruim boven de gelijke verdeling
+        (100/N) liggen — drempel max(40%, 200/N), dus meer campagnes = strenger. */
+  if (campagnes.length >= 4 && totaal.spend) {
     const top = campagnes[0]; // alleCampagnes is aflopend op uitgaven gesorteerd
     const aandeel = (top.spend / totaal.spend) * 100;
-    if (aandeel >= 40) {
+    if (aandeel >= Math.max(40, 200 / campagnes.length)) {
       inzichten.push({
         _gewicht: 45 + (aandeel - 40),
         categorie: 'aandachtspunt',
@@ -183,8 +200,10 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
 
   /* 6. CTR-vs-conversie-mismatch: veel klikken, weinig resultaat. */
   if (totaal.conversieratio != null && totaal.ctr != null) {
+    // ≥50 klikken: een conversie-per-klik onder 20 klikken is te ruis om betrouwbaar
+    // "veel klikken, weinig resultaat" te noemen.
     const kandidaat = campagnes
-      .filter((c) => c.clicks >= 20 && c.ctr != null && c.ctr > totaal.ctr)
+      .filter((c) => c.clicks >= 50 && c.ctr != null && c.ctr > totaal.ctr)
       .map((c) => ({ c, convr: c.clicks ? (c.results / c.clicks) * 100 : 0 }))
       .filter((x) => x.convr < totaal.conversieratio * 0.6)
       .sort((a, b) => b.c.clicks - a.c.clicks)[0];
@@ -210,7 +229,10 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
   if (reeksIsDagelijks(reeks) && reeks.length >= 7) {
     const spends = reeks.map((p) => p.spend);
     const med = mediaan(spends);
-    const mad = mediaan(spends.map((v) => Math.abs(v - med))) || 1;
+    // Fallback bij MAD=0 (bijna vlakke reeks): een relatieve spreiding (15% van de
+    // mediaan), niet een kale €1 — anders wordt de z-score schaalafhankelijk en
+    // vuurt hij bij grote accounts op piezelkleine afwijkingen.
+    const mad = mediaan(spends.map((v) => Math.abs(v - med))) || (med * 0.15) || 1;
     const piek = reeks.map((p) => ({ p, z: Math.abs(p.spend - med) / mad })).sort((a, b) => b.z - a.z)[0];
     if (piek && piek.z >= 3 && med > 0) {
       const pct = ((piek.p.spend - med) / med) * 100;
@@ -251,28 +273,38 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
     }
   }
 
-  /* 9. Zoekwoord-/placement-uitschieter: opvallend dure regel vs de mediaan. */
-  const breakdownRijen = [
-    ...(platforms.google?.breakdowns?.keywords ?? []).map((k) => ({ ...k, soort: 'zoekwoord' })),
-    ...(platforms.meta?.breakdowns?.placements ?? []).map((k) => ({ ...k, soort: 'plaatsing' })),
-  ].filter((k) => k.results > 0 && k.costPerResult != null && (k.spend ?? 0) >= 50);
-  if (breakdownRijen.length >= 3) {
-    const medCpr = mediaan(breakdownRijen.map((k) => k.costPerResult));
-    const duurste = [...breakdownRijen].sort((a, b) => b.costPerResult - a.costPerResult)[0];
+  /* 9. Zoekwoord-/placement-uitschieter: opvallend dure regel vs de mediaan van
+        z'n eigen soort. Zoekwoorden (Google) en plaatsingen (Meta) zijn heterogeen
+        — één gedeelde mediaan zou appels met peren vergelijken; daarom per soort. */
+  const breakdownGroepen = [
+    (platforms.google?.breakdowns?.keywords ?? []).map((k) => ({ ...k, soort: 'zoekwoord' })),
+    (platforms.meta?.breakdowns?.placements ?? []).map((k) => ({ ...k, soort: 'plaatsing' })),
+  ];
+  let uitschieter = null;
+  for (const groep of breakdownGroepen) {
+    const geldig = groep.filter((k) => k.results > 0 && k.costPerResult != null && (k.spend ?? 0) >= 50);
+    if (geldig.length < 3) continue;
+    const medCpr = mediaan(geldig.map((k) => k.costPerResult));
+    const duurste = [...geldig].sort((a, b) => b.costPerResult - a.costPerResult)[0];
     if (medCpr && duurste.costPerResult > medCpr * 1.8) {
-      inzichten.push({
-        _gewicht: 36,
-        categorie: 'aandachtspunt',
-        betrouwbaarheid: 'beperkt',
-        titel: `Dure ${duurste.soort}: ${duurste.name}`,
-        samenvatting: `${duurste.name} kost ${fmt.euro2(duurste.costPerResult)} per ${enkel}, ruim boven de mediaan (${fmt.euro2(medCpr)}).`,
-        bewijs: [
-          { label: duurste.name, waarde: `${fmt.euro(duurste.spend)} · ${fmt.getal(duurste.results)} ${meervoud} · ${fmt.euro2(duurste.costPerResult)}/${enkel}` },
-          { label: 'Mediaan', waarde: fmt.euro2(medCpr) },
-        ],
-        actie: `Overweeg deze ${duurste.soort} te pauzeren of het bod te verlagen.`,
-      });
+      const factor = duurste.costPerResult / medCpr;
+      if (!uitschieter || factor > uitschieter.factor) uitschieter = { duurste, medCpr, factor };
     }
+  }
+  if (uitschieter) {
+    const { duurste, medCpr } = uitschieter;
+    inzichten.push({
+      _gewicht: 36,
+      categorie: 'aandachtspunt',
+      betrouwbaarheid: 'beperkt',
+      titel: `Dure ${duurste.soort}: ${duurste.name}`,
+      samenvatting: `${duurste.name} kost ${fmt.euro2(duurste.costPerResult)} per ${enkel}, ruim boven de mediaan van de ${duurste.soort}en (${fmt.euro2(medCpr)}).`,
+      bewijs: [
+        { label: duurste.name, waarde: `${fmt.euro(duurste.spend)} · ${fmt.getal(duurste.results)} ${meervoud} · ${fmt.euro2(duurste.costPerResult)}/${enkel}` },
+        { label: `Mediaan ${duurste.soort}en`, waarde: fmt.euro2(medCpr) },
+      ],
+      actie: `Overweeg deze ${duurste.soort} te pauzeren of het bod te verlagen.`,
+    });
   }
 
   inzichten.sort((a, b) => (b._gewicht ?? 0) - (a._gewicht ?? 0));

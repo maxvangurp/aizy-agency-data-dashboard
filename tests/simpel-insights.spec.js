@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { ACCOUNTS } from './helpers.js';
 
@@ -215,7 +216,7 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('.inzicht-aanvullend')).toBeVisible();
   });
 
-  test('print- en exportknop; export downloadt een CSV van de pagina', async ({ page }) => {
+  test('print- en exportknop; export downloadt een CSV met ruwe (niet-opgemaakte) getallen', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
     await expect(page.locator('[data-simpel-print]')).toBeVisible();
     await naar(page, 'Google Ads');
@@ -224,6 +225,40 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
       page.click('[data-simpel-export-pagina]'),
     ]);
     expect(dl.suggestedFilename()).toMatch(/\.csv$/);
+    // Ook de statische tabellen exporteren ruw: geen eurotekens of NL-duizendpunten
+    // die een spreadsheet als tekst zou lezen.
+    const csv = fs.readFileSync(await dl.path(), 'utf8');
+    expect(csv).not.toContain('€');
+    expect(csv).toMatch(/;\d+(\.\d+)?(\r?\n|;)/); // minstens één ruwe numerieke cel
+  });
+
+  test('een niet-bestaande KPI-metriek in de URL valt terug op uitgaven (grafiek matcht titel)', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerker); // leadgen: geen ROAS-kaart
+    await page.evaluate(() => { window.location.hash = '#/pulse?metric=roas'; });
+    await page.waitForTimeout(800);
+    await expect(page.locator('.simpel-kpi .kpi[data-simpel-metric="simpel-trend-overzicht:roas"]')).toHaveCount(0);
+    await expect(page.locator('.simpel-kpi .kpi.is-actief[data-simpel-metric^="simpel-trend-overzicht:"]'))
+      .toHaveAttribute('data-simpel-metric', 'simpel-trend-overzicht:spend');
+    await expect(page.locator('.chart-figure:has(#simpel-trend-overzicht) figcaption p.muted')).toContainText('Uitgaven per dag');
+  });
+
+  test('de KPI-band toont een klik-hint en kondigt een metriekwissel aan (aria-live)', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await expect(page.locator('.kpi-band-hint')).toBeVisible();
+    const live = page.locator('[data-trend-live]').first();
+    await expect(live).toHaveAttribute('aria-live', 'polite');
+    await page.click('.simpel-kpi .kpi[data-simpel-metric="simpel-trend-overzicht:clicks"]');
+    await page.waitForTimeout(300);
+    await expect(live).toContainText('Klikken per dag');
+  });
+
+  test('de gestapelde-uitgavengrafiek op Trends heeft een tekst-fallback', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await naar(page, 'Trends');
+    const canvas = page.locator('#simpel-stacked-spend');
+    await expect(canvas).toHaveAttribute('role', 'img');
+    await expect(canvas).toHaveAttribute('aria-label', /gestapeld/i);
+    await expect(page.locator('.card:has(#simpel-stacked-spend) details.chart-table table')).toHaveCount(1);
   });
 
   test('de gekozen trend-metriek overleeft een herlaadactie via de URL', async ({ page }) => {

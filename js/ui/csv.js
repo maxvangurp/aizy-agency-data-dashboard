@@ -7,6 +7,21 @@
  * bestand direct in een spreadsheet te analyseren is.
  */
 
+/**
+ * Zet een in het Nederlands opgemaakt getal ("€ 1.234,56", "3,0%", "7,92×") om
+ * naar een machine-leesbare ruwe waarde ("1234.56", "3.0", "7.92"). Tekst die geen
+ * getal is (campagnenamen, datums, "—") blijft ongemoeid. Nodig voor de export van
+ * statische tabellen: die leveren hun cellen al opgemaakt (i.t.t. de interactieve
+ * tabellen, die een ruwe `data-v` per cel meegeven).
+ */
+export function nlGetalNaarRuw(tekst) {
+  const t = String(tekst ?? '').trim();
+  const kern = t.replace(/[€%×\s ]/g, '');
+  if (!/^-?\d[\d.]*(,\d+)?$/.test(kern)) return t;
+  const ruw = kern.replace(/\./g, '').replace(',', '.');
+  return Number.isNaN(Number(ruw)) ? t : ruw;
+}
+
 /** Zet één veld veilig om naar een CSV-cel (quotet waar nodig, Excel-vriendelijk). */
 function cel(waarde) {
   const s = waarde == null ? '' : String(waarde);

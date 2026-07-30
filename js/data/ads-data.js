@@ -43,6 +43,28 @@ export async function haalAdsPlatforms(dashboard, filters) {
   };
 }
 
+/**
+ * De afgeleide ratio's uit een set basiswaarden — de enige plek waar deze
+ * formules staan, zodat CTR/CPC/CPM/ROAS/… nooit tussen de totalen, de
+ * vorige-periode en de dagreeks uit elkaar kunnen lopen. Ontbrekende basis
+ * (bijv. `revenue`/`reach` bij leadgen) levert `null`, nooit NaN.
+ */
+export function afgeleideRatios({ spend, impressions, clicks, results, revenue, reach } = {}) {
+  return {
+    ctr: impressions ? (clicks / impressions) * 100 : null,
+    cpc: clicks ? spend / clicks : null,
+    cpm: impressions ? (spend / impressions) * 1000 : null,
+    costPerResult: results ? spend / results : null,
+    conversieratio: clicks ? (results / clicks) * 100 : null,
+    roas: (revenue != null && spend) ? revenue / spend : null,
+    frequentie: reach ? impressions / reach : null,
+  };
+}
+
+/** De basisvelden (rechtstreeks uit de reeks) vs. de afgeleide ratio's. */
+const BASIS_VELDEN = new Set(['spend', 'impressions', 'clicks', 'results', 'revenue', 'reach']);
+const RATIO_VELDEN = new Set(['ctr', 'cpc', 'cpm', 'costPerResult', 'conversieratio', 'roas', 'frequentie']);
+
 /** Telt de platformtotalen op tot één gecombineerd totaal (Meta + Google). */
 export function combineerTotalen(platforms) {
   const blokken = [platforms?.meta, platforms?.google].filter((b) => b?.aanwezig && b.totals);
@@ -67,15 +89,9 @@ export function combineerTotalen(platforms) {
     impressions,
     clicks,
     results,
-    ctr: impressions ? (clicks / impressions) * 100 : null,
-    cpc: clicks ? spend / clicks : null,
-    cpm: impressions ? (spend / impressions) * 1000 : null,
-    costPerResult: results ? spend / results : null,
-    conversieratio: clicks ? (results / clicks) * 100 : null,
     revenue,
-    roas: (revenue != null && spend) ? revenue / spend : null,
     reach,
-    frequentie: reach ? impressions / reach : null,
+    ...afgeleideRatios({ spend, impressions, clicks, results, revenue, reach }),
     resultLabel: blokken[0].resultLabel,
   };
 }
@@ -115,13 +131,7 @@ export function adTotalenVorige(dashboard, ad) {
   const reach = schaal(ad.reach, 'reach');
   return {
     spend, impressions, clicks, results, revenue, reach,
-    ctr: impressions ? (clicks / impressions) * 100 : null,
-    cpc: clicks ? spend / clicks : null,
-    cpm: impressions ? (spend / impressions) * 1000 : null,
-    costPerResult: results ? spend / results : null,
-    conversieratio: clicks ? (results / clicks) * 100 : null,
-    roas: (revenue != null && spend) ? revenue / spend : null,
-    frequentie: reach ? impressions / reach : null,
+    ...afgeleideRatios({ spend, impressions, clicks, results, revenue, reach }),
   };
 }
 
@@ -170,23 +180,10 @@ export function gecombineerdeReeks(platforms) {
  * reeks als een platform-`series` (zelfde veldnamen).
  */
 export function metriekReeks(reeks, key) {
-  const veld = {
-    spend: (p) => p.spend,
-    impressions: (p) => p.impressions,
-    clicks: (p) => p.clicks,
-    results: (p) => p.results,
-    revenue: (p) => p.revenue,
-    reach: (p) => p.reach,
-    ctr: (p) => (p.impressions ? (p.clicks / p.impressions) * 100 : null),
-    cpc: (p) => (p.clicks ? p.spend / p.clicks : null),
-    cpm: (p) => (p.impressions ? (p.spend / p.impressions) * 1000 : null),
-    conversieratio: (p) => (p.clicks ? (p.results / p.clicks) * 100 : null),
-    costPerResult: (p) => (p.results ? p.spend / p.results : null),
-    roas: (p) => (p.spend ? p.revenue / p.spend : null),
-    frequentie: (p) => (p.reach ? p.impressions / p.reach : null),
-  }[key];
-  if (!veld) return [];
-  return (reeks ?? []).map((p) => veld(p));
+  const isBasis = BASIS_VELDEN.has(key);
+  if (!isBasis && !RATIO_VELDEN.has(key)) return [];
+  // Basisvelden rechtstreeks; ratio's via de gedeelde formules (geen NaN, geen drift).
+  return (reeks ?? []).map((p) => (isBasis ? p[key] : afgeleideRatios(p)[key]));
 }
 
 /**
@@ -196,7 +193,9 @@ export function metriekReeks(reeks, key) {
  */
 export function reeksIsDagelijks(reeks) {
   if (reeks.length < 2) return true;
-  return (new Date(`${reeks[1].date}T00:00:00`) - new Date(`${reeks[0].date}T00:00:00`)) === 86400000;
+  // In UTC (`Z`) parsen: lokale tijd maakt een dag rond de zomer-/wintertijdgrens
+  // 23 of 25 uur, waardoor een échte dagreeks anders ten onrechte als verdicht telt.
+  return (new Date(`${reeks[1].date}T00:00:00Z`) - new Date(`${reeks[0].date}T00:00:00Z`)) === 86400000;
 }
 
 /**
@@ -211,7 +210,7 @@ export function perWeekdag(platforms) {
   if (!reeksIsDagelijks(reeks)) return [];
   const acc = new Map();
   for (const p of reeks) {
-    const dag = new Date(`${p.date}T00:00:00`).getDay();
+    const dag = new Date(`${p.date}T00:00:00Z`).getUTCDay();
     const rij = acc.get(dag) ?? { dag, dagen: 0, spend: 0, results: 0 };
     rij.dagen += 1; rij.spend += p.spend; rij.results += p.results;
     acc.set(dag, rij);
@@ -265,11 +264,8 @@ export function adSegmenten(dashboard, platforms) {
   const regios = metAandeel((profiel.verdelingen?.regios ?? []).map((r) => ({
     name: r.regio, spend: null, clicks: null, users: r.gebruikers ?? null, results: r.leads ?? 0,
   })));
-  const landen = metAandeel((profiel.verdelingen?.landen ?? []).map((r) => ({
-    name: r.land, spend: null, clicks: null, users: r.gebruikers ?? null, results: r.leads ?? 0,
-  })));
 
-  return { devices, regios, landen, weekdagen: perWeekdag(platforms), rlabel };
+  return { devices, regios, weekdagen: perWeekdag(platforms), rlabel };
 }
 
 /** Alle campagnes over beide platforms, gesorteerd op spend (voor de tabel). */

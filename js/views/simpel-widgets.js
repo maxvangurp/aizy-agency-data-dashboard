@@ -40,27 +40,38 @@ export function sparkline(data, { breedte = 104, hoogte = 28 } = {}) {
 
 /**
  * KPI-kaart met een verandering t.o.v. de vorige periode en een sparkline.
- * Spiegelt de markup van `kpi()` (article.card.kpi > label/value/sub) zodat de
- * bestaande KPI-styling geldt; voegt een sparkline toe.
+ * Spiegelt de markup van `kpi()` (article.card.kpi > label/value/…) zodat de
+ * bestaande KPI-styling geldt; voegt een sparkline toe en kan klikbaar zijn.
  *
  * @param {string} label
  * @param {string} waarde   al opgemaakte waarde
- * @param {object} delta     resultaat van berekenDelta (of null)
- * @param {{sub?: string, sparkData?: number[], primair?: boolean, tip?: string}} opties
+ * @param {object} delta    resultaat van berekenDelta (of null)
+ * @param {object} opties
+ * @param {number[]} [opties.sparkData]  dagreeks voor de sparkline
+ * @param {string}  [opties.tip]         metrieksleutel voor de definitie-tooltip
+ * @param {string}  [opties.metric]      metrieksleutel die deze kaart in de trend zet (klikbaar)
+ * @param {string}  [opties.grafiekId]   doelgrafiek voor `metric` (samen maken ze de kaart klikbaar)
+ * @param {boolean} [opties.actief]      of deze kaart de nu-getoonde trendmetriek is
  */
 export function kpiDelta(label, waarde, delta, { sparkData = null, tip = null, metric = null, grafiekId = null, actief = false } = {}) {
   const richting = delta?.richting ?? 'neutraal';
   // De sparkline-houder staat er altijd (ook leeg), zodat alle kaarten even hoog zijn.
   const spark = `<div class="kpi-spark trend-${esc(richting)}">${sparkData ? sparkline(sparkData) : ''}</div>`;
-  const tipAttr = tip ? ` data-tip="${esc(tip)}" tabindex="0"` : '';
   // Klikbaar: de KPI-kaart selecteert zijn metriek voor de trendgrafiek eronder.
   const klikbaar = Boolean(metric && grafiekId);
+  // De definitie-tooltip. Op een klikbare kaart hoort de tip op de <article> zelf
+  // (al focusbaar als role=button) — een aparte tabindex op de label zou een tweede
+  // tab-stop én een focusbare descendant binnen een button opleveren. Niet-klikbaar:
+  // de label draagt de tip (met kpi-label-tip zodat de 'i' op hover/focus reageert).
+  const tipOpKaart = tip && klikbaar ? ` data-tip="${esc(tip)}"` : '';
+  const tipOpLabel = tip && !klikbaar ? ` data-tip="${esc(tip)}" tabindex="0"` : '';
+  const labelKlas = `kpi-label${tip && !klikbaar ? ' kpi-label-tip' : ''}`;
   const klikAttr = klikbaar
     ? ` data-simpel-metric="${esc(grafiekId)}:${esc(metric)}" role="button" tabindex="0" aria-pressed="${actief ? 'true' : 'false'}"`
     : '';
   const klassen = `card kpi kpi-delta${klikbaar ? ' kpi-klik' : ''}${actief ? ' is-actief' : ''}`;
-  return `<article class="${klassen}" data-label="${esc(label)}"${klikAttr}>
-    <span class="kpi-label"${tipAttr}>${esc(label)}${tip ? ' <span class="kpi-info" aria-hidden="true">i</span>' : ''}</span>
+  return `<article class="${klassen}" data-label="${esc(label)}"${tipOpKaart}${klikAttr}>
+    <span class="${labelKlas}"${tipOpLabel}>${esc(label)}${tip ? ' <span class="kpi-info" aria-hidden="true">i</span>' : ''}</span>
     <span class="kpi-value">${esc(waarde)}</span>
     ${deltaPill(delta)}
     ${spark}

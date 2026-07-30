@@ -3730,10 +3730,16 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 
 /* Uniforme kaart: label boven, waarde + pill, sparkline onderaan vastgezet. */
 .simpel-kpi .kpi-delta { display: flex; flex-direction: column; gap: 3px; }
-/* Hero valt op via tint + accentrand, niet via een grotere waarde — zo blijven
-   alle kaarten exact even hoog. */
-.simpel-kpi .kpi-primair { background: var(--accent-soft); }
-.simpel-kpi .kpi-primair .kpi-value { font-size: var(--fs-kpi); }
+
+/* Hover-onafhankelijke hint boven de klikbare KPI-band (werkt ook op touch). */
+.kpi-band-hint {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 var(--space-2); font-size: 12.5px;
+}
+.kpi-band-hint::before {
+  content: ''; flex: none; width: 8px; height: 8px; border-radius: 999px;
+  background: var(--accent);
+}
 
 /* Gekleurde verandering-pill (▲/▼ + %) — kort en scanbaar. */
 .kpi-delta-pill {
@@ -3759,13 +3765,25 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 .kpi-spark.trend-neutraal { color: var(--ink-muted); }
 .sparkline { display: block; width: 100%; height: 24px; opacity: 0.85; }
 
-/* Klikbare KPI-kaart: kiest haar metriek voor de trendgrafiek eronder. */
-.kpi-klik { cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease; }
+/* Klikbare KPI-kaart: kiest haar metriek voor de trendgrafiek eronder. Een
+   permanente (hover-onafhankelijke) accent-onderrand maakt op touch zichtbaar dat
+   de kaart tikbaar is; hover/focus versterkt hem, actief vult hem helemaal. */
+.kpi-klik { cursor: pointer; position: relative; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease; }
+.kpi-klik::after {
+  content: ''; position: absolute; left: var(--card-padding); right: var(--card-padding); bottom: 0; height: 2px;
+  border-radius: 2px 2px 0 0; background: var(--accent); opacity: 0.28;
+  transition: opacity 0.15s ease;
+}
 .kpi-klik:hover { border-color: var(--accent); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); transform: translateY(-1px); }
+.kpi-klik:hover::after { opacity: 0.6; }
 .kpi-klik:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* Actieve metriek: getint + accentrand + inset-ring, zodat duidelijk is welke
-   KPI in de grafiek eronder staat. */
+/* 'i'-badge reageert op de klikbare kaart (de tip staat daar op de <article>). */
+.kpi-klik:hover .kpi-info,
+.kpi-klik:focus-visible .kpi-info { border-color: var(--accent); color: var(--accent); }
+/* Actieve metriek: getint + accentrand + inset-ring + volle onderrand, zodat
+   duidelijk is welke KPI in de grafiek eronder staat. */
 .simpel-kpi .kpi.is-actief { background: var(--accent-soft); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.simpel-kpi .kpi.is-actief::after { opacity: 1; }
 .simpel-kpi .kpi.is-actief:hover { transform: none; }
 
 /* Segmented control: metric-switcher */
@@ -3843,7 +3861,8 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
      houden hun eigen kleuren). */
   .simpel-app, .simpel-app :where(h1, h2, h3, p, span, td, th, a, strong, dt, dd) { color: #160d27 !important; }
   .simpel-app .card { background: #fff !important; box-shadow: none !important; border-color: #dfe3f0 !important; }
-  .simpel-app .kpi-primair { background: #f3eefc !important; }
+  /* De actieve (in de grafiek getoonde) KPI houdt zijn tint, ook op papier. */
+  .simpel-app .kpi.is-actief { background: #f3eefc !important; border-color: #7c3aed !important; }
   .simpel-app .kpi-delta-pill.trend-positief { color: #1f7a00 !important; background: #e7f3e0 !important; }
   .simpel-app .kpi-delta-pill.trend-negatief { color: #a30000 !important; background: #f7e3e3 !important; }
   .simpel-app .metric-switch, .simpel-app .ia-toolbar, .simpel-app .chip-rij { display: none !important; }

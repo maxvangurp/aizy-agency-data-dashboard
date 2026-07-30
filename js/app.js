@@ -67,7 +67,7 @@ import {
   renderGeenToegang, renderNietGevonden,
 } from './views/auth-screens.js';
 import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg, zetTrendMetriek } from './views/simpel-dashboard.js';
-import { naarCsv, csvVanRijen, downloadCsv } from './ui/csv.js';
+import { naarCsv, csvVanRijen, downloadCsv, nlGetalNaarRuw } from './ui/csv.js';
 import { haalAdsPlatforms } from './data/ads-data.js';
 import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
@@ -504,6 +504,8 @@ let simpelToken = 0;
 // switcher, sorteren, zoeken, filter-chips, CSV) client-side kunnen werken
 // zonder opnieuw te fetchen.
 let simpelState = null;
+// De vorige simpel-view, om focus alléén bij een echte paginawissel te verplaatsen.
+let vorigeSimpelView = null;
 
 /**
  * Rendert het simpele Meta/Google Ads-dashboard met een eigen minimale layout.
@@ -526,6 +528,11 @@ function renderSimpelPagina({ user, ctx, route }) {
   document.body.dataset.shell = 'simpel';
   document.body.dataset.assistent = 'los';
 
+  // Alleen bij een échte paginawissel focus verplaatsen (zie onder) — niet bij een
+  // filter-herrender, anders springt de focus weg van de zojuist gebruikte control.
+  const paginaGewisseld = view !== vorigeSimpelView;
+  vorigeSimpelView = view;
+
   app().innerHTML = renderSimpelLayout({ user, dashboard, klanten, filters, platforms: null, magWisselen, view });
 
   // Op mobiel is de navigatie een horizontaal scrollbare tabstrip; zorg dat de
@@ -544,6 +551,7 @@ function renderSimpelPagina({ user, ctx, route }) {
           ? 'Voor deze klant en periode zijn er geen Meta- of Google Ads-cijfers.'
           : 'Er zijn nog geen klanten aan je account gekoppeld. Vraag je beheerder om toegang.'
       );
+      if (paginaGewisseld) houder.focus({ preventScroll: true });
     }
     return;
   }
@@ -558,6 +566,9 @@ function renderSimpelPagina({ user, ctx, route }) {
       simpelState = { dashboard, platforms, view, vergelijking };
       houder.innerHTML = renderSimpelInhoud({ dashboard, platforms, view, vergelijking });
       drawSimpelCharts({ dashboard, platforms, view, vergelijking });
+      // Na een paginawissel de focus in de inhoud zetten, zodat hij niet naar
+      // <body> valt en schermlezer/toetsenbord bij de nieuwe pagina beginnen.
+      if (paginaGewisseld) houder.focus({ preventScroll: true });
     })
     .catch(() => { /* Bij een fetch-fout blijft de laadstaat staan. */ });
 }
@@ -632,7 +643,7 @@ function exporteerIaTabel(id, csvNaam) {
   const kolommen = [...table.tHead.rows[0].cells].map((th) => th.textContent.trim());
   const rijen = [...table.tBodies[0].rows]
     .filter((r) => !r.hidden)
-    .map((r) => [...r.cells].map((td) => td.dataset.v ?? td.textContent.trim()));
+    .map((r) => [...r.cells].map((td) => td.dataset.v ?? nlGetalNaarRuw(td.textContent)));
   downloadCsv(csvNaam || id, naarCsv(kolommen, rijen));
 }
 
@@ -652,7 +663,9 @@ function exporteerPagina() {
     if (kop.length) rijen.push(kop);
     for (const r of t.tBodies[0]?.rows ?? []) {
       if (r.hidden) continue;
-      rijen.push([...r.cells].map((c) => c.dataset.v ?? c.textContent.trim()));
+      // Interactieve cellen dragen een ruwe data-v; statische tabellen leveren
+      // opgemaakte tekst — die normaliseren we naar een ruwe, machine-leesbare waarde.
+      rijen.push([...r.cells].map((c) => c.dataset.v ?? nlGetalNaarRuw(c.textContent)));
     }
   });
   if (!rijen.length) { toast('Geen tabellen om te exporteren op deze pagina.'); return; }
