@@ -139,7 +139,7 @@ export function renderDataGrid({
     .filter(Boolean);
 
   return `<section class="datagrid" data-grid="${esc(grid)}" data-pagina="${esc(definitie.pagina)}">
-    ${renderWerkbalk(definitie, staat, verwerkt, weergaven, selectie, magBewerken)}
+    ${renderWerkbalk(definitie, staat, verwerkt, weergaven, selectie, magBewerken, kolommen)}
     ${renderKolomkiezer(definitie, staat)}
     ${renderWeergavenPaneel(definitie, weergaven)}
     ${selectie.length ? renderBulkbalk(definitie, selectie, magBewerken) : ''}
@@ -150,9 +150,25 @@ export function renderDataGrid({
   </section>`;
 }
 
-function renderWerkbalk(definitie, staat, verwerkt, weergaven, selectie, magBewerken) {
+function renderWerkbalk(definitie, staat, verwerkt, weergaven, selectie, magBewerken, kolommen = definitie.kolommen) {
   const grid = definitie.id;
   const actieveWeergave = weergaven.find((w) => w.id === staat.weergaveId);
+
+  // Op mobiel wordt de tabel een kaartenlijst zonder kolomkoppen; sorteren via de
+  // kop valt dan weg. Dit mobiel-only balkje herstelt dat (dezelfde sortering-staat).
+  // Alleen de ZICHTBARE, sorteerbare kolommen — net als de kolomkoppen op desktop.
+  const sorteerbaar = kolommen.filter((k) => k.sorteerbaar !== false);
+  const sorteerMobiel = sorteerbaar.length ? `
+    <div class="grid-sorteer-mobiel">
+      <label class="visueel-verborgen" for="grid-sortkolom-${esc(grid)}">Sorteren op</label>
+      <select id="grid-sortkolom-${esc(grid)}" data-grid-sorteer-select="${esc(grid)}">
+        ${sorteerbaar.map((k) => `<option value="${esc(k.key)}"${staat.sortering?.key === k.key ? ' selected' : ''}>Sorteer op ${esc(k.label.toLowerCase())}</option>`).join('')}
+      </select>
+      <button type="button" class="btn klein" data-grid-sorteer-richting="${esc(grid)}"
+        aria-label="Sorteervolgorde omkeren (nu ${staat.sortering?.richting === 'af' ? 'aflopend' : 'oplopend'})">
+        ${staat.sortering?.richting === 'af' ? '↓' : '↑'}
+      </button>
+    </div>` : '';
 
   return `<div class="grid-werkbalk">
     <div class="grid-zoek">
@@ -160,6 +176,7 @@ function renderWerkbalk(definitie, staat, verwerkt, weergaven, selectie, magBewe
       <input type="search" id="grid-zoek-${esc(grid)}" class="grid-zoekveld"
         data-grid-zoek="${esc(grid)}" value="${esc(staat.zoek)}" placeholder="Zoeken">
     </div>
+    ${sorteerMobiel}
 
     ${(definitie.filters ?? []).map((f) => `
       <div class="grid-filter">
@@ -352,7 +369,7 @@ function renderRij(definitie, kolommen, rij, geselecteerd) {
       <input type="checkbox" id="grid-rij-${esc(definitie.id)}-${esc(id)}"
         data-grid-rijkeuze="${esc(definitie.id)}" value="${esc(id)}"${isGeselecteerd ? ' checked' : ''}>
     </td>` : ''}
-    ${kolommen.map((k) => `<td class="uitlijn-${esc(k.uitlijning ?? 'links')}">${k.cel(rij)}</td>`).join('')}
+    ${kolommen.map((k, i) => `<td class="uitlijn-${esc(k.uitlijning ?? 'links')}${i === 0 ? ' cel-primair' : ''}" data-label="${esc(k.label)}">${k.cel(rij)}</td>`).join('')}
   </tr>`;
 }
 

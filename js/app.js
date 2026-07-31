@@ -2341,6 +2341,7 @@ function verwerkGridKlik(el) {
   const d = el.dataset;
 
   if (d.gridSorteer) { grids.sorteer(d.gridSorteer, d.kolom); return true; }
+  if (d.gridSorteerRichting) { grids.keerRichting(d.gridSorteerRichting); return true; }
   if (d.gridDichtheid) { grids.wisselDichtheid(d.gridDichtheid); return true; }
   if (d.gridExport) { grids.exporteer(d.gridExport); return true; }
   if (d.gridHerstel) { grids.herstel(d.gridHerstel); return true; }
@@ -2778,6 +2779,7 @@ function onChange(e) {
   /* Datagrid */
   if (d.gridFilter) { grids.zetFilter(d.gridFilter, d.filter, el.value); return; }
   if (d.gridGroep) { grids.zetGroepering(d.gridGroep, el.value); return; }
+  if (d.gridSorteerSelect) { grids.sorteerOp(d.gridSorteerSelect, el.value); return; }
   if (d.gridPerpagina) { grids.zetPerPagina(d.gridPerpagina, el.value); return; }
   if (d.gridKolomkeuze) { grids.zetKolomZichtbaar(d.gridKolomkeuze, el.value, el.checked); return; }
   if (d.gridRijkeuze) { grids.zetRijSelectie(d.gridRijkeuze, el.value, el.checked); return; }

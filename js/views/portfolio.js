@@ -142,7 +142,7 @@ export function prioriteitenDefinitie({
     omschrijving: 'Alle klanten waartoe je toegang hebt, op volgorde van aandacht.',
     rijId: (s) => s.client.id,
     zoektekst: (s) => `${s.client.name} ${s.team.primair?.displayName ?? ''} ${hoofdreden(s)}`,
-    standaardSortering: { key: 'prioriteit', richting: 'af' },
+    standaardSortering: { key: 'ernst', richting: 'af' },
 
     kolommen: [
       kolom('klant', LABELS.klant, {

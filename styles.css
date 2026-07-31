@@ -2527,6 +2527,57 @@ body { font-size: var(--fs-body); line-height: 1.5; }
   .grid-tabel td a { display: inline-flex; align-items: center; min-height: 32px; }
 }
 
+/* Mobiel: het rijke datagrid wordt een kaartenlijst i.p.v. een 2000px-brede
+   scroll-tabel. Elke rij is een kaart; elke cel toont zijn kolomlabel via
+   data-label. De thead (kolomkoppen + sorteren) valt weg — sorteren gebeurt via
+   het mobiele sorteerbalkje. De desktoptabel blijft ongemoeid. */
+.grid-sorteer-mobiel { display: none; }
+
+@media (max-width: 640px) {
+  .grid-scroll { overflow-x: visible; border: 0; border-radius: 0; background: none; }
+  .grid-tabel { display: block; width: 100%; }
+  .grid-tabel thead { display: none; }
+  .grid-tabel tbody { display: block; }
+  .grid-tabel tr {
+    display: block;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+  .grid-tabel tr.is-geselecteerd { border-color: var(--accent); }
+  /* Gestapeld (label boven, waarde eronder, links uitgelijnd): robuust voor
+     cellen met <br>, meerdere elementen of lange vrije tekst — een flex-rij zou
+     die door elkaar husselen of rechts uitlijnen en rafelig laten aflopen. */
+  .grid-tabel td {
+    display: block; padding: 6px 0; border: 0; white-space: normal; text-align: left; font-size: 13px;
+  }
+  .grid-tabel td::before {
+    content: attr(data-label); display: block;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
+    color: var(--ink-muted); margin-bottom: 1px;
+  }
+  .grid-tabel td.cel-selectie { display: none; }
+  /* Bulk-selectie is een desktoptaak; verberg ook de bulkbalk zodat er nooit een
+     zwevende balk zonder bijbehorende selectie-checkboxes overblijft. */
+  .grid-bulkbalk { display: none; }
+  .grid-tabel td.cel-primair {
+    display: block; text-align: left; font-size: 15px; font-weight: 700;
+    padding: 0 0 8px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .grid-tabel td.cel-primair::before { content: none; }
+  /* Groepskop wordt een sectielabel boven de kaarten. */
+  .grid-tabel .grid-groepkop { display: block; }
+  .grid-tabel .grid-groepkop th {
+    display: block; position: static; padding: var(--space-2) 0 6px;
+    background: none; font-size: 13px; color: var(--ink-muted);
+  }
+  /* Het mobiele sorteerbalkje verschijnt (desktop toont de kolomkoppen). */
+  .grid-sorteer-mobiel { display: flex; align-items: center; gap: 6px; flex: 1 1 100%; }
+  .grid-sorteer-mobiel select { flex: 1 1 auto; min-width: 0; }
+  .grid-sorteer-mobiel .btn { flex: 0 0 auto; }
+}
+
 /* Voorkom dat een grid-/flexkind of een grafiek-canvas de pagina laat overlopen:
    flex- en gridkinderen mogen krimpen (min-width:0) en een canvas blijft binnen
    zijn container. */

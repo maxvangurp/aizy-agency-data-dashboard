@@ -106,6 +106,30 @@ export function sorteer(id, kolom) {
   return pas(id, { sortering: { key: kolom, richting } });
 }
 
+/** Sorteert op een kolom (mobiele sorteer-select); behoudt de richting bij dezelfde kolom. */
+export function sorteerOp(id, kolom) {
+  const g = grid(id);
+  if (!g || !kolom) return null;
+  const huidig = g.staat.sortering;
+  const richting = huidig?.key === kolom ? huidig.richting : 'op';
+  return pas(id, { sortering: { key: kolom, richting } });
+}
+
+/** Keert de sorteervolgorde om (mobiele richting-toggle). */
+export function keerRichting(id) {
+  const g = grid(id);
+  if (!g) return null;
+  const huidig = g.staat.sortering;
+  // De opgeslagen sleutel alleen hergebruiken als hij een bestaande, sorteerbare
+  // kolom is — anders (bijv. een hernoemde/ongeldige standaardsortering) op de
+  // eerste sorteerbare kolom terugvallen, zodat de toggle nooit een no-op wordt.
+  const geldig = !!huidig?.key && g.definitie.kolommen.some((k) => k.key === huidig.key && k.sorteerbaar !== false);
+  const kolom = geldig ? huidig.key : g.definitie.kolommen.find((k) => k.sorteerbaar !== false)?.key;
+  if (!kolom) return null;
+  const richting = geldig && huidig.richting === 'af' ? 'op' : 'af';
+  return pas(id, { sortering: { key: kolom, richting } });
+}
+
 export function wisselDichtheid(id) {
   const g = grid(id);
   if (!g) return null;
