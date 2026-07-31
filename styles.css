@@ -2475,6 +2475,58 @@ body { font-size: var(--fs-body); line-height: 1.5; }
   }
 }
 
+/* Scroll-affordance: een subtiele schaduw aan de rand die verdwijnt zodra je die
+   kant op bent gescrolld, zodat op mobiel meteen zichtbaar is dat een brede tabel
+   horizontaal scrolt. Thema-bewust via var(--surface); de schaduwkleur werkt in
+   beide thema's. Techniek: covergradients (local) + schaduwgradients (scroll). */
+.table-scroll, .grid-scroll {
+  background:
+    linear-gradient(to right, var(--surface) 30%, rgba(0, 0, 0, 0)) 0 0 / 32px 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, rgba(0, 0, 0, 0)) 100% 0 / 32px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0)) 0 0 / 14px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0)) 100% 0 / 14px 100% no-repeat scroll;
+  background-color: var(--surface);
+}
+
+/* Mobiel: dichtere tabellen tonen meer kolommen per scherm (minder scrollen), en
+   de eerste kolom (naam/label) blijft plakken bij het horizontaal scrollen zodat
+   je nooit het overzicht kwijtraakt welke rij je leest. Alleen voor de eenvoudige
+   .table-scroll-tabellen; de agency-datagrid heeft zijn eigen kolom-vastzetten. */
+@media (max-width: 640px) {
+  .grid-tabel th, .grid-tabel td { padding: 7px 9px; font-size: 12px; }
+  .table-scroll table { font-size: 12px; }
+  .table-scroll th, .table-scroll td { padding: 8px 9px; }
+  .table-scroll table th:first-child,
+  .table-scroll table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  .table-scroll table thead th:first-child { z-index: 3; }
+}
+
+/* Mobiel: het datagrid-werkbalkje (zoek + filters + acties) werd loodrecht hoog
+   doordat elke filter een eigen regel pakte. Zoek en acties op een volle regel,
+   de filters twee-op-een-rij — dat halveert de hoogte vóór de data. */
+@media (max-width: 640px) {
+  .grid-zoek { flex: 1 1 100%; }
+  .grid-filter { flex: 1 1 calc(50% - var(--space-2)); min-width: 0; }
+  .grid-filter select { width: 100%; }
+  .grid-telling { flex: 1 1 100%; }
+  .grid-werkbalk-acties { flex: 1 1 100%; margin-left: 0; }
+}
+
+/* Mobiel: comfortabeler tikvlak voor de kleine bedieningselementen (WCAG 2.5.8).
+   De datacellen blijven dicht; alleen de losse knoppen/links/tabs groeien. */
+@media (max-width: 640px) {
+  .btn.klein { min-height: 36px; }
+  .simpel-nav-item { padding-top: 10px; padding-bottom: 10px; }
+  .table-scroll td a,
+  .grid-tabel td a { display: inline-flex; align-items: center; min-height: 32px; }
+}
+
 /* Voorkom dat een grid-/flexkind of een grafiek-canvas de pagina laat overlopen:
    flex- en gridkinderen mogen krimpen (min-width:0) en een canvas blijft binnen
    zijn container. */
@@ -3813,6 +3865,18 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
   /* De sidebar-strook (met de tabs) blijft bovenaan plakken; de topbar met
      klant/periode schuift gewoon mee zodat beide niet op top:0 botsen. */
   .simpel-topbar { position: static; }
+  /* Topbar netjes stapelen: klant, filters en acties elk op hun eigen regel met
+     full-width selects — de vaste 215px-selects pasten nooit naast elkaar op een
+     telefoon en botsten met de actieknoppen. */
+  .simpel-topbar { flex-direction: column; align-items: stretch; gap: var(--space-2); padding: 10px 16px; }
+  .simpel-topbar-midden { flex-direction: column; align-items: stretch; gap: var(--space-2); width: 100%; }
+  .simpel-topbar-filters { width: 100%; gap: var(--space-2); }
+  .simpel-topbar-filters .simpel-kiezer { flex: 1 1 0; min-width: 0; }
+  .simpel-kiezer select, .simpel-datum input { width: 100%; }
+  .simpel-klantnaam { align-self: flex-start; }
+  .simpel-datumbereik { width: 100%; }
+  .simpel-topbar-acties { margin-left: 0; width: 100%; gap: var(--space-2); }
+  .simpel-topbar-acties > .btn { flex: 1 1 0; justify-content: center; text-align: center; min-width: 0; }
 }
 
 /* ---------- Simpel dashboard: rijke widgets ---------- */
