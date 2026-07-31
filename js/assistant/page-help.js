@@ -421,10 +421,10 @@ const CATALOGUS = {
       'Hoe presteert Meta t.o.v. Google?',
       'Wat is ROAS?',
       'Welke optimalisatie pak ik het beste op?',
-      'Hoe maak ik een rapportage?',
+      'Hoe koppel ik mijn data?',
     ],
     tips: ['Klik op een KPI-kaart om die metriek in de grafiek eronder te zien.'],
-    navActions: ['open-pulse-optimalisaties', 'open-pulse-rapportage'],
+    navActions: ['open-pulse-optimalisaties', 'open-pulse-rapportage', 'open-pulse-databronnen'],
     insight: (c) => pulseInsight(c, 'Je bekijkt Meta & Google Ads'),
   },
 
@@ -496,6 +496,21 @@ const CATALOGUS = {
     tips: ['Begin met de aanbeveling met de grootste impact die nog openstaat.'],
     navActions: ['open-pulse-rapportage'],
     insight: (c) => `Je houdt hier de aanbevolen optimalisaties bij over ${c.periodeLabel}.`,
+  },
+
+  'simpel-databronnen': {
+    naam: 'Databronnen',
+    doel: 'Je Meta- en Google Ads-account koppelen zodat het dashboard live cijfers toont. In deze demo is de koppeling gesimuleerd; de cijfers blijven voorbeelddata.',
+    capabilities: ['Meta Ads en Google Ads (demo-)koppelen', 'De koppelstatus per platform zien', 'Een bron weer ontkoppelen'],
+    suggestedQuestions: ['Wat kan ik op deze pagina doen?', 'Hoe koppel ik mijn data?', 'Wat is een logische volgende stap?'],
+    tips: ['In productie stromen de cijfers na koppelen rechtstreeks uit de Meta/Google-API; in deze demo blijven het voorbeeldcijfers.'],
+    navActions: ['open-pulse-databronnen'],
+    insight: (c) => {
+      const n = c.summary?.bronnenGekoppeld ?? 0;
+      if (n >= 2) return `Beide databronnen zijn gekoppeld (demo). De cijfers blijven in deze demo voorbeelddata.`;
+      if (n === 1) return `Eén van je twee databronnen is gekoppeld (demo). Koppel de andere om alles compleet te maken.`;
+      return `Nog geen databronnen gekoppeld: het dashboard draait op demodata. Koppel Meta en Google om live cijfers te simuleren.`;
+    },
   },
 
   'simpel-rapportage': {

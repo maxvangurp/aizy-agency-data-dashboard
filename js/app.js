@@ -70,6 +70,7 @@ import {
 import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg, zetTrendMetriek } from './views/simpel-dashboard.js';
 import { bouwAdInzichten } from './data/simpel-insights.js';
 import { oppakOptimalisatie, zetOptimalisatieStatus, verwijderOptimalisatie } from './model/optimalisaties.js';
+import { koppelBron, ontkoppelBron, aantalGekoppeld } from './model/databronnen.js';
 import { naarCsv, csvVanRijen, downloadCsv, nlGetalNaarRuw } from './ui/csv.js';
 import { haalAdsPlatforms, combineerTotalen, adDeltas } from './data/ads-data.js';
 import {
@@ -526,11 +527,12 @@ function pulsePlatformScope(route) {
  */
 function pulseSamenvatting(dashboard, platforms, scope = null) {
   const naam = dashboard?.client?.name ?? null;
+  const bronnenGekoppeld = dashboard?.client?.id ? aantalGekoppeld(dashboard.client.id) : 0;
   // Scope de bron zodat de Google-/Meta-pagina niet de gecombineerde cijfers toont
   // onder een enkel-platform-koptekst ("Je bekijkt Google Ads"): dan alleen dat blok.
   const bron = scope && platforms ? { [scope]: platforms[scope] } : platforms;
   const totaal = platforms ? combineerTotalen(bron) : null;
-  if (!totaal) return { clientName: naam };
+  if (!totaal) return { clientName: naam, bronnenGekoppeld };
   const model = dashboard?.model;
   const ecommerce = model === 'ecommerce';
   const resultLabel = totaal.resultLabel ?? 'Resultaat';
@@ -556,6 +558,7 @@ function pulseSamenvatting(dashboard, platforms, scope = null) {
   );
   return {
     clientName: naam,
+    bronnenGekoppeld,
     resultLabel,
     spend: totaal.spend ?? null,
     results: totaal.results ?? null,
@@ -2070,6 +2073,16 @@ function oppakSimpelOptimalisatie(sleutel) {
   // De store-schrijf hertekent de shell via onDemoWijziging(() => render()).
 }
 
+/** (Demo-)koppelt of ontkoppelt een advertentiebron voor de actieve klant. */
+function koppelSimpelBron(platform) {
+  const clientId = simpelState?.dashboard?.client?.id;
+  if (clientId) koppelBron(clientId, platform); // store-schrijf → herrender
+}
+function ontkoppelSimpelBron(platform) {
+  const clientId = simpelState?.dashboard?.client?.id;
+  if (clientId) ontkoppelBron(clientId, platform);
+}
+
 async function onClick(e) {
   // Ook klikbare KPI-kaarten (article[data-simpel-metric]) meenemen, naast knoppen/links.
   const el = e.target.closest('button, a, [data-simpel-metric]');
@@ -2118,6 +2131,26 @@ async function onClick(e) {
     return;
   }
   if (el.dataset.optimVerwijder) { verwijderOptimalisatie(el.dataset.optimVerwijder); return; }
+
+  /* --- Simpel dashboard: databronnen koppelen (gesimuleerde OAuth-flow, demo).
+         "Koppelen" onthult een bevestigstap (pure DOM); "Toegang verlenen" en
+         "Ontkoppelen" schrijven naar de demo-store en hertekenen vanzelf. --- */
+  if (el.dataset.databronKoppel) {
+    const bevestig = el.closest('.databron-kaart')?.querySelector('.databron-bevestig');
+    // Focus op het bevestigblok (niet meteen de knop), zodat de demo-uitleg erin
+    // voor schermlezers wordt aangekondigd voordat je toegang verleent.
+    if (bevestig) { bevestig.hidden = false; bevestig.focus(); }
+    return;
+  }
+  if (el.dataset.databronAnnuleer !== undefined) {
+    const kaart = el.closest('.databron-kaart');
+    kaart?.querySelector('.databron-bevestig')?.setAttribute('hidden', '');
+    // Focus terug naar "Koppelen" i.p.v. hem naar <body> te laten vallen.
+    kaart?.querySelector('[data-databron-koppel]')?.focus();
+    return;
+  }
+  if (el.dataset.databronBevestig) { koppelSimpelBron(el.dataset.databronBevestig); return; }
+  if (el.dataset.databronOntkoppel) { ontkoppelSimpelBron(el.dataset.databronOntkoppel); return; }
 
   /* --- Rapportage-builder --- */
   // Een verse "Nieuwe rapportage" begint schoon; de navigatie loopt gewoon door.

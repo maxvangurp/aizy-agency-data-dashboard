@@ -19,6 +19,7 @@ import { inzichtCategorieTerm } from '../terminology.js';
 import { combineerTotalen, alleCampagnes, adDeltas, adTotalenVorige, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks, afgeleideRatios } from '../data/ads-data.js';
 import { bouwAdInzichten, budgetTempo } from '../data/simpel-insights.js';
 import { optimalisatiesVoor, OptimStatus } from '../model/optimalisaties.js';
+import { koppelingVoor, aantalGekoppeld, BronStatus } from '../model/databronnen.js';
 import { lineChart, barChart, donutChart, funnelChart } from '../charts.js';
 import { PERIODE_PRESETS, VERGELIJK_MODI, toonBereik, toonKorteDatum, toonDatum } from '../filters/period.js';
 
@@ -41,6 +42,7 @@ const SIMPEL_NAV = [
   { naam: 'simpel-segmenten', pad: '#/pulse/segmenten', label: 'Segmenten' },
   { naam: 'simpel-trends', pad: '#/pulse/trends', label: 'Trends' },
   { naam: 'simpel-optimalisatie', pad: '#/pulse/optimalisaties', label: 'Optimalisaties' },
+  { naam: 'simpel-databronnen', pad: '#/pulse/databronnen', label: 'Databronnen' },
 ];
 
 /* ---------------------------------------------------------------
@@ -148,6 +150,9 @@ function renderSimpelLaden() {
    --------------------------------------------------------------- */
 
 export function renderSimpelInhoud({ dashboard, platforms, view = 'simpel-overzicht', vergelijking = null }) {
+  // Databronnen kun je juist koppelen wanneer er (nog) geen cijfers zijn — die
+  // pagina staat daarom vóór de lege-data-terugval en leunt niet op platforms.
+  if (view === 'simpel-databronnen') return renderDatabronnenView(dashboard, platforms);
   if (!platforms || (!platforms.meta?.aanwezig && !platforms.google?.aanwezig)) {
     return renderSimpelLeeg('Geen advertentiedata',
       'Er zijn voor deze klant en periode geen Meta- of Google Ads-cijfers.');
@@ -196,14 +201,33 @@ function simpelKop(titel, dashboard, platforms, { ondertitel = '', vergelijking 
   const vergLabel = (vergelijking?.actief && vergelijking.startDate && vergelijking.endDate)
     ? `Vergeleken met ${toonBereik(vergelijking.startDate, vergelijking.endDate)}`
     : (vergelijking && !vergelijking.actief ? 'Geen vergelijking' : '');
+  const databron = platforms?.demodata ? databronChip(dashboard) : '';
   return `<div class="simpel-kop">
     <h1>${esc(titel)}</h1>
     <p class="muted">${esc(dashboard?.client?.name ?? '')}${periodeLabel ? ` · ${esc(periodeLabel)}` : ''}${ondertitel ? ` · ${esc(ondertitel)}` : ''}</p>
     <p class="simpel-kop-meta">
       ${vergLabel ? `<span class="muted klein">${esc(vergLabel)}</span>` : ''}
-      ${platforms?.demodata ? `${vergLabel ? '<span class="simpel-kop-scheiding" aria-hidden="true">·</span>' : ''}<span class="simpel-databron">${badge('Demodata', 'muted')} <span class="muted klein">Sluit de Meta/Google API's aan voor live cijfers.</span></span>` : ''}
+      ${databron ? `${vergLabel ? '<span class="simpel-kop-scheiding" aria-hidden="true">·</span>' : ''}${databron}` : ''}
     </p>
   </div>`;
+}
+
+/**
+ * De databron-chip in de kop weerspiegelt de (demo-)koppelstatus van de klant en
+ * linkt naar de Databronnen-pagina. Nooit een valse live-claim: gekoppeld heet
+ * "Gekoppeld (demo)" en de cijfers blijven voorbeelddata.
+ */
+function databronChip(dashboard) {
+  const clientId = dashboard?.client?.id;
+  const aantal = clientId ? aantalGekoppeld(clientId) : 0;
+  const link = '<a class="link-klein" href="#/pulse/databronnen">Beheer databronnen</a>';
+  if (aantal >= 2) {
+    return `<span class="simpel-databron">${badge('Gekoppeld (demo)', 'ok')} <span class="muted klein">Voorbeeldcijfers — in productie live via de API.</span> ${link}</span>`;
+  }
+  if (aantal === 1) {
+    return `<span class="simpel-databron">${badge('1 van 2 gekoppeld (demo)', 'middel')} <span class="muted klein">Nog voorbeeldcijfers.</span> <a class="link-klein" href="#/pulse/databronnen">Rond het koppelen af</a></span>`;
+  }
+  return `<span class="simpel-databron">${badge('Demodata', 'muted')} <a class="link-klein" href="#/pulse/databronnen">Koppel je databronnen voor live cijfers</a></span>`;
 }
 
 /* ---------------------------------------------------------------
@@ -825,7 +849,7 @@ function renderSimpelRapportageView(dashboard, platforms, vergelijking) {
       ${stappenBlok}
 
       <footer class="simpel-rapport-voet">
-        <p class="muted klein">Samengesteld met Aizy Snel inzicht. De cijfers volgen de gekozen periode en kanalen; grafieken en tabellen komen uit dezelfde bron als het dashboard.${platforms?.demodata ? ' Demodata — sluit de Meta/Google API\'s aan voor live cijfers.' : ''}</p>
+        <p class="muted klein">Samengesteld met Aizy Snel inzicht. De cijfers volgen de gekozen periode en kanalen; grafieken en tabellen komen uit dezelfde bron als het dashboard.${platforms?.demodata ? (aantalGekoppeld(dashboard?.client?.id) >= 2 ? ' Databronnen gekoppeld (demo) — de cijfers zijn in deze demo voorbeelddata.' : ' Demodata — koppel de Meta/Google-databronnen voor live cijfers.') : ''}</p>
       </footer>
     </article>
   `;
@@ -1040,6 +1064,59 @@ function renderOptimalisatiesView(dashboard, platforms, vergelijking) {
         : `<p class="empty">${aanbevelingen.length ? 'Alle huidige aanbevelingen staan al op je lijst.' : 'Er zijn nu geen aanbevolen optimalisaties voor deze klant en periode.'}</p>`}
     </section>
   `;
+}
+
+/* ---------------------------------------------------------------
+   Databronnen (gesimuleerde koppeling — demolaag)
+   --------------------------------------------------------------- */
+
+const BRON_META = {
+  meta: { label: 'Meta Ads', bron: 'Meta', detail: 'Facebook- en Instagram-advertenties' },
+  google: { label: 'Google Ads', bron: 'Google', detail: 'Zoek-, display- en YouTube-advertenties' },
+};
+
+/**
+ * Eén platformkaart met de (demo-)koppelstatus. Niet gekoppeld toont een
+ * "Koppelen"-knop die een inline bevestigstap (OAuth-simulatie) onthult;
+ * gekoppeld toont een eerlijk gelabelde demostatus + "Ontkoppelen".
+ */
+function databronKaart(platform, status) {
+  const m = BRON_META[platform];
+  const gekoppeld = status === BronStatus.GEKOPPELD;
+  return `<div class="koppelstatus databron-kaart" data-status="${gekoppeld ? 'gekoppeld' : 'niet_gekoppeld'}">
+    <div class="koppelstatus-kop">
+      <strong>${esc(m.label)}</strong>
+      ${gekoppeld ? badge('Gekoppeld (demo)', 'ok') : badge('Demodata', 'muted')}
+    </div>
+    <p class="muted klein">${esc(m.detail)}</p>
+    ${gekoppeld
+      ? `<p class="muted">In productie stromen de cijfers rechtstreeks uit ${esc(m.bron)} via de API. In deze demo blijven het voorbeeldcijfers.</p>
+         <button type="button" class="btn klein" data-databron-ontkoppel="${platform}">Ontkoppelen</button>`
+      : `<p class="muted">De ${esc(m.label)}-cijfers zijn nu voorbeelddata. In productie levert een koppeling live cijfers; in deze demo simuleren we alleen de koppeling — de cijfers blijven voorbeelddata.</p>
+         <button type="button" class="btn klein primary" data-databron-koppel="${platform}">Koppelen</button>
+         <div class="databron-bevestig" tabindex="-1" hidden>
+           <p class="muted klein">Geef Aizy toegang tot je ${esc(m.bron)}-advertentieaccount. Dit is een demo-simulatie — er wordt geen echte verbinding gemaakt en de cijfers blijven voorbeelddata.</p>
+           <div class="databron-bevestig-acties">
+             <button type="button" class="btn klein primary" data-databron-bevestig="${platform}">Toegang verlenen</button>
+             <button type="button" class="btn klein" data-databron-annuleer>Annuleren</button>
+           </div>
+         </div>`}
+  </div>`;
+}
+
+function renderDatabronnenView(dashboard) {
+  const clientId = dashboard?.client?.id;
+  const k = koppelingVoor(clientId);
+  const aantal = clientId ? aantalGekoppeld(clientId) : 0;
+  return `
+    ${simpelKop('Databronnen', dashboard, null, { ondertitel: `${aantal} van 2 gekoppeld` })}
+    <p class="muted optim-intro">Koppel je advertentieaccounts zodat het dashboard live cijfers toont in plaats van demodata. In deze demo simuleren we de koppeling: de cijfers blijven voorbeelddata en zijn overal als zodanig gemarkeerd. Dit is precies de plek waar in productie de Meta- en Google-API's aansluiten.</p>
+    <section class="card">
+      <div class="koppelstatus-grid databronnen-grid">
+        ${databronKaart('meta', k.meta)}
+        ${databronKaart('google', k.google)}
+      </div>
+    </section>`;
 }
 
 /* ---------------------------------------------------------------

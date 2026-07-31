@@ -43,6 +43,7 @@ export const ROUTES = [
   { pad: '/pulse/segmenten', naam: 'simpel-segmenten', simpel: true, titel: 'Segmenten' },
   { pad: '/pulse/trends', naam: 'simpel-trends', simpel: true, titel: 'Trends' },
   { pad: '/pulse/optimalisaties', naam: 'simpel-optimalisatie', simpel: true, titel: 'Optimalisaties' },
+  { pad: '/pulse/databronnen', naam: 'simpel-databronnen', simpel: true, titel: 'Databronnen' },
   { pad: '/pulse/rapportage', naam: 'simpel-rapportage', simpel: true, titel: 'Rapportage' },
   { pad: '/forgot-password', naam: 'forgot-password', publiek: true, titel: 'Wachtwoord vergeten' },
   { pad: '/accept-invite', naam: 'accept-invite', publiek: true, titel: 'Uitnodiging accepteren' },

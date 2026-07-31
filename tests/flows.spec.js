@@ -86,8 +86,8 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
     expect(await page.evaluate(() => document.body.dataset.shell)).toBe('simpel');
     await expect(page.locator('.simpel-sidebar')).toBeVisible();
     await expect(page.locator('.simpel-topbar')).toBeVisible();
-    // Acht navigatie-items in de lichte sidebar (7 datapagina's + Optimalisaties).
-    await expect(page.locator('.simpel-nav-item')).toHaveCount(8);
+    // Negen navigatie-items (7 datapagina's + Optimalisaties + Databronnen).
+    await expect(page.locator('.simpel-nav-item')).toHaveCount(9);
     // Geen volledige systeem-sidebar in de simpele modus.
     await expect(page.locator('.app-grid .sidebar')).toHaveCount(0);
     // De overzichtspagina toont de gecombineerde KPI-band.
@@ -114,6 +114,7 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
       { label: 'Segmenten', hash: '/pulse/segmenten', kop: 'Segmenten' },
       { label: 'Trends', hash: '/pulse/trends', kop: 'Trends' },
       { label: 'Optimalisaties', hash: '/pulse/optimalisaties', kop: 'Optimalisaties' },
+      { label: 'Databronnen', hash: '/pulse/databronnen', kop: 'Databronnen' },
       { label: 'Totaal overzicht', hash: '/pulse', kop: 'Meta & Google Ads' },
     ];
 

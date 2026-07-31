@@ -52,6 +52,12 @@ const BEGRIPPEN = {
     beperking: null,
     acties: ['open-budgetten'],
   },
+  demodata: {
+    tekst: 'Demodata betekent dat de getoonde cijfers voorbeelddata zijn, geen live gegevens uit Meta of Google. In deze demo blijven ze voorbeelddata — ook nadat je een databron "koppelt", want die koppeling is gesimuleerd. In productie stromen de cijfers na koppelen rechtstreeks uit de API.',
+    punten: ['Demodata: voorbeeldcijfers, herkenbaar aan het label.', 'Gekoppeld (demo): de koppeling is gesimuleerd; de cijfers blijven voorbeelddata.'],
+    beperking: 'Koppelen verandert de cijfers in deze demo niet; ze blijven voorbeelddata.',
+    acties: [],
+  },
 };
 
 function vindMetriek(tekst) {
@@ -63,11 +69,15 @@ function vindMetriek(tekst) {
    Intentherkenning
    --------------------------------------------------------------- */
 
-function herkenIntent(tekst) {
+function herkenIntent(tekst, context) {
   if (/vat.*samen|samenvatting|wat valt op|wat gaat goed|wat heeft aandacht nodig|^wat valt/.test(tekst)) return 'samenvatting';
   if (/\beerst\b|belangrijkst|urgent|meeste aandacht|hoogste prioriteit|waar moet ik (eerst|beginnen)/.test(tekst)) return 'prioritering';
   if (/wat betekent|leg .* uit|hoe wordt .* berekend|wat is (cpa|cpl|roas|ctr|cpc|aov|een gekwalificeerde|budget pacing|betrouwbaarheid)/.test(tekst)) return 'metriek';
   if (/waar (zie|vind|kan|staan|zit)|hoe kom ik|hoe ga ik naar|hoe open ik/.test(tekst)) return 'navigatie';
+  // Databronnen koppelen is een pulse-concept: alleen in de simpele modus als
+  // navigatie behandelen, zodat vrije-vorm koppelvragen in agency/client niet op
+  // een nutteloze (of agency-only) fallback belanden.
+  if (context?.environment === 'simpel' && /hoe koppel|koppel .*(data|bron|account)|databron|aansluit/.test(tekst)) return 'navigatie';
   if (/volgende stap|slimmer|welke filters|waar moet ik op letten|geef een tip|werkwijze|hoe rond ik/.test(tekst)) return 'tips';
   if (/wat kan ik|waar kijk ik|hoe gebruik ik|welke onderdelen|wat is deze pagina|leg deze pagina/.test(tekst)) return 'pagina';
   // Een losse metriekterm zonder vraagwoord telt ook als metriekvraag.
@@ -202,6 +212,7 @@ function antwoordNavigatie(tekst, context, hulp) {
       [/optimalisatie|aanbevel|verbeter/, 'open-pulse-optimalisaties', 'De optimalisaties houd je bij onder Optimalisaties.'],
       [/rapport/, 'open-pulse-rapportage', 'De rapportage maak je onder Rapportage.'],
       [/trend|ontwikkeling|verloop/, 'open-pulse-trends', 'De ontwikkeling per dag staat onder Trends.'],
+      [/koppel|databron|aansluit|verbind|live cijfers/, 'open-pulse-databronnen', 'Je databronnen (Meta/Google) koppel je onder Databronnen.'],
     ];
     for (const [patroon, sleutel, uitleg] of simpelDoelen) {
       if (patroon.test(tekst)) return { tekst: uitleg, acties: [sleutel], demo: true };
@@ -271,7 +282,7 @@ function antwoordOnbekend(hulp) {
 export function beantwoord(message, context) {
   const tekst = String(message ?? '').toLowerCase().trim();
   const hulp = paginahulp(context.pageType, context.activeTab);
-  const intent = herkenIntent(tekst);
+  const intent = herkenIntent(tekst, context);
 
   let antwoord;
   switch (intent) {

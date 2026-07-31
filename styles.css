@@ -1920,6 +1920,13 @@ code {
 .koppelstatus { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); display: grid; gap: 6px; }
 .koppelstatus-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
+/* Databronnen (gesimuleerde koppeling in de simpele modus) */
+.databron-kaart { align-content: start; }
+.databron-kaart > .btn { justify-self: start; margin-top: 4px; }
+.databron-kaart[data-status='gekoppeld'] { border-color: var(--positief); }
+.databron-bevestig { display: grid; gap: 8px; margin-top: 8px; padding: var(--space-2) var(--space-3); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius-sm); }
+.databron-bevestig-acties { display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* ---------- Signaalpreview / lijst ---------- */
 
 .signaal-preview, .signaallijst { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
