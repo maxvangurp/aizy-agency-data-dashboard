@@ -472,7 +472,7 @@ const CATALOGUS = {
     naam: 'Segmenten',
     doel: 'De verdeling per apparaat, regio en weekdag.',
     capabilities: ['Per apparaat, regio en weekdag de bijdrage bekijken'],
-    suggestedQuestions: ['Welk apparaat is het efficiëntst?', 'Welke dag presteert het best?', 'Waar komen de meeste resultaten vandaan?'],
+    suggestedQuestions: ['Welk apparaat is het efficiëntst?', 'Welke dag presteert het best?', 'Welke regio levert de meeste resultaten?'],
     tips: ['Verschuif budget richting het efficiëntste apparaat of de sterkste dag.'],
     navActions: ['open-pulse-optimalisaties'],
     insight: (c) => pulseInsight(c, 'Je bekijkt de segmenten'),

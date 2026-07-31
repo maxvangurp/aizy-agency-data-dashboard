@@ -48,6 +48,8 @@ const DEFINITIES = {
 
   // Simpele modus (pulse) — voor elke ingelogde gebruiker in de simpele modus.
   'open-pulse-optimalisaties': () => N('Naar optimalisaties', '#/pulse/optimalisaties'),
+  'open-pulse-campagnes': () => N('Open campagnes', '#/pulse/campagnes'),
+  'open-pulse-segmenten': () => N('Open segmenten', '#/pulse/segmenten'),
   'open-pulse-databronnen': () => N('Databronnen koppelen', '#/pulse/databronnen'),
   // Zelfde label als 'maak-rapportage' in de simpele modus, zodat resolveActies de
   // twee ontdubbelt wanneer een samenvatting de rapportage-vervolgstap toevoegt.

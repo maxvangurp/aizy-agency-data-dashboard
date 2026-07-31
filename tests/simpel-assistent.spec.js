@@ -45,6 +45,10 @@ function laatsteAntwoord(page) {
   return page.locator('.assistent-bericht.is-assistent .assistent-bel').last();
 }
 
+function laatsteBericht(page) {
+  return page.locator('.assistent-bericht.is-assistent').last();
+}
+
 test.describe('Aizy-assistent — simpele modus', () => {
   test('de launcher is aanwezig op het pulse-dashboard', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
@@ -117,6 +121,62 @@ test.describe('Aizy-assistent — simpele modus', () => {
     await page.selectOption('[data-simpel-klant]', 'tafelwerk');
     await page.waitForTimeout(700);
     await expect(page.locator('.assistent-insight')).toContainText('ROAS');
+  });
+
+  test('beantwoordt entiteitvragen over een specifieke campagne met een concreet cijfer', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await openAssistent(page);
+    await stelVraag(page, 'Welke campagne is het duurst?');
+    const antwoord = laatsteAntwoord(page);
+    // Concreet: een campagnenaam (in aanhalingstekens), "het duurst" en een bedrag per resultaat.
+    await expect(antwoord).toContainText('is het duurst');
+    await expect(antwoord).toContainText('per aankoop');
+    await expect(antwoord).toContainText('€');
+    await expect(laatsteBericht(page).locator('.assistent-acties a')).toHaveAttribute('href', '#/pulse/campagnes');
+  });
+
+  test('beantwoordt segmentvragen (welk apparaat presteert het best)', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await openAssistent(page);
+    await stelVraag(page, 'Welk apparaat presteert het best?');
+    await expect(laatsteAntwoord(page)).toContainText('presteert het best');
+    await expect(laatsteBericht(page).locator('.assistent-acties a')).toHaveAttribute('href', '#/pulse/segmenten');
+  });
+
+  test('draagt proactief de belangrijkste optimalisatie aan', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await openAssistent(page);
+    await stelVraag(page, 'Welke optimalisatie pak ik op?');
+    await expect(laatsteAntwoord(page)).toContainText('grootste kans');
+    await expect(laatsteBericht(page).locator('.assistent-acties a')).toHaveAttribute('href', '#/pulse/optimalisaties');
+  });
+
+  test('een "beste campagne"-vraag geeft de meest efficiënte, niet de duurste', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
+    await openAssistent(page);
+    await stelVraag(page, 'Welke campagne presteert het best?');
+    await expect(laatsteAntwoord(page)).toContainText('is het goedkoopst');
+    await expect(laatsteAntwoord(page)).not.toContainText('is het duurst');
+  });
+
+  test('een segment zonder kostendata claimt geen efficiëntie ("het best")', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.admin);
+    await page.selectOption('[data-simpel-klant]', 'vitaalpunt'); // leadgen: apparaten zonder spend
+    await page.waitForTimeout(700);
+    await openAssistent(page);
+    await stelVraag(page, 'Welk apparaat presteert het best?');
+    // Op louter volume zeggen we "levert het meeste", niet de sterkere efficiëntie-claim.
+    await expect(laatsteAntwoord(page)).toContainText('levert het meeste');
+    await expect(laatsteAntwoord(page)).not.toContainText('presteert het best');
+  });
+
+  test('valt eerlijk terug als een segment geen cijfers heeft (awareness-klant)', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.admin);
+    await page.selectOption('[data-simpel-klant]', 'noordlicht');
+    await page.waitForTimeout(700);
+    await openAssistent(page);
+    await stelVraag(page, 'Welk apparaat presteert het best?');
+    await expect(laatsteAntwoord(page)).toContainText('geen apparaat-cijfers');
   });
 
   test('een vervolgactie blijft binnen de simpele modus', async ({ page }) => {

@@ -72,6 +72,12 @@ function vindMetriek(tekst) {
 function herkenIntent(tekst, context) {
   if (/vat.*samen|samenvatting|wat valt op|wat gaat goed|wat heeft aandacht nodig|^wat valt/.test(tekst)) return 'samenvatting';
   if (/\beerst\b|belangrijkst|urgent|meeste aandacht|hoogste prioriteit|waar moet ik (eerst|beginnen)/.test(tekst)) return 'prioritering';
+  // Simpele modus: "welke optimalisatie pak ik op?" → proactieve prioritering;
+  // een entiteitvraag ("welke campagne/apparaat/regio …") → het entiteit-intent.
+  if (context?.environment === 'simpel') {
+    if (/welke optimalisatie|optimalisatie.*(oppak|eerst)|wat pak ik/.test(tekst)) return 'prioritering';
+    if (/welke campagne|welk apparaat|welke regio|welke (dag|weekdag)/.test(tekst)) return 'entiteit';
+  }
   if (/wat betekent|leg .* uit|hoe wordt .* berekend|wat is (cpa|cpl|roas|ctr|cpc|aov|een gekwalificeerde|budget pacing|betrouwbaarheid)/.test(tekst)) return 'metriek';
   if (/waar (zie|vind|kan|staan|zit)|hoe kom ik|hoe ga ik naar|hoe open ik/.test(tekst)) return 'navigatie';
   // Databronnen koppelen is een pulse-concept: alleen in de simpele modus als
@@ -167,6 +173,24 @@ function antwoordSamenvatting(context, hulp) {
 
 function antwoordPrioritering(context, hulp) {
   const s = context.summary ?? {};
+
+  // Simpele modus: draag proactief de belangrijkste aanbevolen optimalisatie aan.
+  if (context.environment === 'simpel') {
+    const top = s.topOptimalisatie;
+    if (top?.titel) {
+      return {
+        tekst: `De grootste kans nu: ${top.titel}. Ik zou die als eerste oppakken.`,
+        acties: ['open-pulse-optimalisaties'],
+        demo: true,
+      };
+    }
+    return {
+      tekst: hulp.tips?.[0] ?? 'Begin bij de aanbeveling met de meeste impact die nog openstaat.',
+      acties: ['open-pulse-optimalisaties'],
+      demo: true,
+    };
+  }
+
   let tekst;
   const acties = [];
 
@@ -271,6 +295,68 @@ function antwoordOnbekend(hulp) {
   };
 }
 
+/**
+ * Entiteitvraag in de simpele modus: een concrete campagne of segment uit de
+ * pulse-summary ("welke campagne is het duurst?"). Geeft `null` terug als de
+ * entiteit-data ontbreekt, zodat de aanroeper eerlijk terugvalt.
+ */
+function antwoordEntiteit(tekst, context) {
+  const e = context.summary?.entities;
+  if (!e) return null;
+  const enkel = e.enkelvoud ?? 'resultaat';
+  const rlabel = (e.resultLabel ?? 'resultaten').toLowerCase();
+
+  if (/campagne/.test(tekst)) {
+    const c = e.campagnes ?? {};
+    let keuze;
+    let zin;
+    // "best(e)" = meest efficiënt (laagste kosten per resultaat); \bbeste?\b matcht
+    // "best"/"beste" maar niet "besteding". Uitgaven-vraag vóór de resultaat-vraag,
+    // anders vangt "meeste" de "meeste uitgaven" af met het verkeerde cijfer.
+    if (/goedkoopst|laagste kosten|efficiënt|efficient|\bbeste?\b/.test(tekst) && c.goedkoopst) {
+      keuze = c.goedkoopst; zin = `is het goedkoopst: ${euro(keuze.waarde, 2)} per ${enkel}`;
+    } else if (/duurst|hoogste kosten|slechtst|minst efficiënt|minst efficient/.test(tekst) && c.duurst) {
+      keuze = c.duurst; zin = `is het duurst: ${euro(keuze.waarde, 2)} per ${enkel}`;
+    } else if (/grootst|meeste uitgav|meeste uitgeeft|geeft het meeste uit|hoogste budget|hoogste uitgav/.test(tekst) && c.grootst) {
+      keuze = c.grootst; zin = `geeft het meeste uit: ${euro(keuze.waarde)}`;
+    } else if (/meeste|hoogste volume|top/.test(tekst) && c.meeste) {
+      keuze = c.meeste; zin = `levert de meeste ${rlabel}: ${getal(keuze.waarde)}`;
+    } else if (c.duurst) {
+      keuze = c.duurst; zin = `is het duurst: ${euro(keuze.waarde, 2)} per ${enkel}`;
+    }
+    if (keuze) {
+      return { tekst: `'${keuze.name}' ${zin}${keuze.platform ? ` (${keuze.platform})` : ''}.`, acties: ['open-pulse-campagnes'], demo: true };
+    }
+    return { tekst: 'Er is geen campagne met genoeg resultaat om te vergelijken voor deze klant en periode.', acties: ['open-pulse-campagnes'], demo: true };
+  }
+
+  const segKey = /apparaat|device/.test(tekst) ? 'apparaat'
+    : /regio|locatie|land|provincie/.test(tekst) ? 'regio'
+      : /dag|weekdag/.test(tekst) ? 'dag' : null;
+  if (segKey) {
+    const s = e.segmenten?.[segKey];
+    if (!s?.meeste) {
+      return { tekst: `Voor deze klant en periode zijn er geen ${segKey === 'dag' ? 'weekdag' : segKey}-cijfers om te vergelijken.`, acties: ['open-pulse-segmenten'], demo: true };
+    }
+    // Efficiëntie en volume zijn verschillende vragen: "het best" claimen we alleen
+    // op kosten-per-resultaat; op louter volume zeggen we "levert het meeste".
+    if (/duurst|slechtst|minst efficiënt|minst efficient|inefficiënt/.test(tekst) && s.duurste) {
+      return { tekst: `${s.duurste.name} is het minst efficiënt: ${s.duurste.tekst}.`, acties: ['open-pulse-segmenten'], demo: true };
+    }
+    if (/meeste|hoogste aandeel|grootste bijdrage|meeste bijdrage|meeste volume/.test(tekst)) {
+      return { tekst: `${s.meeste.name} levert het meeste: ${s.meeste.tekst}.`, acties: ['open-pulse-segmenten'], demo: true };
+    }
+    if (/efficiënt|efficient|goedkoopst|laagste kosten|kosten per/.test(tekst) && s.efficientst) {
+      return { tekst: `${s.efficientst.name} is het efficiëntst: ${s.efficientst.tekst}.`, acties: ['open-pulse-segmenten'], demo: true };
+    }
+    // "presteert het best": efficiëntie als die er is, anders eerlijk op volume.
+    return s.efficientst
+      ? { tekst: `${s.efficientst.name} presteert het best: ${s.efficientst.tekst}.`, acties: ['open-pulse-segmenten'], demo: true }
+      : { tekst: `${s.meeste.name} levert het meeste: ${s.meeste.tekst}.`, acties: ['open-pulse-segmenten'], demo: true };
+  }
+  return null;
+}
+
 /* ---------------------------------------------------------------
    Publieke API
    --------------------------------------------------------------- */
@@ -289,6 +375,7 @@ export function beantwoord(message, context) {
     case 'metriek': antwoord = antwoordMetriek(tekst, hulp); break;
     case 'samenvatting': antwoord = antwoordSamenvatting(context, hulp); break;
     case 'prioritering': antwoord = antwoordPrioritering(context, hulp); break;
+    case 'entiteit': antwoord = antwoordEntiteit(tekst, context) ?? antwoordOnbekend(hulp); break;
     case 'navigatie': antwoord = antwoordNavigatie(tekst, context, hulp); break;
     case 'tips': antwoord = antwoordTips(hulp); break;
     case 'pagina': antwoord = antwoordPagina(hulp); break;
@@ -296,7 +383,7 @@ export function beantwoord(message, context) {
   }
   // Elke antwoord draagt de gebruikte data-doorsnede mee, behalve zuivere
   // uitleg (metriek/tips/pagina) waar geen paginadata bij hoort.
-  const contextrelevant = ['samenvatting', 'prioritering'].includes(intent);
+  const contextrelevant = ['samenvatting', 'prioritering', 'entiteit'].includes(intent);
   return contextrelevant && context.gebruikteContext
     ? { ...antwoord, context: context.gebruikteContext }
     : antwoord;

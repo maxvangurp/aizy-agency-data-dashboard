@@ -72,7 +72,7 @@ import { bouwAdInzichten } from './data/simpel-insights.js';
 import { oppakOptimalisatie, zetOptimalisatieStatus, verwijderOptimalisatie } from './model/optimalisaties.js';
 import { koppelBron, ontkoppelBron, aantalGekoppeld } from './model/databronnen.js';
 import { naarCsv, csvVanRijen, downloadCsv, nlGetalNaarRuw } from './ui/csv.js';
-import { haalAdsPlatforms, combineerTotalen, adDeltas } from './data/ads-data.js';
+import { haalAdsPlatforms, combineerTotalen, adDeltas, alleCampagnes, adSegmenten } from './data/ads-data.js';
 import {
   renderShell, renderSidebar, renderContextbalk, renderPaginakop,
   renderPaginatabs, renderDetailpaneel, actieveTab,
@@ -92,7 +92,7 @@ import * as grids from './ui/grid-controller.js';
 import { renderDataGrid } from './ui/data-grid.js';
 import { klantPreview, actieDetail, signaalDetail, signaalPlanning } from './ui/drawer.js';
 
-import { esc } from './views/components.js';
+import { esc, fmt } from './views/components.js';
 import { renderAgencyTeam, renderMedewerkerDetail, renderAgencySettings } from './views/agency.js';
 import {
   renderPortefeuille, prioriteitenDefinitie, PORTEFEUILLE_TABS,
@@ -519,6 +519,72 @@ function pulsePlatformScope(route) {
 }
 
 /**
+ * Compacte entiteit-samenvatting voor de assistent: de opvallende campagnes en
+ * segmenten uit de al geladen pulse-data, plus de belangrijkste aanbevolen
+ * optimalisatie. Zo kan de assistent "welke campagne is het duurst?" concreet
+ * beantwoorden zonder zelf in de ruwe data te graven. Klein en API-ready.
+ */
+function pulseEntiteiten(dashboard, platforms, enkelvoud, resultLabel) {
+  const minBy = (a, f) => a.reduce((b, x) => (b == null || f(x) < f(b) ? x : b), null);
+  const maxBy = (a, f) => a.reduce((b, x) => (b == null || f(x) > f(b) ? x : b), null);
+  const campagne = (c, waarde) => (c ? { name: c.name, platform: c.platform, waarde } : null);
+
+  const campagnes = alleCampagnes(platforms).filter((c) => (c.spend ?? 0) > 0);
+  const metCpr = campagnes.filter((c) => (c.results ?? 0) > 0 && c.costPerResult != null);
+  const metResultaat = campagnes.filter((c) => (c.results ?? 0) > 0);
+
+  // Per segment houden we volume (meeste resultaten/aandeel) én efficiëntie
+  // (kosten per resultaat) apart, zodat de assistent "het best" niet claimt op
+  // basis van louter volume terwijl een ander segment goedkoper converteert. De
+  // efficiëntie-tak vraagt spend > 0 (een segment met 0 uitgaven is niet "gratis
+  // efficiënt", dat zou een misleidende €0,00 opleveren).
+  const besteSegment = (lijst) => {
+    const items = (lijst ?? []).filter((x) => (x.results ?? 0) > 0);
+    if (!items.length) return null;
+    const volTekst = (x) => (x.aandeel != null
+      ? `${fmt.procent(x.aandeel)} van de ${resultLabel.toLowerCase()}`
+      : `${fmt.getal(x.results)} ${resultLabel.toLowerCase()}`);
+    const meeste = maxBy(items, (x) => x.aandeel ?? x.results ?? 0);
+    const metKosten = items.filter((x) => (x.spend ?? 0) > 0);
+    let efficientst = null;
+    let duurste = null;
+    if (metKosten.length) {
+      const cpr = (x) => x.spend / x.results;
+      const e = minBy(metKosten, cpr);
+      const d = maxBy(metKosten, cpr);
+      efficientst = { name: e.name, tekst: `${fmt.euro2(cpr(e))} per ${enkelvoud}` };
+      duurste = { name: d.name, tekst: `${fmt.euro2(cpr(d))} per ${enkelvoud}` };
+    }
+    return { meeste: { name: meeste.name, tekst: volTekst(meeste) }, efficientst, duurste };
+  };
+
+  const duurst = maxBy(metCpr, (c) => c.costPerResult);
+  const goedkoopst = minBy(metCpr, (c) => c.costPerResult);
+  const grootst = maxBy(campagnes, (c) => c.spend ?? 0);
+  const meeste = maxBy(metResultaat, (c) => c.results ?? 0);
+
+  const seg = adSegmenten(dashboard, platforms);
+  const top = bouwAdInzichten(dashboard, platforms).primair[0] ?? null;
+
+  return {
+    campagnes: {
+      duurst: campagne(duurst, duurst?.costPerResult),
+      goedkoopst: campagne(goedkoopst, goedkoopst?.costPerResult),
+      grootst: campagne(grootst, grootst?.spend),
+      meeste: campagne(meeste, meeste?.results),
+    },
+    segmenten: {
+      apparaat: besteSegment(seg.devices),
+      regio: besteSegment(seg.regios),
+      dag: besteSegment(seg.weekdagen),
+    },
+    // Alleen de titel: de assistent draagt de aanbeveling aan en linkt naar de
+    // optimalisatie-pagina; actie/sleutel zijn hier niet nodig (dead wire-velden).
+    topOptimalisatie: top ? { titel: top.titel } : null,
+  };
+}
+
+/**
  * Compacte, API-ready samenvatting voor de Aizy-assistent in de simpele modus.
  * Puur uit reeds geladen data (geen extra fetch): de (voor de Google-/Meta-pagina
  * platform-gescoopte) totalen plus de grootste verandering t.o.v. de vorige
@@ -569,7 +635,23 @@ function pulseSamenvatting(dashboard, platforms, scope = null) {
     costPer: `per ${enkelvoud}`,
     ctr: rond(totaal.ctr, 2),
     grootsteVerandering: grootste ? `${veranderingLabel} ${grootste.d.tekst}` : null,
+    // Opvallende entiteiten (campagnes/segmenten) + de belangrijkste optimalisatie,
+    // zodat de assistent entiteitvragen concreet kan beantwoorden en proactief kan
+    // sturen. Op dezelfde bron gescoopt als de totalen, zodat de Google-/Meta-pagina
+    // geen campagne van het andere platform benoemt.
+    ...pulseEntiteitBlok(dashboard, bron, enkelvoud, resultLabel),
   };
+}
+
+/** Verpakt de entiteiten + top-optimalisatie voor in de summary (met eigen try/catch). */
+function pulseEntiteitBlok(dashboard, platforms, enkelvoud, resultLabel) {
+  try {
+    const e = pulseEntiteiten(dashboard, platforms, enkelvoud, resultLabel);
+    return { entities: { campagnes: e.campagnes, segmenten: e.segmenten, resultLabel, enkelvoud }, topOptimalisatie: e.topOptimalisatie };
+  } catch {
+    // Een ontbrekend segment of campagneveld mag de assistent nooit laten vallen.
+    return { entities: null, topOptimalisatie: null };
+  }
 }
 
 /**
