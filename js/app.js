@@ -156,6 +156,11 @@ let nieuweActieOpen = false;
 let negeerVoorId = null;
 const openGridPanelen = new Set();
 let laatstePad = null;
+// Focusbeheer van het detailpaneel (role="dialog"): bij openen verplaatst de focus
+// erin, bij sluiten keert hij terug naar het element dat het opende. `detailTrigger`
+// bewaart een STABIELE selector (niet de node zelf, die overleeft de re-render niet).
+let vorigDetailOpen = false;
+let detailTrigger = null;
 
 /** Routes met een filterbalk, en de contextvariant die daarbij hoort. */
 const FILTER_ROUTES = new Set([
@@ -423,6 +428,7 @@ function render() {
     tekenRaf = requestAnimationFrame(() => { tekenRaf = null; pagina.teken(); });
   }
   herstelPanelen();
+  beheerDetailpaneelFocus(!!paneel);
 
   // De scrollpositie hoort bij de plek waar je was, niet bij het adres dat je
   // net hebt geopend. Alleen terugkeren naar hetzelfde pad herstelt hem.
@@ -430,6 +436,36 @@ function render() {
     document.querySelector('.werkgebied')?.scrollTo({ top: vorigeScroll });
   }
   laatstePad = pad;
+}
+
+/**
+ * Verplaatst de focus in het detailpaneel zodra het opent (een schermlezer kondigt
+ * de dialoog dan aan en de toetsenbordgebruiker landt erin) en zet hem bij het
+ * sluiten terug op het element dat het opende. De trigger is als selector bewaard,
+ * omdat de re-render de oorspronkelijke node vervangt.
+ */
+function beheerDetailpaneelFocus(open) {
+  if (open && !vorigDetailOpen) {
+    document.getElementById('detailpaneel')?.focus({ preventScroll: true });
+  } else if (!open && vorigDetailOpen) {
+    const doel = detailTrigger ? document.querySelector(detailTrigger) : null;
+    (doel ?? document.getElementById('pageRoot'))?.focus({ preventScroll: true });
+    detailTrigger = null;
+  }
+  vorigDetailOpen = open;
+}
+
+/** Onthoudt — als stabiele selector — welk element het detailpaneel opent. */
+function onthoudDetailTrigger(el) {
+  for (const attr of ['klantpaneel', 'actiepaneel', 'signaalpaneel', 'signaalPlan']) {
+    const waarde = el?.dataset?.[attr];
+    if (waarde != null) {
+      const naam = attr.replace(/([A-Z])/g, '-$1').toLowerCase(); // signaalPlan -> signaal-plan
+      detailTrigger = `[data-${naam}="${CSS.escape(waarde)}"]`;
+      return;
+    }
+  }
+  detailTrigger = el?.id ? `#${CSS.escape(el.id)}` : null;
 }
 
 /**
@@ -2350,15 +2386,16 @@ async function onClick(e) {
     return;
   }
 
-  /* --- Detailpanelen openen --- */
-  if (el.dataset.klantpaneel) { openPaneel('klant', el.dataset.klantpaneel); return; }
-  if (el.dataset.actiepaneel) { openPaneel('actie', el.dataset.actiepaneel); return; }
-  if (el.dataset.signaalpaneel) { openPaneel('signaal', el.dataset.signaalpaneel); return; }
-  if (el.dataset.drill) { openMetriek(el.dataset.drill); return; }
+  /* --- Detailpanelen openen (onthoud de trigger voor focus-terugkeer) --- */
+  if (el.dataset.klantpaneel) { onthoudDetailTrigger(el); openPaneel('klant', el.dataset.klantpaneel); return; }
+  if (el.dataset.actiepaneel) { onthoudDetailTrigger(el); openPaneel('actie', el.dataset.actiepaneel); return; }
+  if (el.dataset.signaalpaneel) { onthoudDetailTrigger(el); openPaneel('signaal', el.dataset.signaalpaneel); return; }
+  if (el.dataset.drill) { onthoudDetailTrigger(el); openMetriek(el.dataset.drill); return; }
 
   /* --- Signalen: inplannen, filters, paneel sluiten --- */
   if (el.dataset.signaalPlan) {
     if (!can(getCurrentUser(), Permission.ASSIGN_ACTIONS)) { toastFout('Alleen de Performance Lead kan een actie inplannen.'); return; }
+    onthoudDetailTrigger(el);
     openPaneel('plan', el.dataset.signaalPlan);
     return;
   }

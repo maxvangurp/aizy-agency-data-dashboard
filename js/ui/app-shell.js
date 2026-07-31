@@ -597,13 +597,13 @@ export function renderShell({
       data-omgeving="${esc(omgeving)}">
       <aside class="sidebar" id="sidebar">${sidebar}</aside>
       <div class="main">
-        <div class="contextbalk" id="contextbalk">${contextbalk}</div>
+        <div class="contextbalk" id="contextbalk" role="region" aria-label="Filters en zoeken">${contextbalk}</div>
         <div class="werkgebied">
-          <div id="pageRoot" class="page-root" tabindex="-1">
+          <main id="pageRoot" class="page-root" tabindex="-1">
             ${kop}
             ${tabs}
             <div class="pagina-inhoud">${inhoud}</div>
-          </div>
+          </main>
           ${detail}
         </div>
       </div>

@@ -355,7 +355,8 @@ function renderKop(kolom, staat, grid) {
     ${inhoud}
     <span class="kolom-greep" role="separator" aria-orientation="vertical"
       data-grid-breedte="${esc(grid)}" data-kolom="${esc(kolom.key)}"
-      aria-label="Breedte van kolom ${esc(kolom.label)} aanpassen" tabindex="0"></span>
+      aria-label="Breedte van kolom ${esc(kolom.label)} aanpassen" tabindex="0"
+      aria-valuenow="${Math.round(breedte ?? kolom.breedte ?? 160)}" aria-valuemin="72" aria-valuemax="600"></span>
   </th>`;
 }
 
