@@ -330,7 +330,7 @@ export const SAMPLE_ALERTS = [
     kanaal: 'google_ads',
     probleem: 'De ROAS daalt al zes maanden op rij',
     oorzaak: 'Brede zoekwoorden nemen 46 procent van het budget en leveren weinig op',
-    aanbeveling: 'Pauzeer de brede zoekwoorden en verplaats het budget naar exact',
+    aanbeveling: 'Pauzeer de brede zoekwoorden en verplaats het budget naar exacte varianten',
     startdatum: '2026-07-02',
   },
   {

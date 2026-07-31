@@ -273,19 +273,29 @@ h1, h2, h3 {
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 9px 16px;
   font-weight: 600;
   font-size: 13px;
+  line-height: 1.2;
   background: var(--surface-sunken);
   color: var(--ink);
-  transition: border-color 0.15s ease, background 0.15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
 }
 
+/* Een knop is nooit een onderstreepte link — ook niet als het een <a> is. */
 .btn:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--border-strong, var(--accent));
+  background: var(--surface);
 }
+.btn:active:not(:disabled) { transform: translateY(0.5px); }
 
 .btn:disabled {
   opacity: 0.5;
@@ -296,6 +306,11 @@ h1, h2, h3 {
   background: var(--aizy-gradient);
   color: #fff;
   border-color: transparent;
+}
+.btn.primary:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--aizy-gradient);
+  box-shadow: 0 2px 10px -2px rgba(105, 53, 204, 0.5);
 }
 
 #modeBtn[data-mode='live'] {
@@ -3472,6 +3487,15 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 .assistent-beperking { margin: 8px 0 0; font-size: 11px; color: var(--ink-subtle); font-style: italic; }
 
 .assistent-acties { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+/* Vervolgacties als nette accent-chips i.p.v. onderstreepte tekstlinks. */
+.assistent-acties a {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--border); background: var(--surface);
+  border-radius: 999px; padding: 6px 12px;
+  font-size: 12px; font-weight: 600; color: var(--accent);
+  text-decoration: none; transition: border-color 0.15s ease, background 0.15s ease;
+}
+.assistent-acties a:hover { border-color: var(--accent); background: var(--accent-soft); }
 .assistent-suggesties { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .assistent-chip {
   border: 1px solid var(--border); background: var(--surface);

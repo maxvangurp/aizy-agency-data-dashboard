@@ -281,7 +281,7 @@ function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafie
   // Zichtbare, hover-onafhankelijke hint dat de kaarten de grafiek sturen — de
   // enige affordance die ook op touch werkt (waar cursor/hover ontbreekt).
   const hint = grafiekId
-    ? '<p class="kpi-band-hint muted">Tik of klik een kaart om die in de grafiek hieronder te tonen.</p>'
+    ? '<p class="kpi-band-hint muted">Tik of klik op een kaart om die in de grafiek hieronder te zien.</p>'
     : '';
   return `${hint}<div class="kpi-row simpel-kpi">${kaarten.join('')}</div>`;
 }
