@@ -16,3 +16,12 @@ npm-debug.log
 /test-results/
 /playwright-report/
 /blob-report/
+
+# De read-only ads-agentomgeving (lib/, mcp/, bin/, config/) is verhuisd naar de
+# eigen repo max-marketing-os. De mappen kunnen lokaal blijven staan, maar horen
+# niet meer in deze repo. Zie max-marketing-os voor de actuele versie.
+/lib/
+/mcp/
+/bin/
+/config/
+/.mcp.json

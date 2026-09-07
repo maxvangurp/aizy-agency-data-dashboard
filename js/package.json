@@ -1,0 +1,4 @@
+{
+  "//": "Scoped module-type. Alles onder js/ is ESM, zodat Node deze bestanden kan importeren zonder syntax-detectie. De root blijft CommonJS voor server.js en db.js. De browser negeert dit bestand.",
+  "type": "module"
+}
