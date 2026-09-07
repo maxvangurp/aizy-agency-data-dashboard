@@ -435,9 +435,13 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
+tbody td { transition: background 0.12s ease; }
 tbody tr:hover td {
   background: var(--surface-sunken);
 }
+/* Ook de datagrid-rijen lichten consistent op bij hover (eigen td-achtergrond kan
+   de generieke regel anders overschrijven). Een geselecteerde rij houdt zijn tint. */
+.grid-tabel tbody tr:hover:not(.is-geselecteerd) td { background: var(--surface-sunken); }
 
 .link {
   background: none;
@@ -1937,7 +1941,7 @@ code {
 .kanaalkaart { display: grid; gap: 4px; text-decoration: none; color: inherit; }
 .kanaalkaart:hover { border-color: var(--border-strong); }
 .kanaalkaart-naam { font-weight: 700; }
-.kanaalkaart-waarde { font-size: 20px; font-weight: 800; }
+.kanaalkaart-waarde { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 .koppelstatus { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); display: grid; gap: 6px; }
 .koppelstatus-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -2376,6 +2380,7 @@ body { font-size: var(--fs-body); line-height: 1.5; }
   letter-spacing: -0.03em;
   line-height: 1.1;
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
   /* Lange tekstwaarden (bijv. "71 gekwalificeerd") mogen binnen de kaart breken
      i.p.v. de KPI-kolom over de schermrand te duwen op smallere kolommen.
      Getallen met vaste spatie (€ 14.000) blijven onaangetast. */
@@ -3990,6 +3995,7 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
   font-size: 12.5px; font-weight: 700; line-height: 1.1;
   background: var(--surface-sunken); color: var(--ink-muted);
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
 .kpi-delta-pill.trend-positief { background: var(--positief-bg); color: var(--positief); }
 .kpi-delta-pill.trend-negatief { background: var(--negatief-bg); color: var(--negatief); }
