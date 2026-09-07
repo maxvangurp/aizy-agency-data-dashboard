@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./data/**)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(./**/credentials*.json)",
+      "Read(./**/client_secret*.json)",
+      "Read(./**/service-account*.json)",
+      "Bash(cat .env*)",
+      "Bash(printenv)",
+      "Bash(env)"
+    ]
+  }
+}
