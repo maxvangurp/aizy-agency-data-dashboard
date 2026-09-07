@@ -61,7 +61,7 @@ app.use(express.static(path.join(__dirname)));
 const oauthScopes = [
   'https://www.googleapis.com/auth/analytics.readonly',
   'https://www.googleapis.com/auth/analytics.admin.readonly',
-  'https://www.googleapis.com/auth/content',
+  'https://www.googleapis.com/auth/content.readonly',
   'https://www.googleapis.com/auth/webmasters.readonly',
 ];
 
