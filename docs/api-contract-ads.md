@@ -8,8 +8,26 @@ fetchResource('/api/meta/insights?client=<id>&since=<ISO>&until=<ISO>', metaSamp
 fetchResource('/api/google-ads/campaigns?client=<id>&since=<ISO>&until=<ISO>', googleSampleLoader)
 ```
 
-- **Demomodus** (nu): de sample-loader draait; er wordt geen netwerkverzoek gedaan.
-- **Live modus** (later): de endpoints hierboven worden bevraagd. Het dashboard
+- **Demomodus**: de sample-loader draait; er wordt geen netwerkverzoek gedaan.
+- **Live modus**: de endpoints hierboven worden bevraagd.
+
+> **Stand per 10 september 2026.** `/api/google-ads/campaigns` is gebouwd en
+> leest uit Supabase (`server.js`, `lib/supabase.js`, `lib/ads-contract.js`).
+> `/api/meta/insights` bestaat nog niet en valt in live modus terug op een fout.
+>
+> De data komt niet uit dit dashboard: `max-marketing-os` haalt hem bij Google
+> op, normaliseert hem en schrijft hem naar Supabase. Hier wordt alleen
+> gelezen — twee schrijvers op dezelfde tabellen betekent twee waarheden.
+>
+> Twee afwijkingen van het contract, allebei bewust:
+> * `series` heeft **één punt per week**, niet per dag. Die snapshots worden per
+>   periode bewaard en dat zijn weken. Een dagreeks afleiden uit een weektotaal
+>   levert een grafiek op die er precies zo uitziet als een echte.
+> * `breakdowns` is **leeg**. Zoekwoorden en advertentiegroepen staan nog niet in
+>   Supabase; het contract laat de tabel dan weg, wat hier het gewenste gedrag is.
+>
+> Vereist in `.env`: `SUPABASE_URL` en `SUPABASE_SERVICE_ROLE_KEY`. Ontbreken die,
+> dan geeft het endpoint 503 met de ontbrekende namen erbij. Het dashboard
   verandert niet — alleen de bron. Zet de modus met `setDataMode('live')`
   (`js/data-provider.js`).
 

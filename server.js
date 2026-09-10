@@ -6,6 +6,8 @@ const {google} = require('googleapis');
 const dotenv = require('dotenv');
 const {v4: uuidv4} = require('uuid');
 const {encrypt, decrypt} = require('./utils');
+const supabase = require('./supabase');
+const {googleBlokVan} = require('./ads-contract');
 const {
   getGoogleConnection,
   upsertGoogleConnection,
@@ -516,6 +518,68 @@ app.get('/api/auth/status', (req, res) => {
     return res.json({connected: false, demo: USE_MOCK_DATA === 'true', configured: Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI)});
   }
   res.json({connected: true, demo: false, configured: true, accountEmail: connection.account_email});
+});
+
+/**
+ * Google Ads-cijfers uit Supabase, in de contractvorm uit
+ * docs/api-contract-ads.md.
+ *
+ * De frontend vroeg dit endpoint al aan (js/data/ads-data.js) maar het bestond
+ * nog niet, dus live modus liep hier altijd op een fout. De data komt niet uit
+ * dit dashboard: max-marketing-os haalt hem bij Google op, normaliseert hem en
+ * schrijft hem naar Supabase. Hier wordt alleen gelezen -- twee schrijvers op
+ * dezelfde tabellen betekent twee waarheden.
+ *
+ * `client` accepteert de slug of het uuid uit Supabase. Bij een onbekende
+ * klant volgt een 404 met de beschikbare slugs erbij: "geen data" en
+ * "verkeerde naam" horen niet op elkaar te lijken.
+ */
+app.get('/api/google-ads/campaigns', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+
+  const gevraagd = String(req.query.client || '').trim();
+  if (!gevraagd) return res.status(400).json({message: 'Parameter `client` ontbreekt.'});
+
+  try {
+    const sb = supabase.maakSupabase();
+    const klanten = await sb.lees('clients', {kolommen: 'id,slug,name,business_model'});
+    const klant = klanten.find((c) => c.slug === gevraagd || c.id === gevraagd);
+    if (!klant) {
+      return res.status(404).json({
+        message: 'Onbekende klant "' + gevraagd + '".',
+        beschikbaar: klanten.map((c) => c.slug).filter(Boolean),
+      });
+    }
+
+    // De periode is optioneel. Zonder grenzen krijg je alles wat er is; dat is
+    // bruikbaarder dan een lege grafiek als de filters nog niet gezet zijn.
+    const filters = {client_id: klant.id, platform: 'google-ads'};
+    if (req.query.since) filters.snapshot_date = 'gte.' + req.query.since;
+
+    const rijen = await sb.lees('performance_snapshots', {
+      kolommen: 'campaign_id,snapshot_date,spend,impressions,clicks,conversions_primary,revenue',
+      filters,
+      order: 'snapshot_date.asc',
+    });
+    const binnenPeriode = req.query.until
+      ? rijen.filter((r) => String(r.snapshot_date) <= String(req.query.until))
+      : rijen;
+
+    const campagnerijen = await sb.lees('campaigns', {
+      kolommen: 'id,name,channel_type',
+      filters: {client_id: klant.id},
+    });
+    const campagnes = new Map(campagnerijen.map((c) => [c.id, c]));
+
+    return res.json(googleBlokVan(binnenPeriode, campagnes, {businessModel: klant.business_model}));
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
 });
 
 app.get('/api/overview', async (req, res) => {
