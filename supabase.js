@@ -25,7 +25,40 @@ function ontbrekendeSleutels(env = process.env) {
 }
 
 function beschikbaar(env = process.env) {
-  return ontbrekendeSleutels(env).length === 0;
+  return ontbrekendeSleutels(env).length === 0 && !sleutelProbleem(env);
+}
+
+/**
+ * Welk soort sleutel is dit, te zien aan de vorm?
+ *
+ * Het sleutelscherm van Supabase toont er twee die op elkaar lijken, en de
+ * verkeerde kiezen kost tijd: de publishable key geeft in het geharde
+ * api-schema een 401 met "Invalid API key", en die melding vertelt je niet
+ * wélke je gepakt hebt. Kijkt alleen naar de vorm, nooit naar de inhoud.
+ */
+function sleutelSoort(sleutel) {
+  const s = String(sleutel ?? '').trim();
+  if (s.startsWith('sb_secret_')) return 'secret';
+  if (s.startsWith('sb_publishable_')) return 'publishable';
+  // De klassieke anon en service_role zijn allebei JWT's; welke van de twee
+  // het is valt aan de buitenkant niet te zien, dus die laten we door.
+  if (s.startsWith('eyJ')) return 'secret';
+  return 'onbekend';
+}
+
+/** Beschrijft wat er mis is met de sleutel, of null als de vorm klopt. */
+function sleutelProbleem(env = process.env) {
+  const sleutel = String(env?.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
+  if (!sleutel) return null; // dat meldt ontbrekendeSleutels al
+  const soort = sleutelSoort(sleutel);
+  if (soort === 'secret') return null;
+  if (soort === 'publishable') {
+    return 'SUPABASE_SERVICE_ROLE_KEY bevat een publishable key (sb_publishable_...). '
+      + 'Die is voor de browser en heeft in het geharde api-schema geen rechten. '
+      + 'Neem de secret key uit Project Settings > API Keys > Secret keys.';
+  }
+  return 'SUPABASE_SERVICE_ROLE_KEY heeft geen herkenbare vorm. Verwacht sb_secret_... '
+    + 'of een JWT die met eyJ begint.';
 }
 
 /**
@@ -118,4 +151,7 @@ function vertaalFout(status, tekst, { tabel, schema, redigeer }) {
   return new Error(`Supabase gaf ${status} op ${tabel}. ${bericht}`);
 }
 
-module.exports = { VEREISTE_SLEUTELS, ontbrekendeSleutels, beschikbaar, basisUrl, maakSupabase };
+module.exports = {
+  VEREISTE_SLEUTELS, ontbrekendeSleutels, beschikbaar, basisUrl, maakSupabase,
+  sleutelSoort, sleutelProbleem,
+};

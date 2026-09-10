@@ -105,3 +105,29 @@ test('resultLabel volgt het verdienmodel', () => {
   assert.equal(resultLabelVan('leadgen'), 'Leads');
   assert.equal(resultLabelVan(undefined), 'Leads', 'onbekend valt terug op leads');
 });
+
+/* ----------------------------------------------------- sleutelvormen -- */
+
+const {sleutelSoort, sleutelProbleem, basisUrl} = require('../../supabase');
+
+test('onderscheidt de secret key van de publishable key', () => {
+  assert.equal(sleutelSoort('sb_secret_abc'), 'secret');
+  assert.equal(sleutelSoort('eyJhbGciOi.x.y'), 'secret');
+  assert.equal(sleutelSoort('sb_publishable_abc'), 'publishable');
+  assert.equal(sleutelSoort('zomaarwat'), 'onbekend');
+});
+
+test('klaagt over een publishable key met de vindplaats erbij', () => {
+  const klacht = sleutelProbleem({SUPABASE_SERVICE_ROLE_KEY: 'sb_publishable_abc'});
+  assert.match(klacht, /publishable key/);
+  assert.match(klacht, /Secret keys/);
+
+  assert.equal(sleutelProbleem({SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_abc'}), null);
+  assert.equal(sleutelProbleem({}), null, 'leeg meldt ontbrekendeSleutels al');
+  assert.match(sleutelProbleem({SUPABASE_SERVICE_ROLE_KEY: 'onzin'}), /geen herkenbare vorm/);
+});
+
+test('accepteert zowel de project-URL als de volledige REST-URL', () => {
+  assert.equal(basisUrl('https://ref.supabase.co/rest/v1/'), 'https://ref.supabase.co');
+  assert.equal(basisUrl('https://ref.supabase.co'), 'https://ref.supabase.co');
+});

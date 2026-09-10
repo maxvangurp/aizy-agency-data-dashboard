@@ -541,6 +541,10 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
       message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
     });
   }
+  // Een verkeerd soort sleutel zou anders pas als 401 terugkomen, en die
+  // melding wijst niet naar de sleutel die je moest hebben.
+  const vormfout = supabase.sleutelProbleem();
+  if (vormfout) return res.status(503).json({message: vormfout});
 
   const gevraagd = String(req.query.client || '').trim();
   if (!gevraagd) return res.status(400).json({message: 'Parameter `client` ontbreekt.'});
