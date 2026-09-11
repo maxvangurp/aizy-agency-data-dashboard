@@ -30,18 +30,22 @@ export async function haalAdsPlatforms(dashboard, filters) {
   const q = periodeQuery(filters);
   const clientId = encodeURIComponent(dashboard.client.id);
 
-  const [meta, google, segmenten] = await Promise.all([
+  const [meta, google, segmenten, databronnen] = await Promise.all([
     fetchResource(`/api/meta/insights?client=${clientId}&${q}`, () => metaInsightsSample(dashboard)),
     fetchResource(`/api/google-ads/campaigns?client=${clientId}&${q}`, () => googleCampagnesSample(dashboard)),
     // Doorsnedes hebben geen voorbeeldvariant: die staan al in `dashboard.profiel`.
     // Lukt het ophalen niet, dan blijft dit null en valt adSegmenten terug.
     fetchResource(`/api/segments?client=${clientId}&${q}`, () => null),
+    // Welke bronnen er werkelijk data leveren. Geen voorbeeldvariant: in
+    // demomodus houdt de koppelpagina zijn eigen gesimuleerde status.
+    fetchResource(`/api/databronnen?client=${clientId}`, () => null),
   ]);
 
   return {
     meta: meta.data ?? null,
     google: google.data ?? null,
     segmenten: segmenten.data ?? null,
+    databronnen: databronnen.data ?? null,
     status: { meta: meta.status, google: google.status },
     demodata: meta.status === DataStatus.SAMPLE || google.status === DataStatus.SAMPLE,
   };

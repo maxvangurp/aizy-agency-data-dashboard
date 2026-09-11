@@ -1239,7 +1239,14 @@ function databronKaart(platform, status) {
   </div>`;
 }
 
-function renderDatabronnenView(dashboard) {
+function renderDatabronnenView(dashboard, platforms) {
+  // Draait dit op echte data, dan is de gesimuleerde koppelstatus niet
+  // onvolledig maar onwaar: hij zei "0 van 2 gekoppeld" terwijl Google Ads en
+  // Meta allebei cijfers leverden. Een pagina die het tegenovergestelde van de
+  // waarheid vertelt ondermijnt alles wat er verder op het scherm staat.
+  const echt = platforms?.databronnen;
+  if (echt?.bronnen?.length) return renderEchteBronnen(dashboard, echt);
+
   const clientId = dashboard?.client?.id;
   const k = koppelingVoor(clientId);
   const aantal = clientId ? aantalGekoppeld(clientId) : 0;
@@ -1251,6 +1258,38 @@ function renderDatabronnenView(dashboard) {
         ${databronKaart('meta', k.meta)}
         ${databronKaart('google', k.google)}
       </div>
+    </section>`;
+}
+
+/**
+ * De bronnen zoals ze er werkelijk bij staan.
+ *
+ * Gekoppeld betekent hier precies één ding: er staat data van deze bron voor
+ * deze klant. Geen zelfgerapporteerde status en geen vinkje dat iemand ooit
+ * heeft aangezet -- de aanwezigheid van cijfers is het bewijs.
+ *
+ * Een ontbrekende bron is geen storing. Niet elke klant adverteert op Meta, en
+ * "nog geen cijfers" is iets anders dan "kapot".
+ */
+function renderEchteBronnen(dashboard, echt) {
+  const kaarten = echt.bronnen.map((b) => `
+    <div class="koppelstatus databron-kaart" data-status="${b.gekoppeld ? 'gekoppeld' : 'niet_gekoppeld'}">
+      <div class="koppelstatus-kop">
+        <strong>${esc(b.label)}</strong>
+        ${b.gekoppeld ? badge('Levert cijfers', 'ok') : badge('Nog geen cijfers', 'muted')}
+      </div>
+      <p class="muted klein">${esc(b.omschrijving)}</p>
+      ${b.gekoppeld
+    ? `<p class="muted">Data van ${esc(toonDatum(b.periode.van))} tot en met ${esc(toonDatum(b.periode.tot))}.</p>
+           ${b.laatstOpgehaald ? `<p class="muted klein">Laatst opgehaald ${esc(toonDatum(String(b.laatstOpgehaald).slice(0, 10)))}.</p>` : ''}`
+    : '<p class="muted">Er staat nog geen data van deze bron voor deze klant. Dat kan kloppen: niet elke klant adverteert overal.</p>'}
+    </div>`).join('');
+
+  return `
+    ${simpelKop('Databronnen', dashboard, null, { ondertitel: `${echt.gekoppeld} van ${echt.totaal} leveren cijfers` })}
+    <p class="muted optim-intro">Deze pagina toont wat er werkelijk in het dashboard zit. Een bron heet gekoppeld zodra er cijfers van binnenkomen, niet omdat iemand een vinkje heeft gezet.</p>
+    <section class="card">
+      <div class="koppelstatus-grid databronnen-grid">${kaarten}</div>
     </section>`;
 }
 

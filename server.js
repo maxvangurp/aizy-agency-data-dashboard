@@ -669,6 +669,77 @@ app.get('/api/clients/live', async (req, res) => {
  * woordenlijsten omdat ze verschillende dingen meten. Ze op naam samenvoegen
  * zou een verdeling opleveren die geen van beide platforms herkent.
  */
+/**
+ * Welke bronnen leveren werkelijk data voor deze klant?
+ *
+ * De Databronnen-pagina draaide op een demolaag in localStorage die altijd "0
+ * van 2 gekoppeld" zei en beloofde dat de cijfers voorbeelddata bleven. Sinds
+ * Google Ads en Meta echt aangesloten zijn is dat niet onvolledig maar onwaar,
+ * en dat ondermijnt het vertrouwen in alles wat er verder op het scherm staat.
+ *
+ * Gekoppeld betekent hier precies één ding: er staat data van deze bron voor
+ * deze klant. Geen zelfgerapporteerde status, geen vinkje dat iemand ooit heeft
+ * aangezet -- de aanwezigheid van cijfers is het bewijs.
+ *
+ * Twee kleine vragen per bron in plaats van alles tellen: de oudste en de
+ * nieuwste dag. Dat is wat iemand wil weten (loopt het, en tot wanneer) en
+ * kost geen zesduizend rijen over de lijn.
+ */
+const BRONNEN = [
+  {platform: 'google-ads', label: 'Google Ads', tabel: 'performance_snapshots',
+    omschrijving: 'Zoek-, display- en YouTube-advertenties'},
+  {platform: 'meta-ads', label: 'Meta Ads', tabel: 'performance_snapshots',
+    omschrijving: 'Facebook- en Instagram-advertenties'},
+  {platform: 'ga4', label: 'Google Analytics 4', tabel: 'segment_performance',
+    omschrijving: 'Sessies en regio over al het verkeer'},
+];
+
+app.get('/api/databronnen', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+  const vormfout = supabase.sleutelProbleem();
+  if (vormfout) return res.status(503).json({message: vormfout});
+
+  const gevraagd = String(req.query.client || '').trim();
+  if (!gevraagd) return res.status(400).json({message: 'Parameter `client` ontbreekt.'});
+
+  try {
+    const sb = supabase.maakSupabase();
+    const klanten = await sb.lees('clients', {kolommen: 'id,slug'});
+    const klant = klanten.find((c) => c.slug === gevraagd || c.id === gevraagd);
+    if (!klant) return res.status(404).json({message: 'Onbekende klant "' + gevraagd + '".'});
+
+    const bronnen = [];
+    for (const bron of BRONNEN) {
+      const filters = {client_id: klant.id, platform: bron.platform};
+      const [nieuwste] = await sb.lees(bron.tabel, {
+        kolommen: 'snapshot_date,fetched_at', filters, order: 'snapshot_date.desc', limiet: 1,
+      });
+      if (!nieuwste) {
+        bronnen.push({...bron, gekoppeld: false});
+        continue;
+      }
+      const [oudste] = await sb.lees(bron.tabel, {
+        kolommen: 'snapshot_date', filters, order: 'snapshot_date.asc', limiet: 1,
+      });
+      bronnen.push({
+        ...bron,
+        gekoppeld: true,
+        periode: {van: oudste?.snapshot_date ?? null, tot: nieuwste.snapshot_date},
+        laatstOpgehaald: nieuwste.fetched_at ?? null,
+      });
+    }
+
+    return res.json({bronnen, gekoppeld: bronnen.filter((b) => b.gekoppeld).length, totaal: bronnen.length});
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
+});
+
 app.get('/api/segments', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
   if (ontbreekt.length) {
