@@ -129,10 +129,19 @@ test.describe('Simpel dashboard — rijke inzichten', () => {
     await expect(page.locator('#campagnes-alle .ia-export')).toBeVisible();
   });
 
-  test('de Conversies-pagina toont een visuele funnel en een donut', async ({ page }) => {
+  test('de Conversies-pagina toont een trechter met doorstroom en een donut', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
     await naar(page, 'Conversies');
-    await expect(page.locator('#simpel-funnel')).toBeVisible();
+
+    // Geen balkengrafiek meer: bij 510.638 vertoningen tegenover 407 leads is
+    // elke lengte-codering twee onzichtbare balken. De stappen dragen hun eigen
+    // getal en ertussen staat wat er doorstroomt.
+    await expect(page.locator('.trechter')).toBeVisible();
+    const stappen = page.locator('.trechter-stap');
+    expect(await stappen.count()).toBeGreaterThanOrEqual(2);
+    // Tussen twee stappen hoort een doorstroompercentage te staan.
+    await expect(page.locator('.trechter-percentage').first()).toBeVisible();
+
     await expect(page.locator('#simpel-donut-conversies')).toBeVisible();
     await expect(page.locator('#simpelInhoud')).toContainText('Conversie/klik');
   });

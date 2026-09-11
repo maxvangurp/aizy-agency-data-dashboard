@@ -409,6 +409,53 @@ export function dashRij(...kolommen) {
   return `<div class="dash-rij">${cols}</div>`;
 }
 
+/**
+ * Een trechter als stappen met de doorstroom ertussen, niet als balken.
+ *
+ * Een advertentietrechter loopt van 510.638 vertoningen naar 8.465 klikken naar
+ * 407 leads. Elke lengte-codering maakt daar twee onzichtbare balken van: als de
+ * eerste stap de breedte vult, is de tweede een streepje van twee procent en de
+ * derde niets. Dat is geen opmaakprobleem maar een verkeerde grafiekvorm --
+ * de informatie zit niet in de aantallen maar in wat er tussen de stappen
+ * gebeurt, en juist die verhouding valt weg.
+ *
+ * Vandaar geen balken. Elke stap draagt zijn eigen getal, en tussen twee stappen
+ * staat het percentage dat doorstroomt. Dat is precies de vraag die een trechter
+ * hoort te beantwoorden, en het is op elke schaal even leesbaar.
+ */
+export function trechter(titel, subtitel, stappen, tabelHtml, bron) {
+  if (!stappen?.length) return '';
+
+  const rijen = stappen.map((stap, i) => {
+    const vorige = i === 0 ? null : stappen[i - 1];
+    const overgang = vorige && stap.doorstroom != null
+      ? `<div class="trechter-overgang">
+           <span class="trechter-pijl" aria-hidden="true">↓</span>
+           <span class="trechter-percentage">${fmt.procent(stap.doorstroom)}</span>
+           <span class="muted klein">van ${esc(vorige.label.toLowerCase())} gaat door</span>
+         </div>`
+      : '';
+    return `${overgang}
+      <div class="trechter-stap" style="--diepte:${i}">
+        <span class="trechter-label">${esc(stap.label)}</span>
+        <span class="trechter-getal">${stap.volume == null ? '—' : fmt.getal(stap.volume)}</span>
+      </div>`;
+  }).join('');
+
+  return `<figure class="chart-figure card">
+    <figcaption>
+      <h3>${esc(titel)}</h3>
+      <p class="muted">${esc(subtitel)}</p>
+    </figcaption>
+    <div class="trechter">${rijen}</div>
+    <details class="chart-table">
+      <summary>Tabelweergave</summary>
+      <div class="table-scroll">${tabelHtml}</div>
+    </details>
+    <p class="chart-source muted">Bron: ${esc(bron)}</p>
+  </figure>`;
+}
+
 export function figure(id, titel, subtitel, tabelHtml, bron, hoogte = 260, { conclusie = null } = {}) {
   return `<figure class="chart-figure card">
     <figcaption>

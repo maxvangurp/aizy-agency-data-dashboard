@@ -13,7 +13,7 @@
  * CSV, filter-chips) worden client-side afgehandeld via delegatie in app.js.
  */
 
-import { fmt, esc, tabel, figure, getalKolom, badge } from './components.js';
+import { fmt, esc, tabel, figure, trechter, getalKolom, badge } from './components.js';
 import { renderInzichten } from './insight-cards.js';
 import { inzichtCategorieTerm } from '../terminology.js';
 import { combineerTotalen, alleCampagnes, adDeltas, adTotalenVorige, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks, afgeleideRatios } from '../data/ads-data.js';
@@ -807,7 +807,24 @@ function schoonGetallen(object) {
  */
 function funnelStappen(funnel) {
   const gemeten = (funnel?.rijen ?? []).filter((r) => r.volume != null);
-  return gemeten.length >= 2 ? gemeten : [];
+  if (gemeten.length < 2) return [];
+
+  // De doorstroom opnieuw berekenen over wat er overblijft.
+  //
+  // `bouwFunnel` zet hem af tegen de vorige stap in de volledige lijst, en die
+  // is hier vaak weggefilterd: de doorstroom naar Lead werd gemeten tegen
+  // "Formulier gestart", die we niet meten, en kwam dus op null uit. Dan staat
+  // er tussen twee zichtbare stappen niets, terwijl juist dat het enige is wat
+  // een trechter te zeggen heeft.
+  return gemeten.map((stap, i) => {
+    if (i === 0) return { ...stap, doorstroom: 100 };
+    const vorige = gemeten[i - 1].volume;
+    return {
+      ...stap,
+      doorstroom: vorige ? (stap.volume / vorige) * 100 : null,
+      uitval: vorige ? vorige - stap.volume : null,
+    };
+  });
 }
 
 /** Benoemt wat er niet gemeten wordt, en waar het vandaan zou moeten komen. */
@@ -870,10 +887,11 @@ function renderConversiesView(dashboard, platforms, vergelijking) {
   const funnelRijen = funnelStappen(eigenFunnel);
   const ontbrekend = (eigenFunnel?.rijen ?? []).filter((r) => r.volume == null);
   const funnel = funnelRijen.length
-    ? figure('simpel-funnel', 'Van bereik tot resultaat', 'De balk toont de doorstroom naar de volgende stap; de aantallen staan in de tabelweergave.',
+    ? trechter('Van bereik tot resultaat', 'Elke stap toont zijn aantal; ertussen staat hoeveel er doorgaat naar de volgende.',
+        funnelRijen,
         tabel(['Stap', getalKolom('Aantal'), getalKolom('Doorstroom')],
           funnelRijen.map((r) => [esc(r.label), r.volume == null ? '—' : fmt.getal(r.volume), r.doorstroom == null ? '—' : fmt.procent(r.doorstroom)])),
-        'Advertentiekanalen en analytics', 320)
+        'Advertentiekanalen en analytics')
       + ontbrekendeStappen(ontbrekend)
     : ontbrekendeStappen(ontbrekend, { alleen: true });
 
@@ -1448,19 +1466,7 @@ export function drawSimpelCharts({ dashboard, platforms, view = 'simpel-overzich
         valueFormatter: (v) => fmt.getal(v),
       });
     }
-    const funnelRijen = funnelStappen(bouwSimpelFunnel(dashboard, platforms));
-    if (funnelRijen.length) {
-      // De balk toont de doorstroom, niet het aantal. Een half miljoen
-      // vertoningen naast vierhonderd leads maakt elke volgende balk een
-      // haarlijn, en dan zegt de grafiek niets meer. Dit is hetzelfde patroon
-      // als op de leadgenpagina; de tooltip houdt de echte aantallen.
-      funnelChart('simpel-funnel', {
-        stappen: funnelRijen.map((r) => ({
-          label: r.label, volume: r.doorstroom, absoluutVolume: r.volume, doorstroom: r.doorstroom,
-        })),
-        valueFormatter: (v) => (v == null ? '—' : `${v.toFixed(1)}%`),
-      });
-    }
+    // De trechter is geen canvas maar opgemaakte tekst; zie `trechter()`.
   } else if (view === 'simpel-segmenten') {
     const seg = adSegmenten(dashboard, platforms);
     if ((seg.plaatsingen ?? []).length) {

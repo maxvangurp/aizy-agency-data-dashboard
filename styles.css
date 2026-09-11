@@ -4337,3 +4337,63 @@ h1, h2, h3, h4, h5, h6,
 h1, h2, .kpi-value {
   font-weight: 700;
 }
+
+/* ================================================================
+   Trechter: stappen met de doorstroom ertussen
+   ----------------------------------------------------------------
+   Geen balken. Een advertentietrechter loopt van een half miljoen
+   vertoningen naar een paar honderd leads; elke lengte-codering maakt
+   daar twee onzichtbare balken van. Wat telt is de doorstroom, en die
+   staat hier letterlijk tussen de stappen.
+   ================================================================ */
+
+.trechter {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--space-2) 0;
+}
+
+.trechter-stap {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  /* Elke volgende stap iets lichter: de volgorde blijft zichtbaar zonder dat
+     de breedte iets beweert over de aantallen. */
+  background: color-mix(in srgb, var(--accent) calc(16% - var(--diepte) * 4%), transparent);
+}
+
+.trechter-label {
+  font-family: var(--font-kop);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.trechter-getal {
+  font-family: var(--font-kop);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.trechter-overgang {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+}
+
+.trechter-pijl {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.trechter-percentage {
+  font-family: var(--font-kop);
+  font-weight: 700;
+  color: var(--accent);
+}

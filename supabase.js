@@ -152,7 +152,36 @@ function maakSupabase({
     );
   }
 
-  return { schema, lees, beschrijf: () => ({ url: basis, schema }) };
+  /**
+   * Roept een functie in het api-schema aan (PostgREST `/rpc/`).
+   *
+   * Bestaat voor `blended_kpis`: die rekent aan de databasekant uit wat een
+   * klant in een periode deed, inclusief het laten vallen van grovere rijen
+   * waar fijnere hetzelfde bestrijken. Dat hier overdoen zou betekenen dat
+   * dezelfde regel op twee plekken staat -- en dat is precies waar een
+   * dubbeltelling ontstaat die niemand ziet.
+   */
+  async function roepFunctie(naam, argumenten = {}) {
+    const antwoord = await fetchImpl(`${basis}/rpc/${naam}`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceRoleKey,
+        authorization: `Bearer ${serviceRoleKey}`,
+        'content-profile': schema,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(argumenten),
+    });
+    const tekst = await antwoord.text().catch(() => '');
+    if (!antwoord.ok) throw vertaalFout(antwoord.status, tekst, { tabel: `rpc/${naam}`, schema, redigeer });
+    try {
+      return JSON.parse(tekst || 'null');
+    } catch {
+      throw new Error(`Supabase gaf geen JSON terug op rpc/${naam}.`);
+    }
+  }
+
+  return { schema, lees, roepFunctie, beschrijf: () => ({ url: basis, schema }) };
 }
 
 function maakRedactie(geheim) {
