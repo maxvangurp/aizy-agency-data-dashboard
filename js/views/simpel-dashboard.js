@@ -32,6 +32,29 @@ const VERGELIJK_KORT = {
 };
 import { kpiDelta, deltaPill, metricSwitcher, chips, interactieveTabel } from './simpel-widgets.js';
 
+/**
+ * Het enkelvoud van een resultaatlabel, voor zinnen als "Kosten per lead".
+ *
+ * `resultLabel` is het meervoud ("Leads", "Aankopen") omdat het boven een
+ * kolom met aantallen staat. Letterlijk in "Kosten per …" plakken levert
+ * "Kosten per leads" op, en dat leest als een tikfout.
+ *
+ * Een lijst en geen regel: Nederlandse meervouden vallen niet onder één regel
+ * (aankopen wordt aankoop, leads wordt lead, conversies wordt conversie), en
+ * een onbekende waarde ongewijzigd laten is beter dan er een te verzinnen.
+ */
+const ENKELVOUD = {
+  leads: 'lead',
+  aankopen: 'aankoop',
+  conversies: 'conversie',
+  resultaten: 'resultaat',
+};
+
+function enkelvoud(label) {
+  const klein = String(label ?? '').toLowerCase();
+  return ENKELVOUD[klein] ?? klein;
+}
+
 /* De datapagina's in de sidebar. */
 const SIMPEL_NAV = [
   { naam: 'simpel-overzicht', pad: '#/pulse', label: 'Totaal overzicht' },
@@ -264,7 +287,7 @@ function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafie
     kaart('ctr', 'Doorklikratio', totaal.ctr, 'procent'),
     kaart('cpc', 'Kosten per klik', totaal.cpc, 'euro2'),
     kaart('results', rlabel, totaal.results, 'getal', { tip: rTip }),
-    kaart('costPerResult', `Kosten per ${rl}`, totaal.costPerResult, 'euro2', { tip: cTip }),
+    kaart('costPerResult', `Kosten per ${enkelvoud(rlabel)}`, totaal.costPerResult, 'euro2', { tip: cTip }),
   ];
   if (model === 'ecommerce') {
     kaarten.push(kaart('revenue', 'Omzet', totaal.revenue, 'euro', { tip: 'revenue' }));
@@ -297,7 +320,7 @@ function prestatieTabel(items, rlabel, { eersteKolom = 'Campagne', metPlatform =
     ...(metPlatform ? ['Platform'] : []),
     ...(extra ? [extra.kop] : []),
     getalKolom('Uitgaven'), getalKolom('Klikken'), getalKolom('CTR'),
-    getalKolom(rlabel), getalKolom(`Kosten/${rlabel.toLowerCase()}`),
+    getalKolom(rlabel), getalKolom(`Kosten/${enkelvoud(rlabel)}`),
   ];
   const rijen = items.map((c) => [
     esc(c.name),
@@ -336,7 +359,7 @@ function platformSplitTabel(platforms, rlabel) {
     b.totals.ctr == null ? '—' : fmt.procent(b.totals.ctr),
     fmt.getal(b.totals.results), b.totals.costPerResult == null ? '—' : fmt.euro2(b.totals.costPerResult),
   ]);
-  return tabel(['Platform', getalKolom('Uitgaven'), getalKolom('Klikken'), getalKolom('CTR'), getalKolom(rlabel), getalKolom(`Kosten/${rlabel.toLowerCase()}`)], rijen);
+  return tabel(['Platform', getalKolom('Uitgaven'), getalKolom('Klikken'), getalKolom('CTR'), getalKolom(rlabel), getalKolom(`Kosten/${enkelvoud(rlabel)}`)], rijen);
 }
 
 /**
@@ -631,7 +654,7 @@ function renderConversiesView(dashboard, platforms, vergelijking) {
   const rlabel = totaal?.resultLabel ?? 'Resultaat';
 
   const perPlatform = tabel(
-    ['Platform', getalKolom(rlabel), getalKolom(`Kosten/${rlabel.toLowerCase()}`), getalKolom('Conversie/klik'), getalKolom('Aandeel')],
+    ['Platform', getalKolom(rlabel), getalKolom(`Kosten/${enkelvoud(rlabel)}`), getalKolom('Conversie/klik'), getalKolom('Aandeel')],
     ['meta', 'google'].map((k) => platforms[k]).filter((b) => b?.aanwezig).map((b) => [
       esc(b.label), fmt.getal(b.totals.results),
       b.totals.costPerResult == null ? '—' : fmt.euro2(b.totals.costPerResult),
@@ -706,7 +729,7 @@ function renderSegmentenView(dashboard, platforms, vergelijking) {
 
   const weekdag = seg.weekdagen.length
     ? figure('simpel-bar-weekdag', 'Dag van de week', 'Gemiddelde uitgaven per weekdag (per keer dat die dag in de periode viel).',
-        tabel(['Dag', getalKolom('Gem. uitgaven'), getalKolom(rlabel), getalKolom(`Kosten/${rlabel.toLowerCase()}`)],
+        tabel(['Dag', getalKolom('Gem. uitgaven'), getalKolom(rlabel), getalKolom(`Kosten/${enkelvoud(rlabel)}`)],
           seg.weekdagen.map((w) => [esc(w.name), w.gemPerDag == null ? '—' : fmt.euro(w.gemPerDag), fmt.getal(w.results), w.costPerResult == null ? '—' : fmt.euro2(w.costPerResult)])),
         'Meta Marketing API en Google Ads API', 260)
     : '';
@@ -876,7 +899,7 @@ function vergelijkingTabel(dashboard, adTotalen, vergelijking = null) {
     { label: 'Doorklikratio', key: 'ctr', fmt: fmt.procent },
     { label: 'Kosten per klik', key: 'cpc', fmt: fmt.euro2 },
     { label: rlabel, key: 'results', fmt: fmt.getal },
-    { label: `Kosten per ${rlabel.toLowerCase()}`, key: 'costPerResult', fmt: fmt.euro2 },
+    { label: `Kosten per ${enkelvoud(rlabel)}`, key: 'costPerResult', fmt: fmt.euro2 },
   ];
   if (model === 'ecommerce') {
     regels.push({ label: 'Omzet', key: 'revenue', fmt: fmt.euro });

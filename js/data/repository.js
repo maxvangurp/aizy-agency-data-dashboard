@@ -74,7 +74,26 @@ export function getClientById(user, clientId) {
   return huidigeClients().find((c) => c.id === clientId) ?? null;
 }
 
+/**
+ * Welk dashboardmodel hoort bij deze klant: leadgen, ecommerce of awareness?
+ *
+ * Dat model bepaalt welke KPI's er op het scherm komen. Bij een webshop omzet
+ * en ROAS, bij leadgen leads en kosten per lead, bij awareness bereik en
+ * frequentie.
+ *
+ * `getClientModel` leest uit de voorbeelddata, en daar staan de echte klanten
+ * niet in. Alle vijftien vielen daardoor terug op 'awareness' en kregen bereik
+ * en frequentie te zien -- twee kaarten die bij een leadgenklant altijd leeg
+ * blijven, terwijl leads en kosten per lead ontbraken.
+ *
+ * Het verdienmodel is gewoon bekend: het komt met de klant mee uit Supabase.
+ * Dat gaat dus voor. De voorbeelddata blijft de bron voor de voorbeeldklant,
+ * die geen `businessModel` draagt.
+ */
 function modelVan(client) {
+  if (client?.businessModel === 'ecommerce' || client?.businessModel === 'leadgen') {
+    return client.businessModel;
+  }
   return getClientModel(client.id) ?? 'awareness';
 }
 
