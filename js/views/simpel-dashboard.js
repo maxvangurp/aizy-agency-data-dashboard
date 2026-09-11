@@ -18,6 +18,7 @@ import { renderInzichten } from './insight-cards.js';
 import { inzichtCategorieTerm } from '../terminology.js';
 import { combineerTotalen, alleCampagnes, adDeltas, adTotalenVorige, adSegmenten, resultMetriek, gecombineerdeReeks, metriekReeks, afgeleideRatios } from '../data/ads-data.js';
 import { bouwAdInzichten, budgetTempo } from '../data/simpel-insights.js';
+import { bouwLeadFunnel, bouwEcommerceFunnel } from '../data/selectors.js';
 import { optimalisatiesVoor, OptimStatus } from '../model/optimalisaties.js';
 import { koppelingVoor, aantalGekoppeld, BronStatus } from '../model/databronnen.js';
 import { lineChart, barChart, donutChart, funnelChart } from '../charts.js';
@@ -649,6 +650,72 @@ function renderCampagnesView(dashboard, platforms, vergelijking) {
 
 /* ---------- View 5: Conversies ---------- */
 
+/**
+ * De trechter, gebouwd uit wat dit dashboard werkelijk meet.
+ *
+ * `dashboard.funnel` komt uit de klantberekening, en die draait op de
+ * tijdreeksen van de voorbeelddata. Voor een echte klant is daar niets van, dus
+ * kwamen alle negen stappen op nul uit -- ook vertoningen en klikken, die we
+ * wel degelijk hebben. De advertentiecijfers staan namelijk in `platforms`.
+ *
+ * Hier komen die twee samen, met dezelfde selector die de rest van het
+ * dashboard gebruikt. Wat de platforms weten gaat voor; de stappen die alleen
+ * GA4 of het CRM kan leveren blijven onbekend, en onbekend is geen nul.
+ */
+function bouwSimpelFunnel(dashboard, platforms) {
+  const live = combineerTotalen(platforms);
+  if (!live) return dashboard.funnel ?? null;
+
+  const uitPlatform = {
+    impressions: live.impressions,
+    clicks: live.clicks,
+    ...(dashboard.model === 'ecommerce' ? { purchases: live.results } : { leads: live.results }),
+  };
+  const totalen = { ...(dashboard.totalen ?? {}), ...schoonGetallen(uitPlatform) };
+
+  const opties = { vergelijkingActief: false, kanaalBron: 'Meta Ads en Google Ads' };
+  return dashboard.model === 'ecommerce'
+    ? bouwEcommerceFunnel(totalen, null, opties)
+    : bouwLeadFunnel(totalen, null, opties);
+}
+
+/** Laat onbekende waarden weg, zodat ze de stap niet op nul zetten. */
+function schoonGetallen(object) {
+  return Object.fromEntries(Object.entries(object).filter(([, w]) => typeof w === 'number'));
+}
+
+/**
+ * De trechterstappen die we werkelijk kunnen meten.
+ *
+ * Minder dan twee is geen trechter: één balk toont geen doorstroom, en dat is
+ * het enige wat een trechter te zeggen heeft.
+ */
+function funnelStappen(funnel) {
+  const gemeten = (funnel?.rijen ?? []).filter((r) => r.volume != null);
+  return gemeten.length >= 2 ? gemeten : [];
+}
+
+/** Benoemt wat er niet gemeten wordt, en waar het vandaan zou moeten komen. */
+function ontbrekendeStappen(rijen, { alleen = false } = {}) {
+  if (!rijen.length) return '';
+  const bronnen = [...new Set(rijen.map((r) => r.bron).filter(Boolean))];
+  const lijst = rijen.map((r) => esc(r.label)).join(', ');
+
+  const kop = alleen
+    ? '<h2>Van bereik tot resultaat</h2>'
+    : '';
+  const inleiding = alleen
+    ? 'Deze trechter is nog niet te tekenen: er zijn minder dan twee stappen met een gemeten volume.'
+    : `${rijen.length} ${rijen.length === 1 ? 'stap wordt' : 'stappen worden'} nog niet gemeten en ${rijen.length === 1 ? 'staat' : 'staan'} daarom niet in de grafiek.`;
+
+  return `<section class="card funnel-ontbreekt">
+    ${kop}
+    <p>${esc(inleiding)}</p>
+    <p class="muted klein">Ontbreekt: ${lijst}.
+      ${bronnen.length ? `Die ${bronnen.length === 1 ? 'komt' : 'komen'} uit ${esc(bronnen.join(' en '))}; ${bronnen.length === 1 ? 'die bron is' : 'die bronnen zijn'} nog niet aan dit dashboard gekoppeld.` : ''}</p>
+  </section>`;
+}
+
 function renderConversiesView(dashboard, platforms, vergelijking) {
   const totaal = combineerTotalen(platforms);
   const rlabel = totaal?.resultLabel ?? 'Resultaat';
@@ -677,13 +744,23 @@ function renderConversiesView(dashboard, platforms, vergelijking) {
         <div class="table-scroll">${tabel(['Conversie', getalKolom('Aantal'), getalKolom('Vorige periode')], (conv.secundair ?? []).map(convRij))}</div>
        </section>` : '';
 
-  const funnelRijen = dashboard.funnel?.rijen ?? [];
+  // Alleen stappen die we werkelijk meten.
+  //
+  // `bouwFunnel` geeft elke stap terug, ook die waarvan het volume onbekend is
+  // (GA4 en CRM zijn nog niet gekoppeld). Die als nul tekenen levert een
+  // trechter op met negen lege balken, en dat ziet eruit alsof er iets stuk is
+  // in plaats van dat er iets ontbreekt. Nul is bovendien een meting: "nul
+  // formulieren gestart" is iets anders dan "we weten het niet".
+  const eigenFunnel = bouwSimpelFunnel(dashboard, platforms);
+  const funnelRijen = funnelStappen(eigenFunnel);
+  const ontbrekend = (eigenFunnel?.rijen ?? []).filter((r) => r.volume == null);
   const funnel = funnelRijen.length
-    ? figure('simpel-funnel', 'Van bereik tot resultaat', 'Elke stap toont het volume en de doorstroom naar de volgende stap.',
+    ? figure('simpel-funnel', 'Van bereik tot resultaat', 'De balk toont de doorstroom naar de volgende stap; de aantallen staan in de tabelweergave.',
         tabel(['Stap', getalKolom('Aantal'), getalKolom('Doorstroom')],
           funnelRijen.map((r) => [esc(r.label), r.volume == null ? '—' : fmt.getal(r.volume), r.doorstroom == null ? '—' : fmt.procent(r.doorstroom)])),
         'Advertentiekanalen en analytics', 320)
-    : '';
+      + ontbrekendeStappen(ontbrekend)
+    : ontbrekendeStappen(ontbrekend, { alleen: true });
 
   return `
     ${simpelKop('Conversies', dashboard, platforms, { vergelijking })}
@@ -1182,11 +1259,17 @@ export function drawSimpelCharts({ dashboard, platforms, view = 'simpel-overzich
         valueFormatter: (v) => fmt.getal(v),
       });
     }
-    const funnelRijen = dashboard.funnel?.rijen ?? [];
+    const funnelRijen = funnelStappen(bouwSimpelFunnel(dashboard, platforms));
     if (funnelRijen.length) {
+      // De balk toont de doorstroom, niet het aantal. Een half miljoen
+      // vertoningen naast vierhonderd leads maakt elke volgende balk een
+      // haarlijn, en dan zegt de grafiek niets meer. Dit is hetzelfde patroon
+      // als op de leadgenpagina; de tooltip houdt de echte aantallen.
       funnelChart('simpel-funnel', {
-        stappen: funnelRijen.map((r) => ({ label: r.label, volume: r.volume, doorstroom: r.doorstroom })),
-        valueFormatter: (v) => fmt.getal(v),
+        stappen: funnelRijen.map((r) => ({
+          label: r.label, volume: r.doorstroom, absoluutVolume: r.volume, doorstroom: r.doorstroom,
+        })),
+        valueFormatter: (v) => (v == null ? '—' : `${v.toFixed(1)}%`),
       });
     }
   } else if (view === 'simpel-segmenten') {

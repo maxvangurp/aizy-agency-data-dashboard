@@ -4246,3 +4246,16 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
   color: var(--ink);
   font-weight: 600;
 }
+
+/* ------------------------------------------------ ontbrekende trechterstappen --
+ *
+ * Wat er niet gemeten wordt, staat naast de grafiek en niet erin. Als lege
+ * balk tekenen leest als "nul" en dat is iets anders dan "onbekend".
+ */
+.funnel-ontbreekt p {
+  margin: 0 0 6px;
+}
+
+.funnel-ontbreekt p:last-child {
+  margin-bottom: 0;
+}
