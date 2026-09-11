@@ -264,10 +264,12 @@ const FMT = { euro: fmt.euro, euro2: fmt.euro2, getal: fmt.getal, procent: fmt.p
  * voor de gecombineerde totalen als voor één platform: geef de bijbehorende
  * dagreeks mee voor de sparklines.
  */
-function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafiekId = null, actief = 'spend' } = {}) {
+function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafiekId = null, actief = 'spend', resultLabel = null } = {}) {
   const deltas = adDeltas(dashboard, totaal, { vergelijkingActief: vergelijking ? vergelijking.actief : true });
-  const rlabel = totaal.resultLabel ?? 'Resultaat';
-  const rl = rlabel.toLowerCase();
+  // Het label staat op het platformblok, niet op zijn totalen. Zonder deze
+  // doorgifte zeggen de kaarten "Resultaat" terwijl de tabel eronder "Leads"
+  // zegt -- twee namen voor hetzelfde getal op hetzelfde scherm.
+  const rlabel = resultLabel ?? totaal.resultLabel ?? 'Resultaat';
   const model = dashboard.model;
   const rTip = resultMetriek(model);
   const cTip = model === 'ecommerce' ? 'cpa' : model === 'awareness' ? 'cpc' : 'cpl';
@@ -337,7 +339,6 @@ function prestatieTabel(items, rlabel, { eersteKolom = 'Campagne', metPlatform =
 
 /** Kolomdefinitie voor een interactieve prestatietabel (sorteren/zoeken/CSV). */
 function prestatieKolommen(rlabel, { eersteKolom = 'Campagne', metPlatform = false, extra = null } = {}) {
-  const rl = rlabel.toLowerCase();
   const cols = [{ label: eersteKolom, type: 'txt', cel: (c) => esc(c.name), waarde: (c) => c.name }];
   if (metPlatform) cols.push({ label: 'Platform', type: 'txt', cel: (c) => badge(c.platform, 'muted'), waarde: (c) => c.platform });
   if (extra) cols.push({ label: extra.kop, type: 'txt', cel: extra.cel, waarde: extra.waarde ?? ((c) => c[extra.veld] ?? '') });
@@ -348,7 +349,7 @@ function prestatieKolommen(rlabel, { eersteKolom = 'Campagne', metPlatform = fal
     // data-v) i.p.v. 0, zodat sorteren en CSV "geen data" niet als 0 behandelen.
     { label: 'CTR', uitlijn: 'rechts', type: 'num', cel: (c) => (c.ctr == null ? '—' : fmt.procent(c.ctr)), waarde: (c) => c.ctr },
     { label: rlabel, uitlijn: 'rechts', type: 'num', cel: (c) => fmt.getal(c.results), waarde: (c) => c.results ?? 0 },
-    { label: `Kosten/${rl}`, uitlijn: 'rechts', type: 'num', cel: (c) => (c.costPerResult == null ? '—' : fmt.euro2(c.costPerResult)), waarde: (c) => c.costPerResult },
+    { label: `Kosten/${enkelvoud(rlabel)}`, uitlijn: 'rechts', type: 'num', cel: (c) => (c.costPerResult == null ? '—' : fmt.euro2(c.costPerResult)), waarde: (c) => c.costPerResult },
   );
   return cols;
 }
@@ -584,7 +585,6 @@ function renderPlatformView(dashboard, blok, platforms, vergelijking) {
         <p class="empty">Deze klant adverteert binnen de geselecteerde periode niet via ${esc(naam.toLowerCase())}.</p></section>`;
   }
   const rlabel = blok.resultLabel ?? 'Resultaat';
-  const rl = rlabel.toLowerCase();
   const bd = blok.breakdowns ?? {};
   const enkelPlatform = { [blok.platform]: blok };
   const actiefMetriek = actieveTrendMetriek({ kaartKeys: kpiMetriekKeys(dashboard.model) });
@@ -606,7 +606,7 @@ function renderPlatformView(dashboard, blok, platforms, vergelijking) {
   return `
     ${simpelKop(blok.label, dashboard, platforms, { vergelijking })}
     <h2 class="visueel-verborgen">Kerncijfers</h2>
-    ${kpiBandDelta(dashboard, blok.totals, blok.series ?? [], vergelijking, { grafiekId: 'simpel-trend-platform', actief: actiefMetriek })}
+    ${kpiBandDelta(dashboard, blok.totals, blok.series ?? [], vergelijking, { grafiekId: 'simpel-trend-platform', actief: actiefMetriek, resultLabel: rlabel })}
     <h2 class="visueel-verborgen">Ontwikkeling per dag</h2>
     ${trendMetriekFiguur('simpel-trend-platform', enkelPlatform, { titel: 'Ontwikkeling per dag', dashboard, vergelijking, toonSwitcher: false, actief: actiefMetriek })}
     <section class="card">

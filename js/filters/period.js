@@ -225,6 +225,9 @@ export const PERIODE_PRESETS = [
   { key: 'this_month', label: 'Deze maand', kort: 'Deze maand' },
   { key: 'last_month', label: 'Vorige maand', kort: 'Vorige maand' },
   { key: 'this_quarter', label: 'Dit kwartaal', kort: 'Dit kwartaal' },
+  // Sinds er een heel jaar dagdata in Supabase staat is dit een echte keuze en
+  // geen lege grafiek. Loopt van 1 januari tot vandaag, dus met prognose.
+  { key: 'this_year', label: 'Dit jaar', kort: 'Dit jaar' },
   { key: 'custom', label: 'Aangepast datumbereik', kort: 'Aangepast' },
 ];
 
@@ -270,6 +273,10 @@ export function resolvePeriode(periode, vandaag = DEMO_TODAY) {
     case 'this_quarter':
       startDate = beginVanKwartaal(vandaag);
       prognoseTot = eindVanKwartaal(vandaag);
+      break;
+    case 'this_year':
+      startDate = `${vandaag.slice(0, 4)}-01-01`;
+      prognoseTot = `${vandaag.slice(0, 4)}-12-31`;
       break;
     case 'last_30_days':
     default: startDate = plusDagen(vandaag, -29); break;

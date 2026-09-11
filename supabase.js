@@ -87,13 +87,28 @@ function maakSupabase({
   const redigeer = maakRedactie(serviceRoleKey);
 
   /** Rijen lezen. `filters` is kolom -> waarde (gelijkheid), tenzij de waarde al een operator bevat. */
-  async function lees(tabel, { kolommen = '*', filters = {}, order = null, limiet = null } = {}) {
+  /**
+   * Hoeveel rijen we per ronde vragen.
+   *
+   * PostgREST kapt een antwoord standaard af op duizend rijen en zegt dat niet
+   * in het lichaam: je krijgt gewoon duizend rijen terug alsof dat alles is.
+   * Een jaar dagdata van één klant is er zesduizend, dus dat zou een te laag
+   * totaal op het scherm zetten zonder dat er iets misgaat. Vandaar dat we zelf
+   * doorbladeren tot er minder terugkomt dan we vroegen.
+   */
+  const PAGINA = 1000;
+
+  /** Bovengrens op het doorbladeren, zodat een lus nooit eindeloos doorvraagt. */
+  const MAX_PAGINAS = 60;
+
+  async function leesPagina(tabel, { kolommen, filters, order, limiet, offset }) {
     const query = new URLSearchParams({ select: kolommen });
     for (const [kolom, waarde] of Object.entries(filters)) {
       query.append(kolom, /^[a-z]+\./.test(String(waarde)) ? String(waarde) : `eq.${waarde}`);
     }
     if (order) query.append('order', order);
-    if (limiet != null) query.append('limit', String(limiet));
+    query.append('limit', String(limiet));
+    if (offset) query.append('offset', String(offset));
 
     const antwoord = await fetchImpl(`${basis}/${tabel}?${query}`, {
       headers: {
@@ -110,6 +125,31 @@ function maakSupabase({
     } catch {
       throw new Error(`Supabase gaf geen JSON terug op ${tabel}.`);
     }
+  }
+
+  /**
+   * Rijen lezen, desnoods in meerdere ronden.
+   *
+   * Vraagt de aanroeper een expliciete `limiet`, dan is dat wat hij wil en
+   * blijft het één ronde. Zonder limiet blijven we doorvragen tot er minder
+   * terugkomt dan we vroegen -- want precies duizend rijen betekent bij
+   * PostgREST bijna altijd dat er meer is.
+   */
+  async function lees(tabel, { kolommen = '*', filters = {}, order = null, limiet = null } = {}) {
+    if (limiet != null) return leesPagina(tabel, { kolommen, filters, order, limiet, offset: 0 });
+
+    const alles = [];
+    for (let pagina = 0; pagina < MAX_PAGINAS; pagina += 1) {
+      const deel = await leesPagina(tabel, {
+        kolommen, filters, order, limiet: PAGINA, offset: pagina * PAGINA,
+      });
+      alles.push(...deel);
+      if (deel.length < PAGINA) return alles;
+    }
+    throw new Error(
+      `Meer dan ${MAX_PAGINAS * PAGINA} rijen op ${tabel}; afgebroken in plaats van door te bladeren. ` +
+      'Beperk de periode of laat Supabase aggregeren.'
+    );
   }
 
   return { schema, lees, beschrijf: () => ({ url: basis, schema }) };
