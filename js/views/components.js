@@ -11,6 +11,7 @@
 
 import { metriekMeta, Formaat, DeltaStatus } from '../data/metrics.js';
 import { heeftDrilldown } from '../data/metrics-catalog.js';
+import { redenVoor } from '../data/kpi-betrouwbaarheid.js';
 import { PacingStatus } from '../data/selectors.js';
 import { ontbrekendTerm, budgetstatusTerm, KLANTSTATUSSEN } from '../terminology.js';
 
@@ -93,7 +94,7 @@ export function deltaTekst(delta, vergelijkingLabel = 'de vorige periode') {
  */
 export function kpi(label, waarde, sub = '', richting = 'neutraal', {
   kort = null, uitleg = '', detail = null, tip = null, tipWaarde = null, tipVorig = null,
-  drill = null, primair = false,
+  drill = null, primair = false, voorbehoud = null,
 } = {}) {
   const uitlegId = uitleg ? `kpi-${label.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-uitleg` : null;
 
@@ -103,7 +104,7 @@ export function kpi(label, waarde, sub = '', richting = 'neutraal', {
     ? `data-tip="${esc(tip)}" tabindex="0"${tipWaarde != null ? ` data-tip-waarde="${esc(tipWaarde)}"` : ''}${tipVorig != null ? ` data-tip-vorig="${esc(tipVorig)}"` : ''}`
     : '';
 
-  return `<article class="card kpi${primair ? ' kpi-primair' : ''}${drill ? ' kpi-drilbaar' : ''}" data-label="${esc(label)}"${uitleg ? ` aria-describedby="${esc(uitlegId)}"` : ''}>
+  return `<article class="card kpi${primair ? ' kpi-primair' : ''}${drill ? ' kpi-drilbaar' : ''}${voorbehoud ? ' kpi-voorbehoud' : ''}" data-label="${esc(label)}"${uitleg ? ` aria-describedby="${esc(uitlegId)}"` : ''}>
     <span class="kpi-label${tip ? ' kpi-label-tip' : ''}"${tipAttr ? ` ${tipAttr}` : ''}>
       ${esc(label)}
       ${kort ? `<abbr class="kpi-kort">${esc(kort)}</abbr>` : ''}
@@ -111,6 +112,9 @@ export function kpi(label, waarde, sub = '', richting = 'neutraal', {
     </span>
     <span class="kpi-value">${esc(waarde)}</span>
     <span class="kpi-sub trend-${esc(richting)}">${esc(sub)}</span>
+    ${voorbehoud ? `<p class="kpi-onbetrouwbaar" role="note">
+      <strong>Dit cijfer is op dit account niet bruikbaar.</strong> ${esc(voorbehoud)}
+    </p>` : ''}
     ${uitleg ? `<span class="kpi-uitleg" id="${esc(uitlegId)}">${esc(uitleg)}</span>` : ''}
     ${drill ? `<button type="button" class="kpi-drill" data-drill="${esc(drill)}">Bekijk opbouw <span aria-hidden="true">→</span></button>` : ''}
     ${detail ? `<a class="kpi-detail link-klein" href="${esc(detail.href)}">${esc(detail.tekst)}</a>` : ''}
@@ -129,8 +133,15 @@ export function kpi(label, waarde, sub = '', richting = 'neutraal', {
 export function kpiMetriek(totalen, key, deltas, {
   label = null, leegTekst = 'Onvoldoende data', leegSub = 'Niet gemeten in deze periode',
   vergelijkingLabel = 'de vorige periode', detail = null, drill = false, primair = false,
+  betrouwbaarheid = undefined,
 } = {}) {
   const meta = metriekMeta(key);
+  // Het voorbehoud hoort bij het cijfer, niet op een aparte pagina. Zonder
+  // dit toont het dashboard een ROAS van 0,22 uit een vaste conversiewaarde
+  // alsof hij iets betekent -- precies waar de beoordeling voor bestaat.
+  const voorbehoud = betrouwbaarheid === undefined
+    ? redenVoor(key)
+    : redenVoor(key, betrouwbaarheid);
   const waarde = totalen?.[key];
   const delta = deltas?.[key];
   const kanDrill = drill && heeftDrilldown(key);
@@ -147,6 +158,7 @@ export function kpiMetriek(totalen, key, deltas, {
     tipVorig: delta?.vorig == null ? null : formatteerMetriek(delta.vorig, meta.formaat),
     drill: kanDrill ? key : null,
     primair,
+    voorbehoud,
   };
 
   if (waarde == null) {

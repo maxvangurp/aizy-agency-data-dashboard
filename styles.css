@@ -4212,3 +4212,37 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 @media (prefers-reduced-motion: reduce) {
   .simpel-app *, .simpel-app *::before, .simpel-app *::after { transition: none !important; animation: none !important; }
 }
+
+/* --------------------------------------------------- onbruikbare KPI's --
+ *
+ * Een cijfer dat op dit account niets betekent. Bewust niet verborgen: het
+ * staat in het platform en iemand die het daar ziet moet het hier terugvinden,
+ * mét de reden. Wel gedempt, zodat het oog er niet als eerste op valt.
+ *
+ * Geen rood. Er is niets kapot en niemand heeft een fout gemaakt -- een winkel
+ * die routebeschrijvingen telt doet niets verkeerd. De fout ontstaat pas als
+ * iemand er ROAS op loslaat, en daar waarschuwt dit voor.
+ */
+.kpi-voorbehoud .kpi-value {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--ink-subtle);
+}
+
+.kpi-onbetrouwbaar {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--waarschuwing, #b4802a);
+  background: var(--vlak-gedempt, rgba(180, 128, 42, 0.08));
+  border-radius: 0 4px 4px 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-subtle);
+}
+
+.kpi-onbetrouwbaar strong {
+  display: block;
+  color: var(--ink);
+  font-weight: 600;
+}

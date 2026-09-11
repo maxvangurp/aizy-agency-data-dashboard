@@ -547,6 +547,31 @@ app.get('/api/auth/status', (req, res) => {
  * verzonnen budget ziet er in een dashboard precies zo uit als een echt
  * budget, en dat is het soort fout waar je later niet meer op komt.
  */
+/**
+ * Van de Supabase-rij naar de vorm die het dashboard leest.
+ *
+ * Ontbreekt de rij, dan is het antwoord null en niet een rij met alles op
+ * `true`. Niet beoordeeld is iets anders dan beoordeeld en goed bevonden, en
+ * dat verschil is precies waar dit voor bestaat.
+ */
+function vertaalOordeel(rij) {
+  if (!rij) return null;
+  return {
+    beoordeeld: true,
+    platform: rij.platform,
+    betrouwbaar: {
+      platformcijfers: rij.platform_metrics_reliable !== false,
+      conversieteller: rij.conversion_count_reliable !== false,
+      conversiewaarde: rij.conversion_value_reliable !== false,
+    },
+    onbetrouwbareKpis: Array.isArray(rij.unreliable_kpis) ? rij.unreliable_kpis : [],
+    oordeel: rij.verdict || null,
+    bevindingen: Array.isArray(rij.findings) ? rij.findings : [],
+    periode: {start: rij.assessed_period_start, eind: rij.assessed_period_end},
+    beoordeeldOp: rij.assessed_at || null,
+  };
+}
+
 app.get('/api/clients/live', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
   if (ontbreekt.length) {
@@ -564,6 +589,24 @@ app.get('/api/clients/live', async (req, res) => {
       order: 'name.asc',
     });
 
+    // Het voorbehoud reist mee met de klant, niet als losse pagina. Wie een
+    // ROAS op het scherm zet hoort in dezelfde beweging te weten of die ROAS
+    // op dit account iets betekent -- bij vier van de vijftien klanten niet.
+    const oordelen = new Map();
+    try {
+      const b = await sb.lees('client_kpi_reliability', {
+        kolommen: 'client_id,platform,platform_metrics_reliable,conversion_count_reliable,'
+          + 'conversion_value_reliable,unreliable_kpis,verdict,findings,assessed_at,'
+          + 'assessed_period_start,assessed_period_end',
+      });
+      for (const r of b) oordelen.set(r.client_id, r);
+    } catch (fout) {
+      // Geen oordeel is iets anders dan een goed oordeel; dat onderscheid
+      // blijft staan doordat `betrouwbaarheid` dan null is in plaats van
+      // een vrolijke standaardwaarde.
+      console.warn('Betrouwbaarheidsoordeel niet gelezen:', formatError(fout));
+    }
+
     return res.json(rijen.filter((r) => r.slug).map((r) => ({
       // De slug is de sleutel, niet het uuid: daar vraagt de frontend ook mee
       // om /api/google-ads/campaigns, en zo blijft dat een en dezelfde naam.
@@ -578,7 +621,12 @@ app.get('/api/clients/live', async (req, res) => {
       supportingOwnerIds: [],
       maandbudget: null,
       trackingStatus: null,
+      // Bewust geen percentage. `dataHealth` is in de voorbeelddata een score
+      // van 0 tot 100, en dit oordeel laat zich daar niet in samenvatten: het
+      // zegt niet hoe goed de meting is maar wélke KPI's betekenis hebben.
+      // "ROAS klopt hier niet" wordt geen "74 procent".
       dataHealth: null,
+      betrouwbaarheid: vertaalOordeel(oordelen.get(r.id)),
       scenario: null,
       bronnen: {},
       doelen: [],

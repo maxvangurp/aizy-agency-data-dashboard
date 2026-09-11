@@ -50,6 +50,7 @@ import {
   getPeriodNarrative, getTeamOverzicht, getMedewerkerDetail, getPortfolioInzichten,
   getKanaalOverzicht, getKanaalDetails, kanaalKeysVan,
 } from './data/repository.js';
+import { zetBetrouwbaarheid } from './data/kpi-betrouwbaarheid.js';
 import {
   getToegankelijkeActies, getActieDetail, getWerkSignalen, getPlanning,
   getToewijsbareMedewerkers, magActieBewerken, actieSamenvatting,
@@ -299,6 +300,16 @@ function render() {
   });
 
   synchroniseerUrl(pad, query, ctx);
+
+  // Welke KPI's van deze klant betekenis hebben. Vastgesteld uit de
+  // conversieopzet door max-marketing-os; elke KPI-kaart kijkt het hier op.
+  //
+  // Op een pagina met meerdere klanten is dit bewust null: een portfoliotabel
+  // mengt accounts met verschillende conversieopzetten, en één oordeel over
+  // die stapel zou van de meeste rijen niet waar zijn.
+  zetBetrouwbaarheid(
+    scope.clientId ? getClientById(user, scope.clientId)?.betrouwbaarheid ?? null : null
+  );
 
   const omgeving = route.pad.startsWith('/client') ? 'client' : 'agency';
   const actieveKlantId = getActieveKlantId();
