@@ -67,6 +67,78 @@ function dagenTussen(since, until) {
   return Math.round((b - a) / 86400000) + 1;
 }
 
+/**
+ * Welke dagen bestrijkt deze rij?
+ *
+ * `period_end` staat er sinds migratie 014 bij. Draait die nog niet, dan is het
+ * einde af te leiden uit `granularity` -- precies de afleiding die deze code
+ * anders impliciet toch al deed. Zonder die terugval hangt dit endpoint aan de
+ * volgorde waarin code en migratie uitgerold worden, en dat is een afhankelijk-
+ * heid die niemand wil bewaken.
+ */
+function periodeVan(rij) {
+  const start = String(rij.snapshot_date);
+  if (rij.period_end) return { start, eind: String(rij.period_end) };
+
+  const dag = new Date(`${start}T00:00:00.000Z`);
+  if (Number.isNaN(dag.getTime())) return { start, eind: start };
+  if (rij.granularity === 'week') {
+    dag.setUTCDate(dag.getUTCDate() + 6);
+    return { start, eind: dag.toISOString().slice(0, 10) };
+  }
+  if (rij.granularity === 'month') {
+    const eind = new Date(Date.UTC(dag.getUTCFullYear(), dag.getUTCMonth() + 1, 0));
+    return { start, eind: eind.toISOString().slice(0, 10) };
+  }
+  return { start, eind: start };
+}
+
+/**
+ * Alleen de rijen die HEEL binnen het gevraagde bereik vallen.
+ *
+ * Hiervoor werd de bovengrens op `snapshot_date` gelegd, en dat is de
+ * verkeerde kant van de periode: een maandrij die op `since` begint liep dan
+ * drie weken buiten het venster door en telde toch helemaal mee. Een halve
+ * periode naar rato omslaan is geen alternatief -- dat verzint een verdeling
+ * die niet gemeten is.
+ *
+ * Dezelfde regel als `blended_kpis()` in Supabase. Dat die twee hetzelfde
+ * antwoord geven is belangrijker dan welke van de twee grenzen je kiest.
+ */
+function binnenBereik(rijen, { since = null, until = null } = {}) {
+  return (rijen ?? []).filter((rij) => {
+    const { start, eind } = periodeVan(rij);
+    if (since && start < String(since)) return false;
+    if (until && eind > String(until)) return false;
+    return true;
+  });
+}
+
+/**
+ * Hoeveel van de gevraagde dagen zitten er daadwerkelijk in deze rijen?
+ *
+ * Containment laat dagen aan de randen vallen: een week die op 31 augustus
+ * begon hoort niet bij september, maar de eerste zes dagen van september
+ * zitten dan ook nergens in. Dat is geen fout, maar het is wel iets waar een
+ * lezer van moet weten voordat hij twee perioden vergelijkt -- en zonder dit
+ * getal is het verschil tussen "weinig uitgegeven" en "niet alles gemeten"
+ * niet te zien.
+ */
+function dekkingVan(rijen, { since = null, until = null } = {}) {
+  const gevraagd = dagenTussen(since, until);
+  if (!gevraagd) return null;
+
+  const dagen = new Set();
+  for (const rij of rijen ?? []) {
+    const { start, eind } = periodeVan(rij);
+    const van = Date.parse(`${start}T00:00:00.000Z`);
+    const tot = Date.parse(`${eind}T00:00:00.000Z`);
+    if (!Number.isFinite(van) || !Number.isFinite(tot)) continue;
+    for (let t = van; t <= tot; t += 86400000) dagen.add(t);
+  }
+  return { dagen: dagen.size, gevraagd, volledig: dagen.size >= gevraagd };
+}
+
 /** Welk woord hoort bij de conversies van dit verdienmodel? */
 function resultLabelVan(businessModel) {
   return businessModel === 'ecommerce' ? 'Aankopen' : 'Leads';
@@ -254,4 +326,5 @@ function rond(waarde, decimalen = 2) {
 module.exports = {
   afgeleideRatios, resultLabelVan, googleBlokVan, kiesGranulariteit,
   onderdrukOnbetrouwbaar, betrouwbaarheidVan,
+  periodeVan, binnenBereik, dekkingVan,
 };

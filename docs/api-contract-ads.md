@@ -99,6 +99,26 @@ trendgrafiek en de campagnetabel. De `breakdowns` voeden de per-platform
 deep-dive-pagina's (Google Ads: zoekwoorden + advertentiegroepen; Meta Ads: ad
 sets + placements). Ontbrekende arrays (`[]`) laten de betreffende tabel weg.
 
+### `dekking` — hoeveel van de gevraagde periode er echt in zit
+
+Een rij telt alleen mee als hij **heel** binnen het bereik valt. De bovengrens
+ligt op `period_end`, niet op `snapshot_date`: anders liep een maandrij die op
+`since` begint drie weken buiten het venster door en telde hij toch helemaal
+mee. Dezelfde regel als `blended_kpis()` in Supabase — dat die twee hetzelfde
+antwoord geven weegt zwaarder dan welke van de twee grenzen je kiest.
+
+De keerzijde is dat er dagen aan de randen wegvallen: een week die op 31
+augustus begon hoort niet bij september, maar dan zit 1 tot en met 6 september
+ook nergens in. Daarom staat er `dekking` bij:
+
+```jsonc
+"dekking": { "dagen": 28, "gevraagd": 30, "volledig": false }
+```
+
+Zonder dat getal is "weinig uitgegeven" niet te onderscheiden van "niet alles
+gemeten". Staat `period_end` er nog niet (migratie 014 nog niet gedraaid), dan
+wordt het einde uit `granularity` afgeleid en verandert er niets.
+
 ### `betrouwbaarheid` — welke KPI's op dit account betekenis hebben
 
 Het platformblok heeft er één veld bij. `null` betekent **niet beoordeeld**;

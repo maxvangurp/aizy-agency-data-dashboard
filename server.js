@@ -7,7 +7,7 @@ const dotenv = require('dotenv');
 const {v4: uuidv4} = require('uuid');
 const {encrypt, decrypt} = require('./utils');
 const supabase = require('./supabase');
-const {googleBlokVan, kiesGranulariteit} = require('./ads-contract');
+const {googleBlokVan, kiesGranulariteit, binnenBereik, dekkingVan} = require('./ads-contract');
 const {
   getGoogleConnection,
   upsertGoogleConnection,
@@ -569,7 +569,11 @@ app.get('/api/clients/live', async (req, res) => {
       // om /api/google-ads/campaigns, en zo blijft dat een en dezelfde naam.
       id: r.slug,
       name: r.name || r.slug,
-      businessModel: r.business_model || 'leadgen',
+      // Null en niet 'leadgen'. Dit veld bepaalt of het dashboard ROAS of CPL
+      // toont, welke conversiescopes je mag kiezen en hoe de klant in het
+      // agencyoverzicht meetelt. Een gok ziet er daar precies zo uit als een
+      // vastgelegd gegeven; `modelVan` valt bij null zichtbaar terug.
+      businessModel: r.business_model || null,
       website: r.website || null,
       land: Array.isArray(r.countries) && r.countries.length ? r.countries[0] : null,
       valuta: 'EUR',
@@ -673,13 +677,14 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
     if (req.query.since) filters.snapshot_date = 'gte.' + req.query.since;
 
     const rijen = await sb.lees('performance_snapshots', {
-      kolommen: 'campaign_id,snapshot_date,granularity,spend,impressions,clicks,conversions_primary,revenue',
+      kolommen: 'campaign_id,snapshot_date,period_end,granularity,spend,impressions,clicks,conversions_primary,revenue',
       filters,
       order: 'snapshot_date.asc',
     });
-    const inBereik = req.query.until
-      ? rijen.filter((r) => String(r.snapshot_date) <= String(req.query.until))
-      : rijen;
+    // De bovengrens ligt op `period_end`, niet op `snapshot_date`: een maandrij
+    // die op `since` begint liep anders drie weken buiten het venster door en
+    // telde toch helemaal mee. Zie binnenBereik.
+    const inBereik = binnenBereik(rijen, {since: req.query.since, until: req.query.until});
 
     // Zie kiesGranulariteit: dag- en weekrijen bestrijken dezelfde periode, dus
     // alles optellen telt alles dubbel.
@@ -701,6 +706,9 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
         betrouwbaarheid: await leesBetrouwbaarheid(sb, klant.id),
       }),
       granulariteit: gekozen,
+      // Containment laat dagen aan de randen vallen. Zonder dit getal is
+      // "weinig uitgegeven" niet te onderscheiden van "niet alles gemeten".
+      dekking: dekkingVan(binnenPeriode, {since: req.query.since, until: req.query.until}),
     });
   } catch (error) {
     return res.status(502).json({message: formatError(error)});

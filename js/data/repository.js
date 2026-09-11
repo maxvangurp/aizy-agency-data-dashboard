@@ -74,8 +74,21 @@ export function getClientById(user, clientId) {
   return huidigeClients().find((c) => c.id === clientId) ?? null;
 }
 
+/**
+ * Welk dashboardtype hoort bij deze klant?
+ *
+ * De tijdreeks wist dit tot nu toe als enige, en dat klopte zolang elke klant
+ * uit de sample-data kwam. Een echte klant uit Supabase staat niet in
+ * `CLIENT_CONFIG`, dus viel hij terug op `awareness` -- en dan toont de
+ * KPI-band "Bereik per dag" en "Frequentie" voor een webshop, twee cijfers die
+ * in advertentiedata niet eens bestaan.
+ *
+ * De klant weet het zelf: `businessModel` komt uit `clients.business_model` in
+ * Supabase. Die wint daarom van de terugval. De tijdreeks gaat voor waar hij
+ * bestaat, zodat de demo zich niets van deze regel aantrekt.
+ */
 function modelVan(client) {
-  return getClientModel(client.id) ?? 'awareness';
+  return getClientModel(client.id) ?? client.businessModel ?? 'awareness';
 }
 
 function conversieConfigVan(client) {

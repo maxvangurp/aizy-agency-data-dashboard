@@ -244,3 +244,65 @@ test('onderdrukken raakt alleen de genoemde velden en verzint er geen bij', () =
     'een naam die het contract niet kent hoort niets stuk te maken'
   );
 });
+
+/* ------------------------------------------------------ periodegrens -- */
+
+const {periodeVan, binnenBereik, dekkingVan} = require('../../ads-contract');
+
+test('leidt het einde af zolang period_end er nog niet is', () => {
+  // Migratie 014 zet die kolom erbij. Tussen deze code en die migratie hoort
+  // het endpoint gewoon te blijven werken, dus granularity is de terugval.
+  assert.equal(periodeVan({snapshot_date: '2026-09-01', period_end: '2026-09-30'}).eind, '2026-09-30');
+  assert.equal(periodeVan({snapshot_date: '2026-09-01', granularity: 'day'}).eind, '2026-09-01');
+  assert.equal(periodeVan({snapshot_date: '2026-09-01', granularity: 'week'}).eind, '2026-09-07');
+  assert.equal(periodeVan({snapshot_date: '2026-02-01', granularity: 'month'}).eind, '2026-02-28');
+  assert.equal(periodeVan({snapshot_date: '2026-09-01'}).eind, '2026-09-01',
+    'zonder granulariteit is één dag de enige aanname die niets toevoegt');
+});
+
+test('een periode die buiten het venster doorloopt telt niet mee', () => {
+  // Dit was de bug: de bovengrens lag op snapshot_date, dus een maandrij die
+  // op `since` begon telde in een weekvraag helemaal mee.
+  const rijen = [
+    {snapshot_date: '2026-09-01', period_end: '2026-09-07', granularity: 'week'},
+    {snapshot_date: '2026-09-01', period_end: '2026-09-30', granularity: 'month'},
+  ];
+  const uit = binnenBereik(rijen, {since: '2026-09-01', until: '2026-09-07'});
+  assert.deepEqual(uit.map((r) => r.granularity), ['week']);
+});
+
+test('een periode die vóór het venster begon telt ook niet mee', () => {
+  const rijen = [
+    {snapshot_date: '2026-08-31', period_end: '2026-09-06', granularity: 'week'},
+    {snapshot_date: '2026-09-07', period_end: '2026-09-13', granularity: 'week'},
+  ];
+  const uit = binnenBereik(rijen, {since: '2026-09-01', until: '2026-09-30'});
+  assert.deepEqual(uit.map((r) => r.snapshot_date), ['2026-09-07'],
+    'dagen van buiten het venster binnenhalen is erger dan ze missen');
+});
+
+test('zonder grenzen valt er niets af', () => {
+  const rijen = [{snapshot_date: '2026-09-01', period_end: '2026-09-30', granularity: 'month'}];
+  assert.equal(binnenBereik(rijen, {}).length, 1);
+  assert.equal(binnenBereik(null, {since: '2026-09-01'}).length, 0);
+});
+
+test('de dekking zegt hoeveel van de gevraagde dagen er echt in zitten', () => {
+  // Vier hele weken in een maand van dertig dagen: 28 gedekt, niet volledig.
+  const weken = ['2026-09-01', '2026-09-08', '2026-09-15', '2026-09-22'].map((d) => ({
+    snapshot_date: d, granularity: 'week',
+  }));
+  const dekking = dekkingVan(weken, {since: '2026-09-01', until: '2026-09-30'});
+  assert.equal(dekking.dagen, 28);
+  assert.equal(dekking.gevraagd, 30);
+  assert.equal(dekking.volledig, false, 'zonder dit is "weinig uitgegeven" niet van "niet alles gemeten" te onderscheiden');
+});
+
+test('dezelfde dag uit twee campagnes telt één keer mee in de dekking', () => {
+  const rijen = [
+    {campaign_id: 'k1', snapshot_date: '2026-09-01', granularity: 'day'},
+    {campaign_id: 'k2', snapshot_date: '2026-09-01', granularity: 'day'},
+  ];
+  assert.equal(dekkingVan(rijen, {since: '2026-09-01', until: '2026-09-01'}).dagen, 1);
+  assert.equal(dekkingVan(rijen, {}), null, 'zonder venster is dekking geen begrip');
+});
