@@ -20,9 +20,11 @@ fetchResource('/api/google-ads/campaigns?client=<id>&since=<ISO>&until=<ISO>', g
 > gelezen — twee schrijvers op dezelfde tabellen betekent twee waarheden.
 >
 > Twee afwijkingen van het contract, allebei bewust:
-> * `series` heeft **één punt per week**, niet per dag. Die snapshots worden per
->   periode bewaard en dat zijn weken. Een dagreeks afleiden uit een weektotaal
->   levert een grafiek op die er precies zo uitziet als een echte.
+> * `series` heeft **één punt per dag** zodra er dagsnapshots zijn, en anders
+>   per week. Het antwoord zegt in `granulariteit` welke van de twee het werd.
+>   Dat is geen detail: dezelfde periode staat er zowel per dag als per week in,
+>   dus beide optellen telt alles dubbel -- die bug heeft er even in gezeten en
+>   gaf voor elke klant exact het dubbele.
 > * `breakdowns` is **leeg**. Zoekwoorden en advertentiegroepen staan nog niet in
 >   Supabase; het contract laat de tabel dan weg, wat hier het gewenste gedrag is.
 >

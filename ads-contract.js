@@ -29,6 +29,23 @@ function afgeleideRatios({ spend, impressions, clicks, results, revenue } = {}) 
   };
 }
 
+/**
+ * Welke granulariteit gebruiken we voor deze rijen?
+ *
+ * Dezelfde periode staat in `performance_snapshots` zowel als dagrijen als als
+ * weekrijen. Alles optellen telt dus alles dubbel -- precies wat
+ * `blended_kpis` in de database wegneemt en een rauwe query niet. Eén
+ * granulariteit kiezen houdt de totalen en de campagnetabel consistent, en
+ * herhaalt de dedup-logica uit migratie 014 niet op een tweede plek.
+ *
+ * Dag wint van week wanneer hij er is. Dagrijen bestaan alleen waar er
+ * activiteit was, dus ze tellen op tot hetzelfde totaal, en ze leveren een
+ * echte dagreeks in plaats van één punt per week.
+ */
+function kiesGranulariteit(rijen) {
+  return (rijen ?? []).some((r) => r.granularity === 'day') ? 'day' : 'week';
+}
+
 /** Welk woord hoort bij de conversies van dit verdienmodel? */
 function resultLabelVan(businessModel) {
   return businessModel === 'ecommerce' ? 'Aankopen' : 'Leads';
@@ -153,4 +170,4 @@ function rond(waarde, decimalen = 2) {
   return Math.round(n * f) / f;
 }
 
-module.exports = { afgeleideRatios, resultLabelVan, googleBlokVan };
+module.exports = { afgeleideRatios, resultLabelVan, googleBlokVan, kiesGranulariteit };

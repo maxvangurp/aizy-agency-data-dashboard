@@ -131,3 +131,38 @@ test('accepteert zowel de project-URL als de volledige REST-URL', () => {
   assert.equal(basisUrl('https://ref.supabase.co/rest/v1/'), 'https://ref.supabase.co');
   assert.equal(basisUrl('https://ref.supabase.co'), 'https://ref.supabase.co');
 });
+
+/* ------------------------------------------------- granulariteitkeuze -- */
+
+const {kiesGranulariteit} = require('../../ads-contract');
+
+test('kiest dag boven week, zodat dezelfde periode niet dubbel telt', () => {
+  // Dit was een echte bug: het endpoint telde dag- en weekrijen bij elkaar op
+  // en gaf voor elke klant exact het dubbele.
+  const gemengd = [
+    {granularity: 'week', spend: 100},
+    {granularity: 'day', spend: 20},
+    {granularity: 'day', spend: 30},
+  ];
+  assert.equal(kiesGranulariteit(gemengd), 'day');
+});
+
+test('valt terug op week als er geen dagrijen zijn', () => {
+  assert.equal(kiesGranulariteit([{granularity: 'week', spend: 100}]), 'week');
+  assert.equal(kiesGranulariteit([]), 'week', 'leeg mag geen fout geven');
+  assert.equal(kiesGranulariteit(null), 'week');
+});
+
+test('een gemengde set levert na filteren het enkele totaal op', () => {
+  const rijen = [
+    {granularity: 'week', campaign_id: 'k1', snapshot_date: '2026-09-01', spend: 100, clicks: 10, conversions_primary: 2},
+    {granularity: 'day', campaign_id: 'k1', snapshot_date: '2026-09-01', spend: 60, clicks: 6, conversions_primary: 1},
+    {granularity: 'day', campaign_id: 'k1', snapshot_date: '2026-09-02', spend: 40, clicks: 4, conversions_primary: 1},
+  ];
+  const gekozen = kiesGranulariteit(rijen);
+  const {totals, series} = googleBlokVan(
+    rijen.filter((r) => r.granularity === gekozen), new Map(), {businessModel: 'leadgen'}
+  );
+  assert.equal(totals.spend, 100, 'niet 200');
+  assert.equal(series.length, 2, 'en een echte dagreeks');
+});

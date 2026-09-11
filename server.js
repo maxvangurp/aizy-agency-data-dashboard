@@ -7,7 +7,7 @@ const dotenv = require('dotenv');
 const {v4: uuidv4} = require('uuid');
 const {encrypt, decrypt} = require('./utils');
 const supabase = require('./supabase');
-const {googleBlokVan} = require('./ads-contract');
+const {googleBlokVan, kiesGranulariteit} = require('./ads-contract');
 const {
   getGoogleConnection,
   upsertGoogleConnection,
@@ -566,13 +566,18 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
     if (req.query.since) filters.snapshot_date = 'gte.' + req.query.since;
 
     const rijen = await sb.lees('performance_snapshots', {
-      kolommen: 'campaign_id,snapshot_date,spend,impressions,clicks,conversions_primary,revenue',
+      kolommen: 'campaign_id,snapshot_date,granularity,spend,impressions,clicks,conversions_primary,revenue',
       filters,
       order: 'snapshot_date.asc',
     });
-    const binnenPeriode = req.query.until
+    const inBereik = req.query.until
       ? rijen.filter((r) => String(r.snapshot_date) <= String(req.query.until))
       : rijen;
+
+    // Zie kiesGranulariteit: dag- en weekrijen bestrijken dezelfde periode, dus
+    // alles optellen telt alles dubbel.
+    const gekozen = kiesGranulariteit(inBereik);
+    const binnenPeriode = inBereik.filter((r) => r.granularity === gekozen);
 
     const campagnerijen = await sb.lees('campaigns', {
       kolommen: 'id,name,channel_type',
@@ -580,7 +585,10 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
     });
     const campagnes = new Map(campagnerijen.map((c) => [c.id, c]));
 
-    return res.json(googleBlokVan(binnenPeriode, campagnes, {businessModel: klant.business_model}));
+    return res.json({
+      ...googleBlokVan(binnenPeriode, campagnes, {businessModel: klant.business_model}),
+      granulariteit: gekozen,
+    });
   } catch (error) {
     return res.status(502).json({message: formatError(error)});
   }
