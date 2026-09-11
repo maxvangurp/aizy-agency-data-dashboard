@@ -188,3 +188,52 @@ test('kiest dag zodra die het bereik wel dekt', () => {
 test('zonder bereik blijft dag de keuze', () => {
   assert.equal(kiesGranulariteit([{granularity: 'day', snapshot_date: '2026-09-01'}], {}), 'day');
 });
+
+/* ------------------------------------------------------------ Meta-blok -- */
+
+const {metaBlokVan} = require('../../ads-contract');
+
+test('het Meta-blok heeft dezelfde vorm als het Google-blok', () => {
+  const blok = metaBlokVan(SNAPSHOTS, CAMPAGNES, {businessModel: 'ecommerce'});
+  assert.equal(blok.platform, 'meta');
+  assert.equal(blok.label, 'Meta Ads');
+  assert.equal(blok.aanwezig, true);
+  // Meta kent geen advertentiegroepen en zoekwoorden.
+  assert.deepEqual(Object.keys(blok.breakdowns).sort(), ['adSets', 'placements']);
+  assert.equal(blok.totals.spend, 300);
+});
+
+test('valt terug op leads wanneer dit platform geen aankopen meet', () => {
+  // Vitrinemasters staat als webshop en draait op Meta leadcampagnes: 67 leads
+  // die anders als "0 aankopen" op het scherm zouden komen.
+  const rijen = [
+    {campaign_id: 'k1', snapshot_date: '2026-09-01', spend: 300, clicks: 900, conversions_primary: 0, leads: 40},
+    {campaign_id: 'k2', snapshot_date: '2026-09-01', spend: 249, clicks: 600, conversions_primary: 0, leads: 27},
+  ];
+  const blok = metaBlokVan(rijen, CAMPAGNES, {businessModel: 'ecommerce'});
+
+  assert.equal(blok.totals.results, 67);
+  assert.equal(blok.resultLabel, 'Leads');
+  // Niet stilzwijgend: de interface hoort te weten dat dit een andere soort is,
+  // anders telt iemand ze op bij de aankopen van een ander platform.
+  assert.equal(blok.resultSoort, 'leads');
+  assert.equal(blok.campaigns.reduce((som, c) => som + c.results, 0), 67);
+  assert.equal(blok.series[0].results, 67);
+});
+
+test('meet het platform wel aankopen, dan blijven dat aankopen', () => {
+  const rijen = [
+    {campaign_id: 'k1', snapshot_date: '2026-09-01', spend: 100, conversions_primary: 5, leads: 2, revenue: 500},
+  ];
+  const blok = metaBlokVan(rijen, CAMPAGNES, {businessModel: 'ecommerce'});
+  assert.equal(blok.totals.results, 5, 'leads overrulen een gemeten aankoop niet');
+  assert.equal(blok.resultSoort, undefined);
+});
+
+test('zonder rijen is Meta niet aanwezig in plaats van leeg', () => {
+  // Niet elke klant adverteert daar; Pouw en 123Watches.de bijvoorbeeld niet.
+  const blok = metaBlokVan([], CAMPAGNES, {businessModel: 'leadgen'});
+  assert.equal(blok.aanwezig, false);
+  assert.equal(blok.totals, null);
+  assert.deepEqual(blok.campaigns, []);
+});

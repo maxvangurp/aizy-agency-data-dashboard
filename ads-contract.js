@@ -81,17 +81,52 @@ function resultLabelVan(businessModel) {
  * @param {{businessModel?: string}} opties
  */
 function googleBlokVan(snapshots, campagnes = new Map(), { businessModel } = {}) {
+  return blokVan(snapshots, campagnes, {
+    businessModel, platform: 'google', label: 'Google Ads',
+    breakdowns: { adGroups: [], keywords: [] },
+  });
+}
+
+/**
+ * Hetzelfde blok voor Meta.
+ *
+ * Eén verschil, en dat is geen opmaak. Een webshop die op Meta leadcampagnes
+ * draait meet leads en geen aankopen: `conversions_primary` staat dan op nul
+ * terwijl er wel degelijk conversies zijn. Vitrinemasters had zo 67 leads die
+ * als "0 aankopen" op het scherm zouden komen.
+ *
+ * Dit blok zegt daarom wat dít platform gemeten heeft, met het bijbehorende
+ * label. Niet stilzwijgend: `resultSoort` vertelt de interface welke soort het
+ * geworden is, zodat er niets wordt opgeteld dat niet bij elkaar hoort.
+ */
+function metaBlokVan(snapshots, campagnes = new Map(), { businessModel } = {}) {
+  const rijen = Array.isArray(snapshots) ? snapshots : [];
+  const primair = rijen.reduce((som, r) => som + getal(r.conversions_primary), 0);
+  const leads = rijen.reduce((som, r) => som + getal(r.leads), 0);
+  const opLeads = primair === 0 && leads > 0;
+
+  return blokVan(rijen, campagnes, {
+    businessModel, platform: 'meta', label: 'Meta Ads',
+    breakdowns: { adSets: [], placements: [] },
+    ...(opLeads ? { resultKolom: 'leads', resultLabel: 'Leads', resultSoort: 'leads' } : {}),
+  });
+}
+
+function blokVan(snapshots, campagnes, {
+  businessModel, platform, label, breakdowns,
+  resultKolom = 'conversions_primary', resultLabel = null, resultSoort = null,
+}) {
   const rijen = Array.isArray(snapshots) ? snapshots : [];
   if (rijen.length === 0) {
     return {
-      platform: 'google',
-      label: 'Google Ads',
+      platform,
+      label,
       aanwezig: false,
-      resultLabel: resultLabelVan(businessModel),
+      resultLabel: resultLabel ?? resultLabelVan(businessModel),
       totals: null,
       series: [],
       campaigns: [],
-      breakdowns: { adGroups: [], keywords: [] },
+      breakdowns,
     };
   }
 
@@ -100,7 +135,7 @@ function googleBlokVan(snapshots, campagnes = new Map(), { businessModel } = {})
     spend: acc.spend + getal(r.spend),
     impressions: acc.impressions + getal(r.impressions),
     clicks: acc.clicks + getal(r.clicks),
-    results: acc.results + getal(r.conversions_primary),
+    results: acc.results + getal(r[resultKolom]),
     revenue: acc.revenue + getal(r.revenue),
   }), { spend: 0, impressions: 0, clicks: 0, results: 0, revenue: 0 });
 
@@ -117,19 +152,20 @@ function googleBlokVan(snapshots, campagnes = new Map(), { businessModel } = {})
   };
 
   return {
-    platform: 'google',
-    label: 'Google Ads',
+    platform,
+    label,
     aanwezig: true,
-    resultLabel: resultLabelVan(businessModel),
+    resultLabel: resultLabel ?? resultLabelVan(businessModel),
+    ...(resultSoort ? { resultSoort } : {}),
     totals,
-    series: reeksVan(rijen),
-    campaigns: campagnesVan(rijen, campagnes),
-    breakdowns: { adGroups: [], keywords: [] },
+    series: reeksVan(rijen, resultKolom),
+    campaigns: campagnesVan(rijen, campagnes, resultKolom),
+    breakdowns,
   };
 }
 
 /** Eén punt per snapshotdatum, opgeteld over de campagnes van die periode. */
-function reeksVan(rijen) {
+function reeksVan(rijen, resultKolom = 'conversions_primary') {
   const perDatum = new Map();
   for (const r of rijen) {
     const datum = r.snapshot_date;
@@ -138,7 +174,7 @@ function reeksVan(rijen) {
     p.spend += getal(r.spend);
     p.impressions += getal(r.impressions);
     p.clicks += getal(r.clicks);
-    p.results += getal(r.conversions_primary);
+    p.results += getal(r[resultKolom]);
     perDatum.set(datum, p);
   }
   return [...perDatum.values()]
@@ -147,7 +183,7 @@ function reeksVan(rijen) {
 }
 
 /** Eén regel per campagne, opgeteld over de perioden in de selectie. */
-function campagnesVan(rijen, campagnes) {
+function campagnesVan(rijen, campagnes, resultKolom = 'conversions_primary') {
   const perCampagne = new Map();
   for (const r of rijen) {
     const sleutel = r.campaign_id ?? 'onbekend';
@@ -156,7 +192,7 @@ function campagnesVan(rijen, campagnes) {
     c.spend += getal(r.spend);
     c.impressions += getal(r.impressions);
     c.clicks += getal(r.clicks);
-    c.results += getal(r.conversions_primary);
+    c.results += getal(r[resultKolom]);
     perCampagne.set(sleutel, c);
   }
 
@@ -191,4 +227,4 @@ function rond(waarde, decimalen = 2) {
   return Math.round(n * f) / f;
 }
 
-module.exports = { afgeleideRatios, resultLabelVan, googleBlokVan, kiesGranulariteit };
+module.exports = { afgeleideRatios, resultLabelVan, googleBlokVan, metaBlokVan, kiesGranulariteit };

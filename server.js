@@ -7,7 +7,15 @@ const dotenv = require('dotenv');
 const {v4: uuidv4} = require('uuid');
 const {encrypt, decrypt} = require('./utils');
 const supabase = require('./supabase');
-const {googleBlokVan, kiesGranulariteit} = require('./ads-contract');
+const {googleBlokVan, metaBlokVan, kiesGranulariteit} = require('./ads-contract');
+
+/**
+ * Onder welke platformnaam max-marketing-os wegschrijft. Deze twee strings
+ * staan aan beide kanten van de koppeling en moeten gelijk blijven; hier één
+ * keer, zodat een typefout een fout is en geen lege grafiek.
+ */
+const PLATFORM_GOOGLE = 'google-ads';
+const PLATFORM_META = 'meta-ads';
 const {
   getGoogleConnection,
   upsertGoogleConnection,
@@ -638,29 +646,68 @@ app.get('/api/clients/live', async (req, res) => {
 });
 
 /**
- * Meta Ads is nog niet gekoppeld.
+ * Meta Ads, uit dezelfde tabellen als Google.
  *
- * Het contract kent hier een vorm voor: `aanwezig: false` betekent dat het
- * platform niet actief is voor deze klant, en het dashboard laat de blokken
- * dan weg. Dat is iets anders dan een 404, die als fout in de console landt en
- * eruitziet alsof er iets stuk is. Er is niets stuk -- er is nog geen
- * Meta-adapter in max-marketing-os, dus er is ook niets om te tonen.
+ * max-marketing-os schrijft Meta sinds vandaag weg onder platform 'meta-ads'.
+ * Het contract is hetzelfde als dat van Google; alleen de breakdowns heten
+ * anders (advertentiesets en plaatsingen in plaats van advertentiegroepen en
+ * zoekwoorden).
  *
- * Zodra die adapter er is, vervangt hij dit antwoord en verandert er aan de
- * dashboardkant niets.
+ * Staat er niets, dan `aanwezig: false` en niet een 404. Die laatste landt als
+ * fout in de console en ziet eruit alsof er iets stuk is, terwijl niet elke
+ * klant op Meta adverteert -- Pouw en 123Watches.de bijvoorbeeld niet.
  */
-app.get('/api/meta/insights', (req, res) => {
-  res.json({
-    platform: 'meta',
-    label: 'Meta Ads',
-    aanwezig: false,
-    resultLabel: 'Aankopen',
-    totals: null,
-    series: [],
-    campaigns: [],
-    breakdowns: {adSets: [], placements: []},
-    reden: 'Meta Ads is nog niet gekoppeld aan deze workspace.',
-  });
+app.get('/api/meta/insights', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+  const vormfout = supabase.sleutelProbleem();
+  if (vormfout) return res.status(503).json({message: vormfout});
+
+  const gevraagd = String(req.query.client || '').trim();
+  if (!gevraagd) return res.status(400).json({message: 'Parameter `client` ontbreekt.'});
+
+  try {
+    const sb = supabase.maakSupabase();
+    const klanten = await sb.lees('clients', {kolommen: 'id,slug,name,business_model'});
+    const klant = klanten.find((c) => c.slug === gevraagd || c.id === gevraagd);
+    if (!klant) {
+      return res.status(404).json({
+        message: 'Onbekende klant "' + gevraagd + '".',
+        beschikbaar: klanten.map((c) => c.slug).filter(Boolean),
+      });
+    }
+
+    const filters = {client_id: klant.id, platform: PLATFORM_META};
+    if (req.query.since) filters.snapshot_date = 'gte.' + req.query.since;
+
+    const rijen = await sb.lees('performance_snapshots', {
+      kolommen: 'campaign_id,snapshot_date,granularity,spend,impressions,clicks,conversions_primary,leads,revenue',
+      filters,
+      order: 'snapshot_date.asc',
+    });
+    const inBereik = req.query.until
+      ? rijen.filter((r) => String(r.snapshot_date) <= String(req.query.until))
+      : rijen;
+
+    const gekozen = kiesGranulariteit(inBereik, {since: req.query.since, until: req.query.until});
+    const binnenPeriode = inBereik.filter((r) => r.granularity === gekozen);
+
+    const campagnes = new Map((await sb.lees('campaigns', {
+      kolommen: 'id,name,channel_type',
+      filters: {client_id: klant.id, platform: PLATFORM_META},
+    })).map((c) => [c.id, c]));
+
+    return res.json({
+      ...metaBlokVan(binnenPeriode, campagnes, {businessModel: klant.business_model}),
+      granulariteit: gekozen,
+    });
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
 });
 
 app.get('/api/google-ads/campaigns', async (req, res) => {
@@ -691,7 +738,7 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
 
     // De periode is optioneel. Zonder grenzen krijg je alles wat er is; dat is
     // bruikbaarder dan een lege grafiek als de filters nog niet gezet zijn.
-    const filters = {client_id: klant.id, platform: 'google-ads'};
+    const filters = {client_id: klant.id, platform: PLATFORM_GOOGLE};
     if (req.query.since) filters.snapshot_date = 'gte.' + req.query.since;
 
     const rijen = await sb.lees('performance_snapshots', {
@@ -710,7 +757,7 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
 
     const campagnerijen = await sb.lees('campaigns', {
       kolommen: 'id,name,channel_type',
-      filters: {client_id: klant.id},
+      filters: {client_id: klant.id, platform: PLATFORM_GOOGLE},
     });
     const campagnes = new Map(campagnerijen.map((c) => [c.id, c]));
 
