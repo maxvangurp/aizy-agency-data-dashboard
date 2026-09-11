@@ -68,7 +68,7 @@ import {
   renderLoginKeuze, renderForgotPassword, renderAcceptInvite,
   renderGeenToegang, renderNietGevonden,
 } from './views/auth-screens.js';
-import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg, zetTrendMetriek } from './views/simpel-dashboard.js';
+import { renderSimpelLayout, renderSimpelInhoud, drawSimpelCharts, renderSimpelLeeg, zetTrendMetriek, navItemsHtml } from './views/simpel-dashboard.js';
 import { bouwAdInzichten } from './data/simpel-insights.js';
 import { oppakOptimalisatie, zetOptimalisatieStatus, verwijderOptimalisatie } from './model/optimalisaties.js';
 import { koppelBron, ontkoppelBron, aantalGekoppeld } from './model/databronnen.js';
@@ -307,12 +307,18 @@ function render() {
   // Op een pagina met meerdere klanten is dit bewust null: een portfoliotabel
   // mengt accounts met verschillende conversieopzetten, en één oordeel over
   // die stapel zou van de meeste rijen niet waar zijn.
-  zetBetrouwbaarheid(
-    scope.clientId ? getClientById(user, scope.clientId)?.betrouwbaarheid ?? null : null
-  );
-
+  //
+  // De simpele modus kiest zijn klant niet via de route maar via een eigen
+  // selector, dus die telt hier net zo goed mee. Zonder dat stond op het
+  // pulse-dashboard een CPA van een account waar niets meetelt, zonder één
+  // woord erover -- precies het scherm waar de meeste mensen naar kijken.
   const omgeving = route.pad.startsWith('/client') ? 'client' : 'agency';
   const actieveKlantId = getActieveKlantId();
+  const klantInBeeld = scope.clientId ?? (route.simpel ? actieveKlantId : null);
+  zetBetrouwbaarheid(
+    klantInBeeld ? getClientById(user, klantInBeeld)?.betrouwbaarheid ?? null : null
+  );
+
   if (omgeving === 'client' && actieveKlantId) onthoudKlant(user.id, actieveKlantId);
 
   // Simpele modus: eigen minimale layout met datagerichte navigatie.
@@ -794,6 +800,11 @@ function renderSimpelPagina({ user, ctx, route }) {
       if (!houder) return;
       simpelState = { dashboard, platforms, view, vergelijking };
       houder.innerHTML = renderSimpelInhoud({ dashboard, platforms, view, vergelijking });
+      // De navigatie is bij de eerste render getekend toen nog niet bekend was
+      // welke platforms cijfers hebben. Nu wel: een Meta-pagina voor een klant
+      // zonder Meta is een doodlopende klik.
+      const nav = document.getElementById('simpelNav');
+      if (nav) nav.innerHTML = navItemsHtml(view, platforms);
       drawSimpelCharts({ dashboard, platforms, view, vergelijking });
       // Na een paginawissel de focus in de inhoud zetten, zodat hij niet naar
       // <body> valt en schermlezer/toetsenbord bij de nieuwe pagina beginnen.

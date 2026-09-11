@@ -7,13 +7,16 @@
   /* Vast Aizy-palet. Deze waarden veranderen niet per thema. */
   --aizy-purple: #6935cc;
   --aizy-purple-deep: #5623b3;
+  --aizy-purple-light: #9c6de6;
+  --aizy-pale-blue: #c9d7ff;
+  --aizy-icy-blue: #dff1ff;
   --aizy-magenta: #ff47d8;
   --aizy-magenta-light: #ff8fe5;
   --aizy-navy: #160d27;
-  --aizy-navy-deep: #0b0718;
+  --aizy-navy-deep: #0e081a;
   --aizy-navy-soft: #250f4d;
   --aizy-cyan: #5af2ff;
-  --aizy-lavender: #8b5cf6;
+  --aizy-lavender: #b29bf0;
   --aizy-warning: #ffb547;
   --aizy-success: #319b00;
   --aizy-danger: #bc0000;
@@ -32,7 +35,12 @@
   --space-4: 22px;
   --space-5: 30px;
 
-  --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Twee lettertypen, zoals de merkrichtlijn voorschrijft: Montserrat draagt de
+     koppen en de cijfers die als kop lezen, Inter de lopende tekst. Eén font
+     voor alles maakt een dashboard vlak -- het verschil tussen "wat staat hier"
+     en "hoeveel is het" hoort ook in de letter te zitten. */
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-kop: 'Montserrat', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ---------- Licht thema ---------- */
@@ -4258,4 +4266,74 @@ body[data-assistent='vast'] .app-grid { padding-right: 360px; }
 
 .funnel-ontbreekt p:last-child {
   margin-bottom: 0;
+}
+
+/* ------------------------------------------------- onbruikbare KPI op de kaart --
+ *
+ * Een korte vlag op de kaart, de uitleg één keer onder de rij. Drie kaarten met
+ * elk een alinea maken de rij ongelijk hoog, en een rafelige rij leest als een
+ * fout in de opmaak in plaats van als een waarschuwing over de cijfers.
+ */
+.kpi-onbruikbaar-vlag {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--vlak-gedempt, rgba(180, 128, 42, 0.12));
+  color: var(--ink-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.kpi-band-voorbehoud {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-left: 3px solid var(--waarschuwing, #b4802a);
+  background: var(--vlak-gedempt, rgba(180, 128, 42, 0.07));
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-subtle);
+}
+
+.kpi-band-voorbehoud strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ================================================================
+   Merktypografie
+   ----------------------------------------------------------------
+   Montserrat op alles wat als kop leest: titels, KPI-waarden, knoppen
+   en labels. Inter op de lopende tekst. Dat onderscheid staat in de
+   merkrichtlijn en het doet werk: een getal dat in dezelfde letter
+   staat als zijn uitleg vraagt de lezer om zelf te bepalen wat het
+   belangrijkste op de kaart is.
+   ================================================================ */
+
+h1, h2, h3, h4, h5, h6,
+.kpi-value,
+.simpel-merk-naam,
+.btn,
+.badge,
+.eyebrow,
+.kpi-onbruikbaar-vlag {
+  font-family: var(--font-kop);
+  letter-spacing: -0.01em;
+}
+
+/* Eyebrow en tag zijn in de richtlijn uppercase en bold; de letterafstand
+   compenseert dat hoofdletters anders aan elkaar plakken. */
+.eyebrow,
+.kpi-onbruikbaar-vlag {
+  letter-spacing: 0.06em;
+}
+
+/* Montserrat loopt optisch iets zwaarder dan Plus Jakarta Sans op dezelfde
+   waarde. Koppen krijgen daarom 700 in plaats van 800: even nadrukkelijk,
+   minder blokkerig. */
+h1, h2, .kpi-value {
+  font-weight: 700;
 }

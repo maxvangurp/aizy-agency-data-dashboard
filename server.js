@@ -562,21 +562,34 @@ app.get('/api/auth/status', (req, res) => {
  * `true`. Niet beoordeeld is iets anders dan beoordeeld en goed bevonden, en
  * dat verschil is precies waar dit voor bestaat.
  */
-function vertaalOordeel(rij) {
-  if (!rij) return null;
+function vertaalOordeel(rijen) {
+  if (!rijen?.length) return null;
+
+  // Een KPI die op één platform niets betekent, is in het gecombineerde cijfer
+  // ook niets waard: de vereniging, niet de doorsnede.
+  const onbetrouwbaar = new Set();
+  const bevindingen = [];
+  for (const rij of rijen) {
+    for (const kpi of rij.unreliable_kpis ?? []) onbetrouwbaar.add(kpi);
+    // Het platform gaat mee de bevinding in, anders staat er straks "de
+    // conversiewaarde is vast" zonder dat iemand weet welk account dat betreft.
+    for (const b of rij.findings ?? []) bevindingen.push({...b, platform: rij.platform});
+  }
+
+  const alle = (veld) => rijen.every((r) => r[veld] !== false);
   return {
     beoordeeld: true,
-    platform: rij.platform,
+    platforms: rijen.map((r) => r.platform),
     betrouwbaar: {
-      platformcijfers: rij.platform_metrics_reliable !== false,
-      conversieteller: rij.conversion_count_reliable !== false,
-      conversiewaarde: rij.conversion_value_reliable !== false,
+      platformcijfers: alle('platform_metrics_reliable'),
+      conversieteller: alle('conversion_count_reliable'),
+      conversiewaarde: alle('conversion_value_reliable'),
     },
-    onbetrouwbareKpis: Array.isArray(rij.unreliable_kpis) ? rij.unreliable_kpis : [],
-    oordeel: rij.verdict || null,
-    bevindingen: Array.isArray(rij.findings) ? rij.findings : [],
-    periode: {start: rij.assessed_period_start, eind: rij.assessed_period_end},
-    beoordeeldOp: rij.assessed_at || null,
+    onbetrouwbareKpis: [...onbetrouwbaar],
+    oordeel: rijen.map((r) => r.verdict).filter(Boolean)[0] ?? null,
+    bevindingen,
+    periode: {start: rijen[0].assessed_period_start, eind: rijen[0].assessed_period_end},
+    beoordeeldOp: rijen.map((r) => r.assessed_at).filter(Boolean).sort().at(-1) ?? null,
   };
 }
 
@@ -600,14 +613,20 @@ app.get('/api/clients/live', async (req, res) => {
     // Het voorbehoud reist mee met de klant, niet als losse pagina. Wie een
     // ROAS op het scherm zet hoort in dezelfde beweging te weten of die ROAS
     // op dit account iets betekent -- bij vier van de vijftien klanten niet.
+    // Eén oordeel per platform, en dit dashboard toont de platforms door elkaar.
+    // Het laatste rijtje houden zou betekenen dat welke sync als laatste liep
+    // bepaalt wat er op het scherm staat: bij Whoon zegt Google dat CPA niets
+    // betekent en Meta dat alleen ROAS dat niet doet. Vandaar alle rijen, en de
+    // vereniging als oordeel -- een KPI die op één platform niets betekent, is
+    // in het gecombineerde cijfer ook niets waard.
     const oordelen = new Map();
     try {
-      const b = await sb.lees('client_kpi_reliability', {
+      const rijen = await sb.lees('client_kpi_reliability', {
         kolommen: 'client_id,platform,platform_metrics_reliable,conversion_count_reliable,'
           + 'conversion_value_reliable,unreliable_kpis,verdict,findings,assessed_at,'
           + 'assessed_period_start,assessed_period_end',
       });
-      for (const r of b) oordelen.set(r.client_id, r);
+      for (const r of rijen) oordelen.set(r.client_id, [...(oordelen.get(r.client_id) ?? []), r]);
     } catch (fout) {
       // Geen oordeel is iets anders dan een goed oordeel; dat onderscheid
       // blijft staan doordat `betrouwbaarheid` dan null is in plaats van

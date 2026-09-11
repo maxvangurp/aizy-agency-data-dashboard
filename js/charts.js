@@ -12,8 +12,21 @@
  */
 
 /* Categorische reeksen. Vaste volgorde, nooit doorgerouleerd. */
-const SERIES_LIGHT = ['#6935CC', '#eb6834', '#1baf7a', '#eda100', '#FF47D8', '#008300', '#2a78d6', '#e34948'];
-const SERIES_DARK = ['#8b6ae0', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#3987e5', '#cc4444'];
+const /*
+ * Reeksen in merkvolgorde: paars, magenta, licht paars.
+ *
+ * De merkrichtlijn schrijft paarse lijnen met roze of lavendel ernaast voor, en
+ * de eerste twee plekken zijn wat je in de praktijk ziet -- vrijwel elke grafiek
+ * hier is Meta tegenover Google. Het oranje dat daar stond viel buiten het palet
+ * en was op elk scherm het eerste dat opviel.
+ *
+ * Vanaf de vierde plek staan groen en blauw, die niet in het merkpalet zitten.
+ * Dat is met opzet: het palet kent geen acht onderscheidbare kleuren, en een
+ * reeks van zes paarstinten is geen legenda maar een kleurverloop. Liever een
+ * herkenbaar merk op de plekken die tellen dan een onleesbare grafiek.
+ */
+SERIES_LIGHT = ['#6935CC', '#FF47D8', '#9C6DE6', '#1baf7a', '#2a78d6', '#eda100', '#008300', '#e34948'];
+const SERIES_DARK = ['#9c6de6', '#ff6fe0', '#b29bf0', '#199e70', '#3987e5', '#c98500', '#008300', '#cc4444'];
 
 /* Ordinale ramp voor de funnel. Stappen hebben een volgorde, dus één hue met
    oplopende donkerte in plaats van losse kleuren. De eindpunten staan vast;

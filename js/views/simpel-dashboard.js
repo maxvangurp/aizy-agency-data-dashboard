@@ -32,6 +32,7 @@ const VERGELIJK_KORT = {
   none: 'geen vergelijking',
 };
 import { kpiDelta, deltaPill, metricSwitcher, chips, interactieveTabel } from './simpel-widgets.js';
+import { redenVoor } from '../data/kpi-betrouwbaarheid.js';
 
 /**
  * Het enkelvoud van een resultaatlabel, voor zinnen als "Kosten per lead".
@@ -76,7 +77,7 @@ const SIMPEL_NAV = [
 export function renderSimpelLayout({ user, dashboard, klanten = [], filters, platforms = null, magWisselen = false, view = 'simpel-overzicht' }) {
   return `
     <div class="simpel-app">
-      ${renderSimpelSidebar(view)}
+      ${renderSimpelSidebar(view, platforms)}
       <div class="simpel-kolom">
         ${renderSimpelTopbar({ dashboard, klanten, filters, magWisselen })}
         <main class="simpel-main">
@@ -88,14 +89,42 @@ export function renderSimpelLayout({ user, dashboard, klanten = [], filters, pla
     </div>`;
 }
 
-function renderSimpelSidebar(view) {
+/**
+ * De navigatie, zonder pagina's die voor deze klant leeg zijn.
+ *
+ * Pouw adverteert niet op Meta, en een Meta-pagina met niets erop is geen
+ * informatie maar een doodlopende klik. Zolang de cijfers nog laden blijft
+ * alles staan: dan is "geen data" nog niet vastgesteld, en items die tijdens
+ * het laden verspringen zijn erger dan een pagina te veel.
+ */
+function zichtbareNav(platforms) {
+  if (!platforms) return SIMPEL_NAV;
+  const leeg = new Set([
+    ...(platforms.google?.aanwezig ? [] : ['simpel-google']),
+    ...(platforms.meta?.aanwezig ? [] : ['simpel-meta']),
+  ]);
+  return SIMPEL_NAV.filter((n) => !leeg.has(n.naam));
+}
+
+/**
+ * De navigatie-items als losse HTML, zodat ze na het laden van de cijfers
+ * bijgewerkt kunnen worden zonder de hele zijbalk opnieuw te tekenen.
+ */
+export function navItemsHtml(view, platforms = null) {
+  return zichtbareNav(platforms)
+    .map((n) => `<a class="simpel-nav-item${n.naam === view ? ' actief' : ''}" href="${n.pad}"${n.naam === view ? ' aria-current="page"' : ''}>${esc(n.label)}</a>`)
+    .join('');
+}
+
+function renderSimpelSidebar(view, platforms = null) {
+  const items = zichtbareNav(platforms);
   return `<aside class="simpel-sidebar">
     <div class="simpel-merk">
       <span class="simpel-merk-naam">Aizy</span>
       <span class="simpel-merk-sub">Snel inzicht</span>
     </div>
-    <nav class="simpel-nav" aria-label="Datapagina's">
-      ${SIMPEL_NAV.map((n) => `<a class="simpel-nav-item${n.naam === view ? ' actief' : ''}" href="${n.pad}"${n.naam === view ? ' aria-current="page"' : ''}>${esc(n.label)}</a>`).join('')}
+    <nav class="simpel-nav" id="simpelNav" aria-label="Datapagina's">
+      ${navItemsHtml(view, platforms)}
     </nav>
     <div class="simpel-sidebar-voet">
       <button type="button" class="btn klein breed" data-naar-modus="uitgebreid">Volledig systeem</button>
@@ -220,6 +249,23 @@ export function renderSimpelLeeg(titel, tekst) {
 }
 
 /** Gedeelde paginakop met klant + periode + vergelijking + databron. */
+/**
+ * De titel van het overzicht, naar wat er werkelijk draait.
+ *
+ * "Meta & Google Ads" boven een pagina met alleen Google is klein maar
+ * verkeerd, en het is precies het soort detail waaraan iemand ziet dat een
+ * dashboard niet naar zijn eigen cijfers kijkt.
+ */
+function platformTitel(platforms) {
+  const namen = trendPlatforms(platforms).map((p) => p.label);
+  if (!namen.length) return 'Advertenties';
+  if (namen.length === 1) return namen[0];
+  // "Meta Ads & Google Ads" zegt Ads twee keer. Bij meerdere platforms valt het
+  // woord weg tot het einde: "Meta & Google Ads".
+  const kort = namen.map((n) => n.replace(/\s+Ads$/, ''));
+  return `${kort.slice(0, -1).join(', ')} & ${kort.at(-1)} Ads`;
+}
+
 function simpelKop(titel, dashboard, platforms, { ondertitel = '', vergelijking = null } = {}) {
   const periodeLabel = dashboard?.periode ? toonBereik(dashboard.periode.startDate, dashboard.periode.endDate) : '';
   const vergLabel = (vergelijking?.actief && vergelijking.startDate && vergelijking.endDate)
@@ -265,7 +311,62 @@ const FMT = { euro: fmt.euro, euro2: fmt.euro2, getal: fmt.getal, procent: fmt.p
  * voor de gecombineerde totalen als voor één platform: geef de bijbehorende
  * dagreeks mee voor de sparklines.
  */
+/**
+ * De kaartnaam van dit dashboard naar de KPI-naam van het betrouwbaarheidsoordeel.
+ *
+ * Dit scherm noemt de conversiekaart `results` en de kostenkaart
+ * `costPerResult`, omdat het beide verdienmodellen bedient met één opmaak. Het
+ * oordeel uit max-marketing-os is specifieker: `leads` of `purchases`, `cpl` of
+ * `cpa`. Zonder deze vertaling bleven precies de twee kaarten die het meest
+ * misleiden ongemarkeerd -- het aantal conversies en de prijs ervan.
+ */
+function oordeelSleutel(key, model) {
+  const ecommerce = model === 'ecommerce';
+  if (key === 'results') return ecommerce ? 'purchases' : 'leads';
+  if (key === 'costPerResult') return ecommerce ? 'cpa' : 'cpl';
+  return key;
+}
+
+/**
+ * Markeert een onbruikbare KPI, met de uitleg maar één keer.
+ *
+ * Bij Whoon zijn leads, kosten per lead en conversieratio alle drie
+ * betekenisloos om dezelfde reden. Drie kaarten met woordelijk dezelfde alinea
+ * is geen nadruk maar ruis: dan leest niemand hem meer. De eerste kaart draagt
+ * de reden, de rest een korte markering.
+ */
+function markeerOnbruikbaar(key, model, label) {
+  const reden = redenVoor(oordeelSleutel(key, model));
+  if (!reden) return null;
+  const bestaand = getoondeRedenen.get(reden) ?? [];
+  getoondeRedenen.set(reden, [...bestaand, label]);
+  return reden;
+}
+
+/** De uitleg onder de rij: welke cijfers, en waarom niet bruikbaar. */
+function onbruikbaarUitleg() {
+  if (!getoondeRedenen.size) return '';
+  return [...getoondeRedenen.entries()].map(([reden, labels]) => `
+    <p class="kpi-band-voorbehoud" role="note">
+      <strong>${esc(lijstZin(labels))} ${labels.length === 1 ? 'is' : 'zijn'} op dit account niet bruikbaar.</strong>
+      ${esc(reden)}
+    </p>`).join('');
+}
+
+/** "A, B en C" -- want "A, B, C" leest als een opsomming die nog doorgaat. */
+function lijstZin(woorden) {
+  if (woorden.length <= 1) return woorden[0] ?? '';
+  return `${woorden.slice(0, -1).join(', ')} en ${woorden.at(-1)}`;
+}
+
+/**
+ * Welke redenen al op dit scherm staan. Per render leeggemaakt, want anders
+ * zou een tweede bezoek aan dezelfde pagina de uitleg helemaal weglaten.
+ */
+const getoondeRedenen = new Map();
+
 function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafiekId = null, actief = 'spend', resultLabel = null } = {}) {
+  getoondeRedenen.clear();
   const deltas = adDeltas(dashboard, totaal, { vergelijkingActief: vergelijking ? vergelijking.actief : true });
   // Het label staat op het platformblok, niet op zijn totalen. Zonder deze
   // doorgifte zeggen de kaarten "Resultaat" terwijl de tabel eronder "Leads"
@@ -281,6 +382,13 @@ function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafie
     kpiDelta(label, raw == null ? 'Niet te berekenen' : FMT[opmaak](raw), deltas[key], {
       sparkData: metriekReeks(dagreeks, key), tip: tip === false ? null : (tip ?? key),
       metric: grafiekId ? key : null, grafiekId, actief: key === actief,
+      // Het voorbehoud hoort bij het cijfer, niet op een aparte pagina. Bij
+      // Whoon zijn CPA en conversieratio in Supabase als betekenisloos
+      // vastgelegd; zonder dit staan ze hier alsof ze kloppen.
+      //
+      // De uitleg staat één keer. Drie kaarten naast elkaar met woordelijk
+      // dezelfde alinea is geen nadruk maar ruis, en dan leest niemand hem meer.
+      voorbehoud: markeerOnbruikbaar(key, dashboard?.model, label),
     });
 
   const kaarten = [
@@ -309,7 +417,10 @@ function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafie
   const hint = grafiekId
     ? '<p class="kpi-band-hint muted">Tik of klik op een kaart om die in de grafiek hieronder te zien.</p>'
     : '';
-  return `${hint}<div class="kpi-row simpel-kpi">${kaarten.join('')}</div>`;
+  // De kaarten eerst opbouwen, dan pas de uitleg: die weet dan welke cijfers
+  // gemarkeerd zijn en kan ze bij naam noemen.
+  const rij = `<div class="kpi-row simpel-kpi">${kaarten.join('')}</div>`;
+  return `${hint}${rij}${onbruikbaarUitleg()}`;
 }
 
 /* ---------------------------------------------------------------
@@ -551,17 +662,21 @@ function renderOverzichtView(dashboard, platforms, vergelijking) {
   const campagnes = alleCampagnes(platforms).slice(0, 8);
   const dagreeks = gecombineerdeReeks(platforms);
   const actiefMetriek = actieveTrendMetriek({ kaartKeys: kpiMetriekKeys(dashboard.model) });
+  // Een donut met één segment is geen verdeling maar een cirkel. Pouw draait
+  // alleen op Google; dan neemt de trendgrafiek de volle breedte.
+  const meerdereKanalen = trendPlatforms(platforms).length > 1;
 
   return `
-    ${simpelKop('Meta & Google Ads', dashboard, platforms, { vergelijking })}
+    ${simpelKop(platformTitel(platforms), dashboard, platforms, { vergelijking })}
     <h2 class="visueel-verborgen">Kerncijfers</h2>
     ${kpiBandDelta(dashboard, totaal, dagreeks, vergelijking, { grafiekId: 'simpel-trend-overzicht', actief: actiefMetriek })}
     <h2 class="visueel-verborgen">Verdeling en ontwikkeling</h2>
     <div class="dash-rij">
-      <div class="dash-col" style="--span:5">
+      ${meerdereKanalen
+    ? `<div class="dash-col" style="--span:5">
         ${figure('simpel-donut-split', 'Verdeling uitgaven', 'Aandeel van Meta en Google in het budget.', platformSplitTabel(platforms, rlabel), trendBron(platforms), 240)}
-      </div>
-      <div class="dash-col" style="--span:7">
+      </div>` : ''}
+      <div class="dash-col" style="--span:${meerdereKanalen ? 7 : 12}">
         ${trendMetriekFiguur('simpel-trend-overzicht', platforms, { titel: 'Ontwikkeling per dag', dashboard, vergelijking, toonSwitcher: false, actief: actiefMetriek })}
       </div>
     </div>

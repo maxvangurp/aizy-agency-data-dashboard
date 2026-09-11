@@ -9,6 +9,7 @@
  */
 
 import { fmt } from '../views/components.js';
+import { isOnbetrouwbaar, redenVoor } from './kpi-betrouwbaarheid.js';
 import { combineerTotalen, alleCampagnes, adDeltas, perWeekdag, adSegmenten, gecombineerdeReeks, reeksIsDagelijks } from './ads-data.js';
 import { toonKorteDatum } from '../filters/period.js';
 
@@ -329,9 +330,255 @@ export function bouwAdInzichten(dashboard, platforms, vergelijking = null) {
     });
   }
 
+  /* 8. Scheve verdeling: een campagne die veel meer budget krijgt dan resultaat
+        oplevert. Dit is de scherpste vraag in performance marketing -- niet "wat
+        kost een lead" maar "waar gaat het geld heen tegenover wat het oplevert".
+
+        In verhouding en niet in procentpunten. Procentpunten hangen aan het
+        aantal campagnes: bij zesenzeventig campagnes kan geen enkele een gat
+        van vijftien punten halen, bij vijf kan bijna elke dat. Gemeten over de
+        hele portefeuille scheidt de verhouding wel: Aizy, Natuurproduct en
+        Pouw zitten op 1,0 tot 1,1 keer, terwijl Eikenmeubels op 5, Waltmann op
+        11, MOEVS op 13 en Whoon op 15 staat. Drie keer is de grens waar de
+        gezonde accounts ophouden en de scheve beginnen.
+
+        De ondergrens van vijf procentpunten staat er los van: een campagne met
+        1% budget en 0,2% resultaat is drie keer scheef en een rekenfout waard,
+        geen aanbeveling. */
+  if (totaal.results >= 10 && totaal.spend > 0) {
+    const scheef = campagnes
+      .filter((c) => (c.spend ?? 0) / totaal.spend >= 0.08)
+      .map((c) => ({
+        c,
+        budget: ((c.spend ?? 0) / totaal.spend) * 100,
+        resultaat: ((c.results ?? 0) / totaal.results) * 100,
+      }))
+      .map((x) => ({ ...x, gat: x.budget - x.resultaat, keer: x.resultaat > 0 ? x.budget / x.resultaat : Infinity }))
+      .sort((a, b) => b.keer - a.keer)[0];
+
+    if (scheef && scheef.keer >= 3 && scheef.gat >= 5) {
+      inzichten.push({
+        _gewicht: 95 + scheef.gat,
+        sleutel: `scheef-budget:${slug(scheef.c.name)}`,
+        categorie: 'aandachtspunt',
+        betrouwbaarheid: betrouwbaarheidVanVolume(totaal.results),
+        titel: `${scheef.c.name} krijgt meer budget dan het oplevert`,
+        samenvatting: scheef.resultaat > 0
+          ? `Deze campagne krijgt ${scheef.budget.toFixed(0)}% van het budget en levert ${scheef.resultaat.toFixed(0)}% van de ${meervoud}: ${scheef.keer.toFixed(1)} keer zoveel budget als resultaat.`
+          : `Deze campagne krijgt ${scheef.budget.toFixed(0)}% van het budget en levert geen enkele ${enkel}.`,
+        bewijs: [
+          { label: 'Aandeel budget', waarde: `${scheef.budget.toFixed(1)}% (${fmt.euro(scheef.c.spend)})` },
+          { label: `Aandeel ${meervoud}`, waarde: `${scheef.resultaat.toFixed(1)}% (${fmt.getal(scheef.c.results)})` },
+          { label: 'Verhouding', waarde: scheef.resultaat > 0 ? `${scheef.keer.toFixed(1)}x meer budget dan resultaat` : 'geen resultaat' },
+        ],
+        actie: 'Verschuif budget naar de campagnes die wel leveren, of zoek uit waarom deze achterblijft.',
+      });
+    }
+  }
+
+  /* 9. Resultaatconcentratie: uit hoeveel campagnes komt het leeuwendeel?
+        Iets anders dan budgetconcentratie. Een account waar tachtig procent van
+        de leads uit twee van de zesentwintig campagnes komt, is kwetsbaar: valt
+        er een weg, dan valt de helft weg. */
+  const opResultaat = campagnes.filter((c) => (c.results ?? 0) > 0)
+    .sort((a, b) => (b.results ?? 0) - (a.results ?? 0));
+  if (campagnes.length >= 5 && totaal.results >= 10) {
+    let opgeteld = 0;
+    let nodig = 0;
+    for (const c of opResultaat) {
+      opgeteld += c.results ?? 0;
+      nodig += 1;
+      if (opgeteld >= totaal.results * 0.8) break;
+    }
+    // Drie of minder campagnes voor tachtig procent van het resultaat, terwijl
+    // er acht of meer draaien. Als aandeel uitdrukken werkt niet: bij een klein
+    // account is "80% uit 1 van de 5" gewoon hoe advertenties werken. Het gaat
+    // om het verschil tussen wat je draait en wat er levert -- Pouw heeft
+    // zesentwintig campagnes waarvan er drie alles dragen, en dat is een
+    // afhankelijkheid die je niet ziet aan het totaal.
+    if (nodig > 0 && nodig <= 3 && campagnes.length >= 8) {
+      inzichten.push({
+        _gewicht: 70,
+        sleutel: `resultaatconcentratie:${nodig}`,
+        categorie: 'aandachtspunt',
+        betrouwbaarheid: betrouwbaarheidVanVolume(totaal.results),
+        titel: `80% van de ${meervoud} komt uit ${nodig} van de ${campagnes.length} campagnes`,
+        samenvatting: `Valt een van deze ${nodig === 1 ? 'campagne' : 'campagnes'} weg, dan verdwijnt een groot deel van het resultaat in één keer.`,
+        bewijs: opResultaat.slice(0, nodig).map((c) => ({
+          label: c.name,
+          waarde: `${fmt.getal(c.results)} ${meervoud} · ${fmt.euro(c.spend)}`,
+        })),
+        actie: 'Bouw een tweede bron van resultaat op, of houd deze campagnes extra in de gaten.',
+      });
+    }
+  }
+
+  /* 10. Loopt de prijs per resultaat op binnen deze periode?
+         Dit is iets anders dan de vergelijking met de vorige periode: die ziet
+         een sprong, dit ziet een richting. Een account dat elke week iets duurder
+         wordt valt in geen enkele week-op-week-vergelijking op, en over een
+         kwartaal is het het verschil tussen winst en verlies. */
+  const dagreeks = gecombineerdeReeks(platforms);
+  if (reeksIsDagelijks(dagreeks) && dagreeks.length >= 28) {
+    const helft = Math.floor(dagreeks.length / 2);
+    const vat = (rijen) => rijen.reduce(
+      (a, r) => ({ spend: a.spend + (r.spend ?? 0), results: a.results + (r.results ?? 0) }),
+      { spend: 0, results: 0 }
+    );
+    const eerst = vat(dagreeks.slice(0, helft));
+    const laatst = vat(dagreeks.slice(helft));
+
+    // Tien resultaten per helft: daaronder springt de prijs per resultaat van
+    // toeval aan elkaar en zegt een richting niets.
+    if (eerst.results >= 10 && laatst.results >= 10) {
+      const cprEerst = eerst.spend / eerst.results;
+      const cprLaatst = laatst.spend / laatst.results;
+      const verandering = ((cprLaatst - cprEerst) / cprEerst) * 100;
+
+      if (Math.abs(verandering) >= 20) {
+        const duurder = verandering > 0;
+        inzichten.push({
+          _gewicht: 85,
+          sleutel: 'prijsrichting',
+          categorie: duurder ? 'aandachtspunt' : 'kans',
+          betrouwbaarheid: betrouwbaarheidVanVolume(Math.min(eerst.results, laatst.results)),
+          titel: `De prijs per ${enkel} is binnen deze periode ${duurder ? 'opgelopen' : 'gedaald'}`,
+          samenvatting: `In de eerste helft betaalde je ${fmt.euro2(cprEerst)} per ${enkel}, in de tweede helft ${fmt.euro2(cprLaatst)} (${verandering >= 0 ? '+' : ''}${verandering.toFixed(0)}%). Dat is een richting, geen losse uitschieter.`,
+          bewijs: [
+            { label: `Eerste ${helft} dagen`, waarde: `${fmt.euro(eerst.spend)} · ${fmt.getal(eerst.results)} ${meervoud} · ${fmt.euro2(cprEerst)}/${enkel}` },
+            { label: `Laatste ${dagreeks.length - helft} dagen`, waarde: `${fmt.euro(laatst.spend)} · ${fmt.getal(laatst.results)} ${meervoud} · ${fmt.euro2(cprLaatst)}/${enkel}` },
+          ],
+          actie: duurder
+            ? 'Kijk of de concurrentie is toegenomen, of dat er campagnes bij zijn gekomen die duurder leveren.'
+            : 'Zoek uit wat er beter ging en of dat te herhalen is; overweeg meer budget zolang het houdt.',
+        });
+      }
+    }
+  }
+
+  /* 11. Loopt de klikprijs op binnen deze periode?
+         Dit werkt op elk account, ook waar de conversiemeting stuk is: spend en
+         klikken komen van het platform zelf en overleven elke conversieopzet.
+         Juist daar is het waardevol -- als er niets over kosten per lead te
+         zeggen valt, is de klikprijs het enige wat nog richting geeft.
+
+         Twintig procent gemeten over de portefeuille: onder die grens zitten de
+         rustige accounts (Aizy -2%, Natuurproduct +3%, Vitrinemasters +8%),
+         erboven de echte bewegingen (Waltmann -45%, Pouw +161%). */
+  if (reeksIsDagelijks(dagreeks) && dagreeks.length >= 28) {
+    const helft2 = Math.floor(dagreeks.length / 2);
+    const vatKlik = (rijen) => rijen.reduce(
+      (a, r) => ({ spend: a.spend + (r.spend ?? 0), clicks: a.clicks + (r.clicks ?? 0) }),
+      { spend: 0, clicks: 0 }
+    );
+    const e2 = vatKlik(dagreeks.slice(0, helft2));
+    const l2 = vatKlik(dagreeks.slice(helft2));
+
+    // Honderd klikken per helft: daaronder is een klikprijs een gemiddelde van
+    // te weinig om een richting uit te lezen.
+    if (e2.clicks >= 100 && l2.clicks >= 100) {
+      const cpcE = e2.spend / e2.clicks;
+      const cpcL = l2.spend / l2.clicks;
+      const verschil = ((cpcL - cpcE) / cpcE) * 100;
+
+      if (Math.abs(verschil) >= 20) {
+        const duurder = verschil > 0;
+        inzichten.push({
+          _gewicht: 80,
+          sleutel: 'klikprijsrichting',
+          categorie: duurder ? 'aandachtspunt' : 'kans',
+          betrouwbaarheid: 'hoog',
+          titel: `De klikprijs is binnen deze periode ${duurder ? 'opgelopen' : 'gedaald'}`,
+          samenvatting: `Van ${fmt.euro2(cpcE)} naar ${fmt.euro2(cpcL)} per klik (${verschil >= 0 ? '+' : ''}${verschil.toFixed(0)}%). Klikken en uitgaven komen van het platform zelf, dus dit staat los van hoe de conversies zijn ingericht.`,
+          bewijs: [
+            { label: `Eerste ${helft2} dagen`, waarde: `${fmt.euro(e2.spend)} · ${fmt.getal(e2.clicks)} klikken · ${fmt.euro2(cpcE)}` },
+            { label: `Laatste ${dagreeks.length - helft2} dagen`, waarde: `${fmt.euro(l2.spend)} · ${fmt.getal(l2.clicks)} klikken · ${fmt.euro2(cpcL)}` },
+          ],
+          actie: duurder
+            ? 'Kijk of er concurrentie bij is gekomen of dat er duurdere zoekwoorden of doelgroepen zijn toegevoegd.'
+            : 'Ga na wat er goedkoper werd; als het aan de kwaliteit ligt is er ruimte voor meer volume.',
+        });
+      }
+    }
+  }
+
+  /* 12. Een campagne die zijn publiek niet raakt.
+         Ook dit is platformdata. Een doorklikratio ver onder de mediaan betekent
+         dat de advertentie niet aansluit bij wie hem ziet -- ongeacht wat er
+         daarna gebeurt. Gemeten over de portefeuille zit de staart op 0,07 tot
+         0,25 keer de mediaan; een derde is de grens waaronder het geen spreiding
+         meer is maar een mismatch. */
+  const metCtr = campagnes.filter((c) => (c.impressions ?? 0) >= 1000 && c.ctr != null);
+  if (metCtr.length >= 4 && totaal.spend > 0) {
+    const medCtr = mediaan(metCtr.map((c) => c.ctr));
+    const achter = metCtr
+      .filter((c) => (c.spend ?? 0) / totaal.spend >= 0.03)
+      .sort((a, b) => a.ctr - b.ctr)[0];
+
+    if (achter && medCtr > 0 && achter.ctr / medCtr <= 0.35) {
+      inzichten.push({
+        _gewicht: 75,
+        sleutel: `ctr-achterblijver:${slug(achter.name)}`,
+        categorie: 'aandachtspunt',
+        betrouwbaarheid: 'hoog',
+        titel: `${achter.name} wordt gezien maar niet aangeklikt`,
+        samenvatting: `Deze campagne haalt ${achter.ctr.toFixed(2)}% doorklikratio terwijl de mediaan van dit account op ${medCtr.toFixed(2)}% ligt. De advertentie sluit niet aan bij wie hem te zien krijgt.`,
+        bewijs: [
+          { label: achter.name, waarde: `${fmt.getal(achter.impressions)} vertoningen · ${fmt.getal(achter.clicks)} klikken · ${achter.ctr.toFixed(2)}%` },
+          { label: 'Mediaan van dit account', waarde: `${medCtr.toFixed(2)}%` },
+          { label: 'Uitgaven', waarde: fmt.euro(achter.spend) },
+        ],
+        actie: 'Herzie de advertentietekst of de doelgroep; vertoningen zonder klikken kosten geld en leveren niets.',
+      });
+    }
+  }
+
   inzichten.sort((a, b) => (b._gewicht ?? 0) - (a._gewicht ?? 0));
-  const opgeschoond = inzichten.map(({ _gewicht, ...rest }) => rest);
+  const opgeschoond = zonderOnmeetbare(inzichten.map(({ _gewicht, ...rest }) => rest), dashboard, totaal);
   return { primair: opgeschoond.slice(0, 3), aanvullend: opgeschoond.slice(3) };
+}
+
+/**
+ * Inzichten die op de conversiemaat leunen, waar die maat niets betekent.
+ *
+ * Bij Pouw telt geen enkele conversieactie mee, dus staat het aantal leads
+ * doorgestreept bovenaan de pagina. Daaronder stonden vervolgens drie
+ * aanbevelingen die precies dat cijfer als argument gebruikten: "deze campagne
+ * kost 732 euro per lead". Dat is niet alleen nutteloos maar tegenstrijdig --
+ * hetzelfde scherm zegt dan dat het getal niets betekent en dat je er iets aan
+ * moet doen.
+ *
+ * Ze verdwijnen niet zonder uitleg: er komt één inzicht voor in de plaats dat
+ * zegt waarom de rest ontbreekt. Dat is de eigenlijke bevinding.
+ */
+const LEUNT_OP_CONVERSIE = [
+  'verspild-budget', 'campagne-goedkoop', 'campagne-duur', 'weekdag',
+  'ctr-conversie', 'apparaat', 'plaatsing', 'regio',
+  'scheef-budget', 'resultaatconcentratie', 'prijsrichting',
+];
+
+function zonderOnmeetbare(inzichten, dashboard, totaal) {
+  const soort = dashboard?.model === 'ecommerce' ? 'cpa' : 'cpl';
+  if (!isOnbetrouwbaar(soort)) return inzichten;
+
+  const weg = inzichten.filter((i) => LEUNT_OP_CONVERSIE.some((p) => String(i.sleutel).startsWith(p)));
+  if (!weg.length) return inzichten;
+
+  const blijft = inzichten.filter((i) => !weg.includes(i));
+  const enkel = resultEnkelvoud(dashboard?.model);
+  return [{
+    sleutel: 'conversiemeting-ontbreekt',
+    categorie: 'aandachtspunt',
+    betrouwbaarheid: 'hoog',
+    titel: `Er valt niets te zeggen over kosten per ${enkel}`,
+    samenvatting: `${weg.length} ${weg.length === 1 ? 'aanbeveling is' : 'aanbevelingen zijn'} weggelaten omdat ze op de conversiemeting leunen, en die meet op dit account niets. `
+      + `${redenVoor(soort) ?? ''}`.trim(),
+    bewijs: [
+      { label: 'Uitgaven in deze periode', waarde: fmt.euro(totaal?.spend ?? 0) },
+      { label: 'Weggelaten aanbevelingen', waarde: String(weg.length) },
+    ],
+    actie: 'Zet in het advertentieaccount de juiste conversieactie op primair; zonder dat is er niets om op te sturen.',
+  }, ...blijft];
 }
 
 /**
