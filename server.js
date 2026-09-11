@@ -657,6 +657,78 @@ app.get('/api/clients/live', async (req, res) => {
  * fout in de console en ziet eruit alsof er iets stuk is, terwijl niet elke
  * klant op Meta adverteert -- Pouw en 123Watches.de bijvoorbeeld niet.
  */
+/**
+ * Doorsnedes van dezelfde uitgaven: per apparaat en per plaatsing.
+ *
+ * Uit `segment_performance`, een aparte tabel omdat een segmentrij dezelfde
+ * euro beschrijft als de campagnerij die erbij hoort. Optellen bij
+ * `performance_snapshots` telt elk bedrag twee keer; zie migratie 017.
+ *
+ * Het platform gaat mee per rij en wordt hier niet weggeteld. Google zegt
+ * "Mobiel", Meta zegt "Mobiele app" en "Mobiel web" -- dat zijn verschillende
+ * woordenlijsten omdat ze verschillende dingen meten. Ze op naam samenvoegen
+ * zou een verdeling opleveren die geen van beide platforms herkent.
+ */
+app.get('/api/segments', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+  const vormfout = supabase.sleutelProbleem();
+  if (vormfout) return res.status(503).json({message: vormfout});
+
+  const gevraagd = String(req.query.client || '').trim();
+  if (!gevraagd) return res.status(400).json({message: 'Parameter `client` ontbreekt.'});
+
+  try {
+    const sb = supabase.maakSupabase();
+    const klanten = await sb.lees('clients', {kolommen: 'id,slug'});
+    const klant = klanten.find((c) => c.slug === gevraagd || c.id === gevraagd);
+    if (!klant) return res.status(404).json({message: 'Onbekende klant "' + gevraagd + '".'});
+
+    const filters = {client_id: klant.id};
+    if (req.query.since) filters.snapshot_date = 'gte.' + req.query.since;
+
+    const rijen = await sb.lees('segment_performance', {
+      kolommen: 'platform,dimension,dimension_value,snapshot_date,spend,impressions,clicks,conversions_primary,revenue',
+      filters,
+    });
+    const binnen = req.query.until
+      ? rijen.filter((r) => String(r.snapshot_date) <= String(req.query.until))
+      : rijen;
+
+    // Optellen over de dagen; de pagina toont een verdeling over de periode.
+    const perSleutel = new Map();
+    for (const r of binnen) {
+      const sleutel = `${r.dimension}|${r.dimension_value}|${r.platform}`;
+      const som = perSleutel.get(sleutel) ?? {
+        dimension: r.dimension, name: r.dimension_value, platform: r.platform,
+        spend: 0, impressions: 0, clicks: 0, results: 0, revenue: 0,
+      };
+      som.spend += Number(r.spend ?? 0);
+      som.impressions += Number(r.impressions ?? 0);
+      som.clicks += Number(r.clicks ?? 0);
+      som.results += Number(r.conversions_primary ?? 0);
+      som.revenue += Number(r.revenue ?? 0);
+      perSleutel.set(sleutel, som);
+    }
+
+    const dimensies = {};
+    for (const rij of perSleutel.values()) {
+      (dimensies[rij.dimension] ??= []).push({
+        ...rij, spend: Math.round(rij.spend * 100) / 100, results: Math.round(rij.results * 100) / 100,
+      });
+    }
+    for (const lijst of Object.values(dimensies)) lijst.sort((a, b) => b.spend - a.spend);
+
+    return res.json({aanwezig: binnen.length > 0, dimensies});
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
+});
+
 app.get('/api/meta/insights', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
   if (ontbreekt.length) {

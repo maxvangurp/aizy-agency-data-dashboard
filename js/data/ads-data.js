@@ -30,14 +30,18 @@ export async function haalAdsPlatforms(dashboard, filters) {
   const q = periodeQuery(filters);
   const clientId = encodeURIComponent(dashboard.client.id);
 
-  const [meta, google] = await Promise.all([
+  const [meta, google, segmenten] = await Promise.all([
     fetchResource(`/api/meta/insights?client=${clientId}&${q}`, () => metaInsightsSample(dashboard)),
     fetchResource(`/api/google-ads/campaigns?client=${clientId}&${q}`, () => googleCampagnesSample(dashboard)),
+    // Doorsnedes hebben geen voorbeeldvariant: die staan al in `dashboard.profiel`.
+    // Lukt het ophalen niet, dan blijft dit null en valt adSegmenten terug.
+    fetchResource(`/api/segments?client=${clientId}&${q}`, () => null),
   ]);
 
   return {
     meta: meta.data ?? null,
     google: google.data ?? null,
+    segmenten: segmenten.data ?? null,
     status: { meta: meta.status, google: google.status },
     demodata: meta.status === DataStatus.SAMPLE || google.status === DataStatus.SAMPLE,
   };
@@ -249,23 +253,49 @@ function metAandeel(rijen) {
  * uit de gecombineerde dagreeks. Ontbrekende segmenten leveren een lege lijst,
  * die de view netjes wegvalt.
  */
+/**
+ * Doorsnedes uit `/api/segments`, in de vorm die de Segmenten-pagina leest.
+ *
+ * Het platform blijft in de naam staan zodra een segmentnaam bij meer dan één
+ * platform voorkomt. Google zegt "Mobiel", Meta zegt "Mobiele app" en "Mobiel
+ * web"; alleen "Desktop" bestaat bij allebei, en twee regels Desktop zonder
+ * uitleg leest als een fout.
+ */
+function liveSegmenten(platforms, dimensie) {
+  const rijen = platforms?.segmenten?.dimensies?.[dimensie] ?? [];
+  if (!rijen.length) return null;
+
+  const perNaam = new Map();
+  for (const r of rijen) perNaam.set(r.name, (perNaam.get(r.name) ?? 0) + 1);
+  const label = (r) => (perNaam.get(r.name) > 1 ? `${r.name} (${r.platform.replace('-ads', '')})` : r.name);
+
+  return metAandeel(rijen.map((r) => ({
+    name: label(r), spend: r.spend ?? null, clicks: r.clicks ?? null, users: null, results: r.results ?? 0,
+  })));
+}
+
 export function adSegmenten(dashboard, platforms) {
   const profiel = dashboard.profiel ?? {};
   const rlabel = platforms?.meta?.resultLabel ?? platforms?.google?.resultLabel ?? 'Resultaat';
 
-  const devices = dashboard.model === 'ecommerce'
+  // Echte doorsnedes gaan voor; de voorbeelddata blijft de bron voor de
+  // voorbeeldklant, die niet in Supabase staat.
+  const live = liveSegmenten(platforms, 'device');
+  const plaatsingen = liveSegmenten(platforms, 'placement');
+
+  const devices = live ?? (dashboard.model === 'ecommerce'
     ? metAandeel((profiel.googleAds?.apparaten ?? []).map((a) => ({
         name: a.apparaat, spend: a.kosten ?? null, clicks: a.klikken ?? null, users: null, results: a.conversies ?? 0,
       })))
     : metAandeel((profiel.verdelingen?.apparaten ?? []).map((a) => ({
         name: a.apparaat, spend: null, clicks: null, users: a.gebruikers ?? null, results: a.leads ?? 0,
-      })));
+      }))));
 
   const regios = metAandeel((profiel.verdelingen?.regios ?? []).map((r) => ({
     name: r.regio, spend: null, clicks: null, users: r.gebruikers ?? null, results: r.leads ?? 0,
   })));
 
-  return { devices, regios, weekdagen: perWeekdag(platforms), rlabel };
+  return { devices, regios, plaatsingen: plaatsingen ?? [], weekdagen: perWeekdag(platforms), rlabel };
 }
 
 /** Alle campagnes over beide platforms, gesorteerd op spend (voor de tabel). */

@@ -797,6 +797,31 @@ function renderSegmentenView(dashboard, platforms, vergelijking) {
         <div class="dash-col" style="--span:7"><section class="card"><h2>Per apparaat</h2><div class="table-scroll">${apparaatTabel}</div>${segmentInzicht(seg.devices, rlabel, 'apparaat')}</section></div>
       </div>` : '';
 
+  // Plaatsing is een Meta-begrip (Facebook, Instagram, Audience Network) en
+  // heeft geen Google-tegenhanger. Daarom een eigen blok en niet samengevoegd
+  // met apparaat: dat zijn twee doorsnedes van dezelfde euro's, en naast elkaar
+  // in één tabel zetten zou suggereren dat je ze kunt optellen.
+  const plaatsingen = seg.plaatsingen ?? [];
+  const plaatsingTabel = tabel(
+    ['Plaatsing', getalKolom('Uitgaven'), getalKolom(rlabel), getalKolom('Aandeel')],
+    plaatsingen.map((pl) => [
+      esc(pl.name), fmt.euro(pl.spend), fmt.getal(pl.results),
+      pl.aandeel == null ? '\u2014' : fmt.procent(pl.aandeel),
+    ]),
+  );
+  const plaatsing = plaatsingen.length
+    ? '<div class="dash-rij">'
+      + '<div class="dash-col" style="--span:5">'
+      + figure('simpel-donut-plaatsing', 'Plaatsing',
+        'Verdeling van ' + rlabel.toLowerCase() + ' over de plaatsingen van Meta.',
+        plaatsingTabel, 'Meta Marketing API', 240)
+      + '</div>'
+      + '<div class="dash-col" style="--span:7"><section class="card"><h2>Per plaatsing</h2>'
+      + '<div class="table-scroll">' + plaatsingTabel + '</div>'
+      + segmentInzicht(plaatsingen, rlabel, 'plaatsing')
+      + '</section></div></div>'
+    : '';
+
   const regio = seg.regios.length
     ? figure('simpel-bar-regio', 'Regio', `${rlabel} per regio.`,
         tabel(['Regio', getalKolom('Gebruikers'), getalKolom(rlabel), getalKolom('Aandeel')],
@@ -818,16 +843,26 @@ function renderSegmentenView(dashboard, platforms, vergelijking) {
     ${simpelKop('Segmenten', dashboard, platforms, { vergelijking })}
     <h2 class="visueel-verborgen">Segmentanalyse</h2>
     ${apparaat}
+    ${plaatsing}
     ${seg.regios.length ? `<div class="dash-rij"><div class="dash-col" style="--span:6">${regio}</div><div class="dash-col" style="--span:6">${weekdag}</div></div>` : weekdag}
     ${leeg}
   `;
 }
 
 /** Kort één-regel-inzicht onder een segmenttabel (grootste segment). */
+/**
+ * Het lidwoord hoort bij het woord, niet bij de zin.
+ *
+ * "het grootste apparaat" en "de grootste plaatsing": Nederlandse geslachten
+ * zijn niet af te leiden, dus ze staan hier. Onbekend valt terug op "het",
+ * want dat is bij samenstellingen vaker goed dan fout.
+ */
+const LIDWOORD = { apparaat: 'het', plaatsing: 'de', regio: 'de', kanaal: 'het' };
+
 function segmentInzicht(rijen, rlabel, soort) {
   const top = [...rijen].filter((r) => r.results > 0).sort((a, b) => b.results - a.results)[0];
   if (!top || top.aandeel == null) return '';
-  return `<p class="muted klein segment-inzicht">${esc(top.name)} is het grootste ${soort}: ${fmt.procent(top.aandeel)} van de ${esc(rlabel.toLowerCase())}.</p>`;
+  return `<p class="muted klein segment-inzicht">${esc(top.name)} is ${LIDWOORD[soort] ?? 'het'} grootste ${soort}: ${fmt.procent(top.aandeel)} van de ${esc(rlabel.toLowerCase())}.</p>`;
 }
 
 /* ---------- View 7: Trends ---------- */
@@ -1274,6 +1309,13 @@ export function drawSimpelCharts({ dashboard, platforms, view = 'simpel-overzich
     }
   } else if (view === 'simpel-segmenten') {
     const seg = adSegmenten(dashboard, platforms);
+    if ((seg.plaatsingen ?? []).length) {
+      donutChart('simpel-donut-plaatsing', {
+        labels: seg.plaatsingen.map((p) => p.name),
+        data: seg.plaatsingen.map((p) => p.results ?? 0),
+        valueFormatter: (v) => fmt.getal(v),
+      });
+    }
     if (seg.devices.length) {
       donutChart('simpel-donut-devices', {
         labels: seg.devices.map((d) => d.name),
