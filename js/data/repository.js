@@ -23,7 +23,7 @@
  */
 
 import {
-  SAMPLE_CLIENTS, SAMPLE_ALERTS, BusinessModel, BUSINESS_MODEL_LABELS,
+  SAMPLE_ALERTS, BusinessModel, BUSINESS_MODEL_LABELS,
   PRIMAIRE_METRIEK, CUMULATIEVE_DOELEN, DOEL_METRIEK, DOEL_CONVERSIETYPE,
 } from '../sample-data/shared.js';
 import { getEcommerceProfiel, ECOMMERCE_CONVERSIE_CONFIG, ECOMMERCE_CONVERSIE_LABELS } from '../sample-data/ecommerce.js';
@@ -40,6 +40,7 @@ import { dagenInMaand, isVoor, isNa, DATA_VOLLEDIG_TOT } from '../filters/period
 import { berekenDeltas } from './metrics.js';
 import { klantstatusTerm } from '../terminology.js';
 import { bouwKlantInzichten, bepaalPrioriteit } from './insights.js';
+import { huidigeClients } from '../clients-bron.js';
 import {
   selecteerRijen, totalenVoorModel, perKanaal, dagelijkseReeks, verdichtReeks,
   conversieTotalen, bepaalDekking, dekkingMeldingen, DekkingStatus,
@@ -47,7 +48,7 @@ import {
   schaalVerdeling, PacingStatus,
 } from './selectors.js';
 
-const ALLE_CLIENT_IDS = SAMPLE_CLIENTS.map((c) => c.id);
+const alleClientIds = () => huidigeClients().map((c) => c.id);
 
 /* ---------------------------------------------------------------
    Klanten
@@ -58,8 +59,8 @@ const ALLE_CLIENT_IDS = SAMPLE_CLIENTS.map((c) => c.id);
  * Dit is de bron voor de contextwisselaar en voor iedere lijst met klanten.
  */
 export function getAccessibleClients(user) {
-  const toegestaan = new Set(toegankelijkeKlantIds(user, ALLE_CLIENT_IDS));
-  return SAMPLE_CLIENTS.filter((c) => toegestaan.has(c.id));
+  const toegestaan = new Set(toegankelijkeKlantIds(user, alleClientIds()));
+  return huidigeClients().filter((c) => toegestaan.has(c.id));
 }
 
 /**
@@ -70,7 +71,7 @@ export function getAccessibleClients(user) {
  */
 export function getClientById(user, clientId) {
   if (!magKlantZien(user, clientId)) return null;
-  return SAMPLE_CLIENTS.find((c) => c.id === clientId) ?? null;
+  return huidigeClients().find((c) => c.id === clientId) ?? null;
 }
 
 function modelVan(client) {
@@ -116,7 +117,7 @@ export function getGebruiker(userId) {
  * samengevoegd.
  */
 export function getKlantTeam(clientId) {
-  const client = SAMPLE_CLIENTS.find((c) => c.id === clientId);
+  const client = huidigeClients().find((c) => c.id === clientId);
   if (!client) return { primair: null, ondersteunend: [] };
   return {
     primair: getGebruiker(client.primaryOwnerId),
@@ -469,7 +470,7 @@ function beperkFiltersTot(filters, client) {
  */
 export function getAccessibleSignals(user, filters = null) {
   if (!can(user, Permission.VIEW_AGENCY_SIGNALS)) return [];
-  const toegestaan = new Set(toegankelijkeKlantIds(user, ALLE_CLIENT_IDS));
+  const toegestaan = new Set(toegankelijkeKlantIds(user, alleClientIds()));
 
   return SAMPLE_ALERTS.filter((a) => {
     if (!toegestaan.has(a.klantId)) return false;
@@ -1252,7 +1253,7 @@ export function getOrganisatieGebruikers(user, organisatieId) {
 /** Klanten die aan een medewerker kunnen worden toegewezen. */
 export function getToewijsbareKlanten(user) {
   if (!can(user, Permission.MANAGE_CLIENT_ASSIGNMENTS)) return [];
-  return SAMPLE_CLIENTS;
+  return huidigeClients();
 }
 
 export { BUSINESS_MODEL_LABELS, BusinessModel, DATA_VOLLEDIG_TOT, kanaalKeysVan };

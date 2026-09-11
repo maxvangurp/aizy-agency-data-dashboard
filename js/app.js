@@ -78,6 +78,7 @@ import {
   renderPaginatabs, renderDetailpaneel, actieveTab,
 } from './ui/app-shell.js';
 import { renderAssistent } from './ui/assistant.js';
+import { laadEchteClients, clientHerkomst } from './clients-bron.js';
 import * as assistent from './assistant/assistant-controller.js';
 import { bouwAssistantContext } from './assistant/assistant-context.js';
 import { navigatieVoor, actiefItem, KANAALNAMEN, ANALYSE_TABS } from './ui/navigation.js';
@@ -3233,6 +3234,12 @@ async function init() {
     const user = getCurrentUser();
     window.history.replaceState(null, '', user ? standaardRoute(user) : '#/login');
   }
+
+  // De echte klantenlijst moet binnen zijn vóór de eerste render: de router
+  // leest hem meteen, en een lege lijst zou als "geen toegang" ogen.
+  const klanten = await laadEchteClients();
+  if (klanten.melding) console.warn('Klantenlijst:', klanten.melding);
+  console.info(`Klantenlijst: ${klanten.aantal} klanten (${clientHerkomst()})`);
 
   startRouter(render);
   onAuthChange(() => {});

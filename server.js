@@ -534,6 +534,61 @@ app.get('/api/auth/status', (req, res) => {
  * klant volgt een 404 met de beschikbare slugs erbij: "geen data" en
  * "verkeerde naam" horen niet op elkaar te lijken.
  */
+/**
+ * De echte klantenlijst uit Supabase, in de vorm die de frontend verwacht.
+ *
+ * De frontend draait op SAMPLE_CLIENTS: een lijst met verzonnen klanten waar
+ * het hele datamodel op gekoppeld is. Dit endpoint levert de echte klanten in
+ * diezelfde vorm, zodat de contextwisselaar en de advertentiepagina's op
+ * werkelijke accounts gaan draaien zonder dat de dashboardcode verandert.
+ *
+ * Velden die Supabase niet kent -- maandbudget, doelen, trackingstatus --
+ * komen bewust leeg terug in plaats van met een verzonnen waarde. Een
+ * verzonnen budget ziet er in een dashboard precies zo uit als een echt
+ * budget, en dat is het soort fout waar je later niet meer op komt.
+ */
+app.get('/api/clients/live', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+  const vormfout = supabase.sleutelProbleem();
+  if (vormfout) return res.status(503).json({message: vormfout});
+
+  try {
+    const sb = supabase.maakSupabase();
+    const rijen = await sb.lees('clients', {
+      kolommen: 'id,slug,name,business_model,website,countries,languages',
+      order: 'name.asc',
+    });
+
+    return res.json(rijen.filter((r) => r.slug).map((r) => ({
+      // De slug is de sleutel, niet het uuid: daar vraagt de frontend ook mee
+      // om /api/google-ads/campaigns, en zo blijft dat een en dezelfde naam.
+      id: r.slug,
+      name: r.name || r.slug,
+      businessModel: r.business_model || 'leadgen',
+      website: r.website || null,
+      land: Array.isArray(r.countries) && r.countries.length ? r.countries[0] : null,
+      valuta: 'EUR',
+      tijdzone: 'Europe/Amsterdam',
+      primaryOwnerId: null,
+      supportingOwnerIds: [],
+      maandbudget: null,
+      trackingStatus: null,
+      dataHealth: null,
+      scenario: null,
+      bronnen: {},
+      doelen: [],
+      echt: true,
+    })));
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
+});
+
 app.get('/api/google-ads/campaigns', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
   if (ontbreekt.length) {
