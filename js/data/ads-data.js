@@ -261,6 +261,32 @@ function metAandeel(rijen) {
  * web"; alleen "Desktop" bestaat bij allebei, en twee regels Desktop zonder
  * uitleg leest als een fout.
  */
+/**
+ * Boven dit aantal segmenten wordt de staart samengevat.
+ *
+ * Regio heeft een lange staart: een Brabantse meubelzaak krijgt sessies uit
+ * Abu Dhabi en Aksaray, telkens één of twee. Driehonderd regels van één sessie
+ * verbergen de vijf die ertoe doen, en een donut met driehonderd punten is een
+ * gekleurde ring. De staart verdwijnt niet maar wordt één regel, zodat het
+ * totaal blijft kloppen.
+ */
+const MAX_SEGMENTEN = 8;
+
+function vatStaartSamen(rijen, max = MAX_SEGMENTEN) {
+  if (rijen.length <= max) return rijen;
+  const gesorteerd = [...rijen].sort((a, b) => (b.results ?? 0) - (a.results ?? 0) || (b.spend ?? 0) - (a.spend ?? 0));
+  const kop = gesorteerd.slice(0, max - 1);
+  const staart = gesorteerd.slice(max - 1);
+
+  return [...kop, staart.reduce((som, r) => ({
+    ...som,
+    spend: (som.spend ?? 0) + (r.spend ?? 0),
+    clicks: (som.clicks ?? 0) + (r.clicks ?? 0),
+    users: (som.users ?? 0) + (r.users ?? 0),
+    results: (som.results ?? 0) + (r.results ?? 0),
+  }), { name: `Overig (${staart.length})`, spend: 0, clicks: 0, users: 0, results: 0 })];
+}
+
 function liveSegmenten(platforms, dimensie) {
   const rijen = platforms?.segmenten?.dimensies?.[dimensie] ?? [];
   if (!rijen.length) return null;
@@ -269,9 +295,10 @@ function liveSegmenten(platforms, dimensie) {
   for (const r of rijen) perNaam.set(r.name, (perNaam.get(r.name) ?? 0) + 1);
   const label = (r) => (perNaam.get(r.name) > 1 ? `${r.name} (${r.platform.replace('-ads', '')})` : r.name);
 
-  return metAandeel(rijen.map((r) => ({
-    name: label(r), spend: r.spend ?? null, clicks: r.clicks ?? null, users: null, results: r.results ?? 0,
-  })));
+  return metAandeel(vatStaartSamen(rijen.map((r) => ({
+    name: label(r), spend: r.spend ?? null, clicks: r.clicks ?? null,
+    users: r.users ?? null, results: r.results ?? 0,
+  }))));
 }
 
 export function adSegmenten(dashboard, platforms) {
@@ -291,9 +318,10 @@ export function adSegmenten(dashboard, platforms) {
         name: a.apparaat, spend: null, clicks: null, users: a.gebruikers ?? null, results: a.leads ?? 0,
       }))));
 
-  const regios = metAandeel((profiel.verdelingen?.regios ?? []).map((r) => ({
-    name: r.regio, spend: null, clicks: null, users: r.gebruikers ?? null, results: r.leads ?? 0,
-  })));
+  const regios = liveSegmenten(platforms, 'region')
+    ?? metAandeel((profiel.verdelingen?.regios ?? []).map((r) => ({
+      name: r.regio, spend: null, clicks: null, users: r.gebruikers ?? null, results: r.leads ?? 0,
+    })));
 
   return { devices, regios, plaatsingen: plaatsingen ?? [], weekdagen: perWeekdag(platforms), rlabel };
 }
