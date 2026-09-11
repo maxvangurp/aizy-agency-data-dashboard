@@ -615,6 +615,32 @@ app.get('/api/meta/insights', (req, res) => {
   });
 });
 
+/**
+ * Het conversieoordeel over dit account, of null.
+ *
+ * Een ontbrekende tabel is hier geen fout maar een volgorde: migratie 015 van
+ * max-marketing-os maakt hem aan, en tussen het uitrollen van deze code en het
+ * draaien van die migratie hoort het endpoint gewoon te blijven werken. Dan
+ * alleen zonder voorbehoud, en dat zegt het blok ook (`betrouwbaarheid: null`
+ * betekent niet beoordeeld).
+ *
+ * Andere fouten gaan wél door: een 401 op deze tabel betekent dat de sleutel
+ * of de rechten niet kloppen, en dat stilzwijgend als "geen oordeel"
+ * behandelen is precies hoe je een ROAS toont die niets betekent.
+ */
+async function leesBetrouwbaarheid(sb, clientId) {
+  try {
+    const rijen = await sb.lees('client_kpi_reliability', {
+      filters: {client_id: clientId, platform: 'google-ads'},
+      limiet: 1,
+    });
+    return rijen[0] ?? null;
+  } catch (error) {
+    if (/\(404\)/.test(String(error && error.message))) return null;
+    throw error;
+  }
+}
+
 app.get('/api/google-ads/campaigns', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
   if (ontbreekt.length) {
@@ -667,7 +693,13 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
     const campagnes = new Map(campagnerijen.map((c) => [c.id, c]));
 
     return res.json({
-      ...googleBlokVan(binnenPeriode, campagnes, {businessModel: klant.business_model}),
+      ...googleBlokVan(binnenPeriode, campagnes, {
+        businessModel: klant.business_model,
+        // Welke KPI's op dit account betekenis hebben. Ontbreekt de rij, dan is
+        // de conversieopzet niet beoordeeld -- dat is iets anders dan
+        // beoordeeld en goed bevonden, en het blok laat dat verschil zien.
+        betrouwbaarheid: await leesBetrouwbaarheid(sb, klant.id),
+      }),
       granulariteit: gekozen,
     });
   } catch (error) {

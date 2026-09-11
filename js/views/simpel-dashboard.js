@@ -253,7 +253,11 @@ function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafie
   // zet die metriek in de trendgrafiek eronder. De actieve metriek is gemarkeerd.
   const kaart = (key, label, raw, opmaak, { tip } = {}) =>
     kpiDelta(label, raw == null ? 'Niet te berekenen' : FMT[opmaak](raw), deltas[key], {
-      sparkData: metriekReeks(dagreeks, key), tip: tip === false ? null : (tip ?? key),
+      // Geen sparkline onder een waarde die we niet kunnen noemen. De dagreeks
+      // bevat de onderliggende cijfers nog wel, maar een lijn tekenen onder
+      // "Niet te berekenen" maakt van een voorbehoud een weergavefoutje.
+      sparkData: raw == null ? null : metriekReeks(dagreeks, key),
+      tip: tip === false ? null : (tip ?? key),
       metric: grafiekId ? key : null, grafiekId, actief: key === actief,
     });
 
@@ -283,7 +287,43 @@ function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafie
   const hint = grafiekId
     ? '<p class="kpi-band-hint muted">Tik of klik op een kaart om die in de grafiek hieronder te zien.</p>'
     : '';
-  return `${hint}<div class="kpi-row simpel-kpi">${kaarten.join('')}</div>`;
+  return `${hint}<div class="kpi-row simpel-kpi">${kaarten.join('')}</div>${meetvoorbehoud(totaal)}`;
+}
+
+/**
+ * Waarom een kaart hierboven "Niet te berekenen" zegt.
+ *
+ * Zonder deze regel is een lege kaart niet te onderscheiden van een storing,
+ * en gaat iemand de bug zoeken in plaats van de conversieopzet. De API stuurt
+ * het oordeel mee (`betrouwbaarheid`, uit `client_kpi_reliability`); ontbreekt
+ * dat, dan staat hier niets -- niet beoordeeld is iets anders dan beoordeeld
+ * en goed bevonden, en dat mag hier geen geruststelling worden.
+ */
+function meetvoorbehoud(totaal) {
+  const oordeel = totaal?.betrouwbaarheid;
+  if (!oordeel?.onbetrouwbareKpis?.length) return '';
+  const reden = (oordeel.oordelen ?? []).map((o) => o.oordeel).find(Boolean);
+  return `<p class="kpi-band-hint muted">${esc(reden ?? 'De conversieopzet van dit account draagt deze cijfers niet.')}</p>`;
+}
+
+/**
+ * De totalen van één platform, met het voorbehoud van dat platform erbij.
+ *
+ * Het oordeel hangt in het contract aan het blok en niet aan `totals`, zodat
+ * `totals` puur getallen blijft. De KPI-band wil ze allebei, in dezelfde vorm
+ * die `combineerTotalen` oplevert, zodat de band niet hoeft te weten of hij
+ * één platform of de som toont.
+ */
+function platformTotalen(blok) {
+  if (!blok?.totals || !blok.betrouwbaarheid) return blok?.totals;
+  return {
+    ...blok.totals,
+    betrouwbaarheid: {
+      beoordeeld: true,
+      onbetrouwbareKpis: blok.betrouwbaarheid.onbetrouwbareKpis ?? [],
+      oordelen: [blok.betrouwbaarheid],
+    },
+  };
 }
 
 /* ---------------------------------------------------------------
@@ -583,7 +623,7 @@ function renderPlatformView(dashboard, blok, platforms, vergelijking) {
   return `
     ${simpelKop(blok.label, dashboard, platforms, { vergelijking })}
     <h2 class="visueel-verborgen">Kerncijfers</h2>
-    ${kpiBandDelta(dashboard, blok.totals, blok.series ?? [], vergelijking, { grafiekId: 'simpel-trend-platform', actief: actiefMetriek })}
+    ${kpiBandDelta(dashboard, platformTotalen(blok), blok.series ?? [], vergelijking, { grafiekId: 'simpel-trend-platform', actief: actiefMetriek })}
     <h2 class="visueel-verborgen">Ontwikkeling per dag</h2>
     ${trendMetriekFiguur('simpel-trend-platform', enkelPlatform, { titel: 'Ontwikkeling per dag', dashboard, vergelijking, toonSwitcher: false, actief: actiefMetriek })}
     <section class="card">

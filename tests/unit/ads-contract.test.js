@@ -188,3 +188,59 @@ test('kiest dag zodra die het bereik wel dekt', () => {
 test('zonder bereik blijft dag de keuze', () => {
   assert.equal(kiesGranulariteit([{granularity: 'day', snapshot_date: '2026-09-01'}], {}), 'day');
 });
+
+/* --------------------------------------------------- betrouwbaarheid -- */
+
+const {onderdrukOnbetrouwbaar} = require('../../ads-contract');
+
+const NOMINAAL = {
+  assessed_period_start: '2026-09-01',
+  assessed_period_end: '2026-09-07',
+  platform_metrics_reliable: true,
+  conversion_count_reliable: true,
+  conversion_value_reliable: false,
+  unreliable_kpis: ['revenue', 'roas'],
+  verdict: 'Gebruik omzet en ROAS niet zonder de conversieopzet eerst na te lopen.',
+  findings: [{code: 'nominale_conversiewaarde'}],
+};
+
+test('een KPI die niets betekent wordt null, geen getal met twee decimalen', () => {
+  // Whoon: vijftien campagnes op precies 1,00 per conversie. De ROAS van 0,22
+  // die daaruit rolt ziet er precies zo uit als een ROAS die wel iets zegt.
+  const blok = googleBlokVan(SNAPSHOTS, CAMPAGNES, {businessModel: 'ecommerce', betrouwbaarheid: NOMINAAL});
+
+  assert.equal(blok.totals.revenue, null);
+  assert.equal(blok.totals.roas, null);
+  assert.equal(blok.totals.spend, 300, 'uitgaven factureert het platform zelf en blijven staan');
+  assert.equal(blok.totals.results, 15, 'de conversieteller is hier niet in twijfel getrokken');
+  assert.equal(blok.betrouwbaarheid.lagen.conversiewaarde, false);
+  assert.match(blok.betrouwbaarheid.oordeel, /ROAS/);
+});
+
+test('een onbetrouwbare conversieteller neemt ook de kosten per resultaat mee', () => {
+  const blok = googleBlokVan(SNAPSHOTS, CAMPAGNES, {
+    businessModel: 'leadgen',
+    betrouwbaarheid: {...NOMINAAL, conversion_count_reliable: false, unreliable_kpis: ['leads', 'cpl', 'conversieratio']},
+  });
+
+  assert.equal(blok.totals.results, null);
+  assert.equal(blok.totals.costPerResult, null, 'kosten per lead hangt aan dezelfde teller');
+  assert.equal(blok.totals.conversieratio, null);
+  assert.equal(blok.totals.clicks, 300, 'klikken komen van het platform en overleven dit');
+});
+
+test('geen oordeel is niet hetzelfde als een goed oordeel', () => {
+  const blok = googleBlokVan(SNAPSHOTS, CAMPAGNES, {businessModel: 'ecommerce'});
+  assert.equal(blok.betrouwbaarheid, null, 'niet beoordeeld hoort zichtbaar te zijn');
+  assert.equal(blok.totals.roas, 5, 'zonder oordeel verandert er niets aan de cijfers');
+});
+
+test('onderdrukken raakt alleen de genoemde velden en verzint er geen bij', () => {
+  const totals = {spend: 10, clicks: 2, results: 1, revenue: 40, roas: 4};
+  assert.deepEqual(onderdrukOnbetrouwbaar(totals, []), totals);
+  assert.deepEqual(onderdrukOnbetrouwbaar(totals, ['roas']), {...totals, roas: null});
+  assert.deepEqual(
+    onderdrukOnbetrouwbaar(totals, ['onbekende_kpi']), totals,
+    'een naam die het contract niet kent hoort niets stuk te maken'
+  );
+});

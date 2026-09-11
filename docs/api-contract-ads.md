@@ -99,6 +99,38 @@ trendgrafiek en de campagnetabel. De `breakdowns` voeden de per-platform
 deep-dive-pagina's (Google Ads: zoekwoorden + advertentiegroepen; Meta Ads: ad
 sets + placements). Ontbrekende arrays (`[]`) laten de betreffende tabel weg.
 
+### `betrouwbaarheid` — welke KPI's op dit account betekenis hebben
+
+Het platformblok heeft er één veld bij. `null` betekent **niet beoordeeld**;
+dat is iets anders dan beoordeeld en goed bevonden, en het blok laat dat
+verschil zien in plaats van het weg te poetsen.
+
+```jsonc
+"betrouwbaarheid": {
+  "beoordeeld": true,
+  "periode": { "since": "2026-09-01", "until": "2026-09-07" },
+  "lagen": {                   // waar elke KPI aan hangt
+    "platform": true,          // spend, vertoningen, klikken, CTR, CPC — die factureert het platform zelf
+    "conversieteller": true,   // sneuvelt bij zachte conversies
+    "conversiewaarde": false   // sneuvelt bij een nominale waarde
+  },
+  "onbetrouwbareKpis": ["revenue", "roas"],
+  "oordeel": "Gebruik omzet en ROAS niet zonder de conversieopzet eerst na te lopen.",
+  "bevindingen": [{ "code": "nominale_conversiewaarde", "ernst": "hoog", "tekst": "…" }]
+}
+```
+
+De genoemde KPI's staan in `totals` op `null` — niet op `0` en niet weggelaten.
+Het dashboard toont een `null` als "Niet te berekenen" of "—", en dat is het
+eerlijke antwoord: een nul zou eruitzien als een meting en een ontbrekend veld
+als een storing. `combineerTotalen` neemt de **vereniging** van de platformen
+over — een som is nooit betrouwbaarder dan zijn slechtste term — en onder de
+KPI-band staat de reden, zodat een lege kaart niet op een storing lijkt.
+
+Bron: `client_kpi_reliability` in Supabase, geschreven door `sync` en `verwerk`
+in max-marketing-os (migratie 015). Bestaat die tabel nog niet, dan komt
+`betrouwbaarheid` als `null` terug en verandert er niets.
+
 ### Segmenten (apparaat, regio/land, weekdag)
 
 De **Segmenten**-pagina (`#/pulse/segmenten`) bundelt cross-platform segmenten die

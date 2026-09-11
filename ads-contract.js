@@ -73,15 +73,73 @@ function resultLabelVan(businessModel) {
 }
 
 /**
+ * Welke contractvelden sneuvelen bij welke KPI uit `client_kpi_reliability`?
+ *
+ * `unreliable_kpis` gebruikt de namen uit `lib/conversies.js` van
+ * max-marketing-os; het contract gebruikt die van docs/api-contract-ads.md.
+ * Eén tabel in plaats van twee woordenlijsten die uit elkaar gaan lopen.
+ */
+const KPI_NAAR_CONTRACT = {
+  spend: ['spend'], impressions: ['impressions'], clicks: ['clicks'],
+  ctr: ['ctr'], cpc: ['cpc'], cpm: ['cpm'],
+  leads: ['results'], purchases: ['results'],
+  conversieratio: ['conversieratio'],
+  cpl: ['costPerResult'], cpa: ['costPerResult'],
+  revenue: ['revenue'], roas: ['roas'],
+};
+
+/**
+ * Haalt de KPI's weg die op dit account geen betekenis hebben.
+ *
+ * Bij drie van de veertien aangesloten accounts levert de conversieopzet
+ * getallen op waar niets achter zit: vijftien campagnes op precies €1,00 per
+ * conversie is een instelling, geen orderwaarde. De ROAS van 0,22 die daaruit
+ * rolt ziet er precies zo uit als een ROAS die wél iets betekent.
+ *
+ * Null en niet nul, en niet weggelaten: het dashboard toont een null als
+ * "Niet te berekenen" of "—", en dat is het eerlijke antwoord. Een nul zou
+ * eruitzien als een meting en een ontbrekend veld als een storing.
+ */
+function onderdrukOnbetrouwbaar(totals, onbetrouwbareKpis) {
+  if (!totals || !Array.isArray(onbetrouwbareKpis) || onbetrouwbareKpis.length === 0) return totals;
+  const uit = { ...totals };
+  for (const kpi of onbetrouwbareKpis) {
+    for (const veld of KPI_NAAR_CONTRACT[kpi] ?? []) {
+      if (veld in uit) uit[veld] = null;
+    }
+  }
+  return uit;
+}
+
+/** De rij uit `client_kpi_reliability` in de vorm die het contract meegeeft. */
+function betrouwbaarheidVan(rij) {
+  if (!rij) return null;
+  return {
+    beoordeeld: true,
+    periode: { since: rij.assessed_period_start ?? null, until: rij.assessed_period_end ?? null },
+    beoordeeldOp: rij.assessed_at ?? null,
+    lagen: {
+      platform: rij.platform_metrics_reliable !== false,
+      conversieteller: rij.conversion_count_reliable !== false,
+      conversiewaarde: rij.conversion_value_reliable !== false,
+    },
+    onbetrouwbareKpis: Array.isArray(rij.unreliable_kpis) ? rij.unreliable_kpis : [],
+    oordeel: rij.verdict ?? null,
+    bevindingen: Array.isArray(rij.findings) ? rij.findings : [],
+  };
+}
+
+/**
  * Bouwt het Google-platformblok uit de rijen van `performance_snapshots`,
  * verrijkt met de campagnenamen uit `campaigns`.
  *
  * @param {Array<object>} snapshots rijen uit performance_snapshots
  * @param {Map<string, object>} campagnes campaign_id -> campagnerij
- * @param {{businessModel?: string}} opties
+ * @param {{businessModel?: string, betrouwbaarheid?: object}} opties
  */
-function googleBlokVan(snapshots, campagnes = new Map(), { businessModel } = {}) {
+function googleBlokVan(snapshots, campagnes = new Map(), { businessModel, betrouwbaarheid = null } = {}) {
   const rijen = Array.isArray(snapshots) ? snapshots : [];
+  const oordeel = betrouwbaarheidVan(betrouwbaarheid);
   if (rijen.length === 0) {
     return {
       platform: 'google',
@@ -92,6 +150,7 @@ function googleBlokVan(snapshots, campagnes = new Map(), { businessModel } = {})
       series: [],
       campaigns: [],
       breakdowns: { adGroups: [], keywords: [] },
+      betrouwbaarheid: oordeel,
     };
   }
 
@@ -121,10 +180,11 @@ function googleBlokVan(snapshots, campagnes = new Map(), { businessModel } = {})
     label: 'Google Ads',
     aanwezig: true,
     resultLabel: resultLabelVan(businessModel),
-    totals,
+    totals: onderdrukOnbetrouwbaar(totals, oordeel?.onbetrouwbareKpis),
     series: reeksVan(rijen),
     campaigns: campagnesVan(rijen, campagnes),
     breakdowns: { adGroups: [], keywords: [] },
+    betrouwbaarheid: oordeel,
   };
 }
 
@@ -191,4 +251,7 @@ function rond(waarde, decimalen = 2) {
   return Math.round(n * f) / f;
 }
 
-module.exports = { afgeleideRatios, resultLabelVan, googleBlokVan, kiesGranulariteit };
+module.exports = {
+  afgeleideRatios, resultLabelVan, googleBlokVan, kiesGranulariteit,
+  onderdrukOnbetrouwbaar, betrouwbaarheidVan,
+};
