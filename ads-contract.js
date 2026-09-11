@@ -42,8 +42,29 @@ function afgeleideRatios({ spend, impressions, clicks, results, revenue } = {}) 
  * activiteit was, dus ze tellen op tot hetzelfde totaal, en ze leveren een
  * echte dagreeks in plaats van één punt per week.
  */
-function kiesGranulariteit(rijen) {
-  return (rijen ?? []).some((r) => r.granularity === 'day') ? 'day' : 'week';
+function kiesGranulariteit(rijen, periode = {}) {
+  const dagrijen = (rijen ?? []).filter((r) => r.granularity === 'day');
+  if (dagrijen.length === 0) return 'week';
+
+  // Dag alleen wanneer hij het gevraagde bereik ook echt dekt. De eerste versie
+  // koos dag zodra er één dagrij was, en dan vielen de weekrijen van alle
+  // andere perioden weg: een venster van dertig dagen liet de uitgaven van één
+  // week zien en zag eruit als een klant die bijna niets deed.
+  const dagen = new Set(dagrijen.map((r) => r.snapshot_date)).size;
+  const gevraagd = dagenTussen(periode.since, periode.until);
+  if (!gevraagd) return 'day';
+  return dagen / gevraagd >= DAGDEKKING ? 'day' : 'week';
+}
+
+/** Vanaf welke dekking een dagreeks het hele bereik mag vertegenwoordigen. */
+const DAGDEKKING = 0.9;
+
+function dagenTussen(since, until) {
+  if (!since || !until) return 0;
+  const a = Date.parse(`${since}T00:00:00.000Z`);
+  const b = Date.parse(`${until}T00:00:00.000Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return 0;
+  return Math.round((b - a) / 86400000) + 1;
 }
 
 /** Welk woord hoort bij de conversies van dit verdienmodel? */

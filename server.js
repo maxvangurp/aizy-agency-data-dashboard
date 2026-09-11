@@ -589,6 +589,32 @@ app.get('/api/clients/live', async (req, res) => {
   }
 });
 
+/**
+ * Meta Ads is nog niet gekoppeld.
+ *
+ * Het contract kent hier een vorm voor: `aanwezig: false` betekent dat het
+ * platform niet actief is voor deze klant, en het dashboard laat de blokken
+ * dan weg. Dat is iets anders dan een 404, die als fout in de console landt en
+ * eruitziet alsof er iets stuk is. Er is niets stuk -- er is nog geen
+ * Meta-adapter in max-marketing-os, dus er is ook niets om te tonen.
+ *
+ * Zodra die adapter er is, vervangt hij dit antwoord en verandert er aan de
+ * dashboardkant niets.
+ */
+app.get('/api/meta/insights', (req, res) => {
+  res.json({
+    platform: 'meta',
+    label: 'Meta Ads',
+    aanwezig: false,
+    resultLabel: 'Aankopen',
+    totals: null,
+    series: [],
+    campaigns: [],
+    breakdowns: {adSets: [], placements: []},
+    reden: 'Meta Ads is nog niet gekoppeld aan deze workspace.',
+  });
+});
+
 app.get('/api/google-ads/campaigns', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
   if (ontbreekt.length) {
@@ -631,7 +657,7 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
 
     // Zie kiesGranulariteit: dag- en weekrijen bestrijken dezelfde periode, dus
     // alles optellen telt alles dubbel.
-    const gekozen = kiesGranulariteit(inBereik);
+    const gekozen = kiesGranulariteit(inBereik, {since: req.query.since, until: req.query.until});
     const binnenPeriode = inBereik.filter((r) => r.granularity === gekozen);
 
     const campagnerijen = await sb.lees('campaigns', {

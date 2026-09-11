@@ -166,3 +166,25 @@ test('een gemengde set levert na filteren het enkele totaal op', () => {
   assert.equal(totals.spend, 100, 'niet 200');
   assert.equal(series.length, 2, 'en een echte dagreeks');
 });
+
+test('kiest week wanneer de dagrijen het bereik niet dekken', () => {
+  // Zeven dagen binnen een venster van dertig: dan zijn de weekrijen het
+  // complete beeld en de dagrijen een fragment. Dit ging mis en liet een klant
+  // 1.865 euro over dertig dagen tonen waar het een weekbedrag was.
+  const dagen = Array.from({length: 7}, (_, i) => ({
+    granularity: 'day', snapshot_date: `2026-09-0${i + 1}`,
+  }));
+  const weken = [{granularity: 'week', snapshot_date: '2026-08-18'}];
+  assert.equal(kiesGranulariteit([...dagen, ...weken], {since: '2026-08-13', until: '2026-09-11'}), 'week');
+});
+
+test('kiest dag zodra die het bereik wel dekt', () => {
+  const dagen = Array.from({length: 7}, (_, i) => ({
+    granularity: 'day', snapshot_date: `2026-09-0${i + 1}`,
+  }));
+  assert.equal(kiesGranulariteit(dagen, {since: '2026-09-01', until: '2026-09-07'}), 'day');
+});
+
+test('zonder bereik blijft dag de keuze', () => {
+  assert.equal(kiesGranulariteit([{granularity: 'day', snapshot_date: '2026-09-01'}], {}), 'day');
+});

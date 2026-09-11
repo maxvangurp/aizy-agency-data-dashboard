@@ -35,18 +35,56 @@
  *   en 29 februari min een jaar is 28 februari.
  */
 
-/** Vaste referentiedatum van de demo. */
-export const DEMO_TODAY = '2026-07-22';
-
 /** Tijdzone waarin een kalenderdag wordt geïnterpreteerd. */
 export const TIJDZONE = 'Europe/Amsterdam';
+
+/** Vaste referentiedatum van de demo, zodat verzonnen data consistent blijft. */
+const DEMO_DATUM = '2026-07-22';
+
+/**
+ * Welke dag is het?
+ *
+ * In demomodus een vaste datum: de sample-data is daaromheen gebouwd en zou
+ * met een bewegende klok elke dag iets anders laten zien. In live modus de
+ * echte klok, want anders kijkt een dashboard met werkelijke cijfers naar een
+ * periode die maanden geleden ligt -- precies wat er gebeurde toen de eerste
+ * echte klanten binnenkwamen: 163 euro over dertig dagen, omdat het bereik nog
+ * op juli stond.
+ *
+ * De modus wordt hier rechtstreeks uit localStorage gelezen en niet via
+ * `data-provider.js`. Die importeert namelijk uit deze module, en een
+ * kringetje in de imports is een prijs die deze ene sleutel niet waard is.
+ * Buiten een browser -- in tests op Node -- bestaat localStorage niet; dan
+ * geldt de demodatum, en dat is precies wat een test wil.
+ */
+function bepaalVandaag() {
+  try {
+    if (typeof localStorage === 'undefined') return DEMO_DATUM;
+    return localStorage.getItem('aizy.dataMode') === 'live'
+      ? new Date().toISOString().slice(0, 10)
+      : DEMO_DATUM;
+  } catch {
+    return DEMO_DATUM;
+  }
+}
+
+/**
+ * De referentiedatum van deze sessie. Eén keer bepaald bij het laden, zodat
+ * alles binnen een sessie dezelfde "vandaag" gebruikt; een waarde die midden
+ * in een berekening van dag verspringt levert cijfers op die niet optellen.
+ */
+export const DEMO_TODAY = bepaalVandaag();
 
 /**
  * De laatste dag waarvan alle bronnen volledig zijn binnengekomen.
  * Advertentie- en CRM-data lopen in werkelijkheid een dag achter; dat wordt
  * gemeld in plaats van verzwegen.
  */
-export const DATA_VOLLEDIG_TOT = '2026-07-21';
+export const DATA_VOLLEDIG_TOT = (() => {
+  const d = new Date(`${DEMO_TODAY}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+})();
 
 /* ---------------------------------------------------------------
    Datumrekenen
