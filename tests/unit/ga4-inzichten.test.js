@@ -110,6 +110,48 @@ test('een omzetdaling wordt uiteengerafeld naar aantal of orderwaarde', () => {
   assert.match(k.onzekerheid, /niet automatisch de volledige webshopomzet/);
 });
 
+test('de verklarende factor is die met dezelfde richting als de omzet', () => {
+  // Vitrinemasters, echt gemeten: omzet -17,8%, aankopen +50%, orderwaarde
+  // -45,2%. Op grootte vergelijken wijst het aantal aankopen aan -- terwijl dat
+  // juist steeg. De kaart zou zeggen dat de omzet daalt door meer verkopen.
+  const d = antwoord({
+    klanttype: 'ecommerce',
+    doelen: {aankopen: ['purchase']},
+    kpis: [
+      groep('context', [kpi('sessies', 15037, 14000)]),
+      groep('aankopen', [
+        kpi('aankopen', 15, 10),
+        kpi('omzet', 22348, 27180),
+        kpi('orderwaarde', 1489.88, 2718),
+        kpi('aankoopratio', 0.1, 0.08),
+      ]),
+    ],
+  });
+  const k = inzichten(d).find((x) => x.code === 'omzet_verandering');
+  assert.ok(k);
+  assert.match(k.titel, /gemiddelde orderwaarde/);
+  assert.ok(!/aantal aankopen/.test(k.titel), 'het aantal steeg; dat verklaart geen daling');
+});
+
+test('bewegen beide factoren mee, dan telt de grootste', () => {
+  const d = antwoord({
+    klanttype: 'ecommerce',
+    doelen: {aankopen: ['purchase']},
+    kpis: [
+      groep('context', [kpi('sessies', 14000, 14000)]),
+      groep('aankopen', [
+        kpi('aankopen', 150, 200),
+        kpi('omzet', 9000, 15000),
+        kpi('orderwaarde', 60, 75),
+        kpi('aankoopratio', 1.07, 1.43),
+      ]),
+    ],
+  });
+  const k = inzichten(d).find((x) => x.code === 'omzet_verandering');
+  // Aankopen -25%, orderwaarde -20%: allebei omlaag, aantal verschoof het meest.
+  assert.match(k.titel, /aantal aankopen/);
+});
+
 test('meer verkeer met een lager aankoopaandeel wordt gemeld', () => {
   const d = antwoord({
     klanttype: 'ecommerce',

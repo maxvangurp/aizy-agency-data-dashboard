@@ -207,11 +207,7 @@ function omzetUiteengerafeld(data, d) {
   const vw = aov?.verandering ?? {procent: null};
   const richting = vo.procent < 0 ? 'daalt' : 'stijgt';
 
-  // Welke van de twee factoren het meest verschoof. Dat is de vraag die je
-  // erna stelt, en het antwoord scheelt wat je eraan doet.
-  const door = Math.abs(va.procent ?? 0) >= Math.abs(vw.procent ?? 0)
-    ? 'het aantal aankopen'
-    : 'de gemiddelde orderwaarde';
+  const door = verklarendeFactor(vo, va, vw);
 
   return {
     code: 'omzet_verandering',
@@ -237,6 +233,34 @@ function omzetUiteengerafeld(data, d) {
       + 'dit is niet automatisch de volledige webshopomzet.',
     naar: {tab: door === 'het aantal aankopen' ? 'acquisitie' : 'producten'},
   };
+}
+
+/**
+ * Welke van de twee factoren de omzetverandering verklaart.
+ *
+ * Omzet is aantal maal orderwaarde, dus de twee procentuele veranderingen
+ * tellen bij benadering op tot die van de omzet. De verklarende factor is die
+ * met dezelfde richting als de omzet -- niet die met de grootste uitslag.
+ *
+ * Dat verschil is geen haarkloverij. Vitrinemasters, vier weken tegenover de
+ * vier ervoor: omzet -17,8%, aankopen +50%, orderwaarde -45,2%. Op grootte
+ * vergelijken wijst dan het aantal aankopen aan, terwijl dat juist steeg. De
+ * kaart zou zeggen dat de omzet daalt door meer verkopen, en wie daarop
+ * afgaat gaat aan het verkeerde eind zoeken.
+ *
+ * Bewegen ze allebei dezelfde kant op als de omzet, dan telt wel de grootste.
+ */
+function verklarendeFactor(omzet, aantal, orderwaarde) {
+  const va = aantal?.procent;
+  const vw = orderwaarde?.procent;
+  const richting = Math.sign(omzet.procent ?? 0);
+
+  const aantalVolgt = va != null && Math.sign(va) === richting;
+  const waardeVolgt = vw != null && Math.sign(vw) === richting;
+
+  if (aantalVolgt && !waardeVolgt) return 'het aantal aankopen';
+  if (waardeVolgt && !aantalVolgt) return 'de gemiddelde orderwaarde';
+  return Math.abs(va ?? 0) >= Math.abs(vw ?? 0) ? 'het aantal aankopen' : 'de gemiddelde orderwaarde';
 }
 
 /** Meer verkeer, maar een lager aandeel sessies met een aankoop. */
