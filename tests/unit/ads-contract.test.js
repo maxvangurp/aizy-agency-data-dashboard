@@ -355,3 +355,54 @@ test('dezelfde dag uit twee campagnes telt één keer mee in de dekking', () => 
   assert.equal(dekkingVan(rijen, {since: '2026-09-01', until: '2026-09-01'}).dagen, 1);
   assert.equal(dekkingVan(rijen, {}), null, 'zonder venster is dekking geen begrip');
 });
+
+/* ------------------------------------------------------ campagnestatus -- */
+
+test('de statusverdeling telt euro\'s en niet alleen campagnes', () => {
+  // Het aantal gepauzeerde campagnes zegt weinig: een account kan honderd oude
+  // campagnes hebben die niets kostten. Het bedrag zegt of deze cijfers nog een
+  // situatie beschrijven die bestaat.
+  const snapshots = [
+    {campaign_id: 'a', snapshot_date: '2026-09-01', period_end: '2026-09-01', granularity: 'day', spend: 2665.1, impressions: 100, clicks: 10, conversions_primary: 1, revenue: 0},
+    {campaign_id: 'b', snapshot_date: '2026-09-01', period_end: '2026-09-01', granularity: 'day', spend: 563.71, impressions: 100, clicks: 10, conversions_primary: 1, revenue: 0},
+  ];
+  const campagnes = new Map([
+    ['a', {name: 'PMax', channel_type: 'SHOPPING', status: 'active', platform_status: 'ENABLED'}],
+    ['b', {name: 'RSA oud', channel_type: 'SEARCH', status: 'paused', platform_status: 'PAUSED'}],
+  ]);
+  const blok = googleBlokVan(snapshots, campagnes, {businessModel: 'leadgen'});
+
+  assert.equal(blok.campagnestatus.aantal.actief, 1);
+  assert.equal(blok.campagnestatus.aantal.uit, 1);
+  assert.equal(blok.campagnestatus.uitgaven.uit, 563.71);
+  assert.equal(blok.campagnestatus.aandeelUit, 17.5);
+  assert.equal(blok.campagnestatus.statusGemeten, true);
+});
+
+test('een campagne zonder gemeten status telt niet als actief', () => {
+  // Bij ingeplakte connectordata is de status nooit gemeten. Die op "actief"
+  // gooien maakt het aandeel uitgezette campagnes te rooskleurig.
+  const snapshots = [
+    {campaign_id: 'a', snapshot_date: '2026-09-01', period_end: '2026-09-01', granularity: 'day', spend: 100, impressions: 10, clicks: 1, conversions_primary: 0, revenue: 0},
+  ];
+  const blok = googleBlokVan(snapshots, new Map([['a', {name: 'Onbekend'}]]), {businessModel: 'leadgen'});
+
+  assert.equal(blok.campagnestatus.aantal.onbekend, 1);
+  assert.equal(blok.campagnestatus.aantal.actief, 0);
+  assert.equal(blok.campagnestatus.statusGemeten, false);
+  assert.equal(blok.campaigns[0].status, null, 'ontbrekend, niet actief');
+});
+
+test('een actieve campagne met problemen wordt apart geteld', () => {
+  // Die loopt wél -- hem op gepauzeerd zetten is onwaar -- maar er is iets mis
+  // met de advertenties of de betaling. Vaak het antwoord op "waarom komt er
+  // niets binnen".
+  const snapshots = [
+    {campaign_id: 'a', snapshot_date: '2026-09-01', period_end: '2026-09-01', granularity: 'day', spend: 100, impressions: 10, clicks: 1, conversions_primary: 0, revenue: 0},
+  ];
+  const campagnes = new Map([['a', {name: 'Zomer', status: 'active', platform_status: 'WITH_ISSUES'}]]);
+  const blok = googleBlokVan(snapshots, campagnes, {businessModel: 'leadgen'});
+
+  assert.equal(blok.campagnestatus.metProblemen, 1);
+  assert.equal(blok.campagnestatus.aantal.actief, 1, 'hij telt gewoon als actief');
+});

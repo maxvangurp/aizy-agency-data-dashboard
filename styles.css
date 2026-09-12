@@ -4693,3 +4693,12 @@ h1, h2, .kpi-value {
   font-weight: 600;
 }
 .ga4-vanaf-nul { color: var(--tekst-zacht, #6B6B7B); font-style: italic; }
+.campagne-status-uitleg {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--aizy-lavendel, #B29BF0);
+  background: color-mix(in srgb, var(--aizy-lavendel, #B29BF0) 10%, transparent);
+  border-radius: 0 8px 8px 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+}

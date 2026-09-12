@@ -291,8 +291,52 @@ function blokVan(snapshots, campagnes, {
     totals: onderdrukOnbetrouwbaar(totals, oordeel?.onbetrouwbareKpis),
     series: reeksVan(rijen, resultKolom),
     campaigns: campagnesVan(rijen, campagnes, resultKolom),
+    campagnestatus: statusSamenvatting(campagnesVan(rijen, campagnes, resultKolom)),
     breakdowns,
     betrouwbaarheid: oordeel,
+  };
+}
+
+/**
+ * Hoeveel van de uitgaven ging naar campagnes die inmiddels uitstaan?
+ *
+ * De vraag achter "er staan zoveel gepauzeerde campagnes in de lijst". Het
+ * aantal zegt weinig -- een account kan honderd oude campagnes hebben die niets
+ * kostten. Het bedrag zegt alles: gaat de helft van het budget naar campagnes
+ * die nu uit staan, dan beschrijven deze cijfers een situatie die niet meer
+ * bestaat, en is elke conclusie eruit een conclusie over het verleden.
+ *
+ * `onbekend` staat apart. Bij ingeplakte connectordata is de status niet
+ * gemeten; die op "actief" gooien maakt het percentage te rooskleurig.
+ */
+function statusSamenvatting(campagnes) {
+  const som = { actief: 0, uit: 0, onbekend: 0 };
+  const aantal = { actief: 0, uit: 0, onbekend: 0 };
+  let metProblemen = 0;
+
+  for (const c of campagnes) {
+    const bedrag = getal(c.spend);
+    const bak = c.status == null ? 'onbekend' : (c.status === 'active' ? 'actief' : 'uit');
+    som[bak] += bedrag;
+    aantal[bak] += 1;
+    // Loopt wel, maar er is iets mis met de advertenties of de betaling. Dat is
+    // geen derde status maar een waarschuwing bij een actieve campagne.
+    if (c.platformStatus === 'WITH_ISSUES') metProblemen += 1;
+  }
+
+  const totaal = som.actief + som.uit + som.onbekend;
+  return {
+    aantal,
+    uitgaven: {
+      actief: rond(som.actief, 2),
+      uit: rond(som.uit, 2),
+      onbekend: rond(som.onbekend, 2),
+    },
+    aandeelUit: totaal > 0 ? rond((som.uit / totaal) * 100, 1) : null,
+    metProblemen,
+    // Zonder gemeten status is het aandeel een schatting; dat hoort zichtbaar
+    // te zijn en niet in het percentage te verdwijnen.
+    statusGemeten: aantal.onbekend === 0,
   };
 }
 
@@ -335,6 +379,13 @@ function campagnesVan(rijen, campagnes, resultKolom = 'conversions_primary') {
       return {
         name: meta.name ?? 'Onbekende campagne',
         type: meta.channel_type ?? 'Google',
+        // De status van nu, naast cijfers van de periode. Dat zijn twee
+        // verschillende momenten en dat is precies het punt: een campagne die
+        // gisteren is uitgezet heeft drie weken geld uitgegeven. Hem verbergen
+        // zou die uitgaven laten verdwijnen; hem tonen zonder status suggereert
+        // dat hij nog loopt.
+        status: meta.status ?? null,
+        platformStatus: meta.platform_status ?? null,
         spend: rond(c.spend, 2),
         impressions: c.impressions,
         clicks: c.clicks,

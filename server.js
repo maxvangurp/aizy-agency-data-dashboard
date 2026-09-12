@@ -11,7 +11,7 @@ const {
   googleBlokVan, metaBlokVan, kiesGranulariteit, binnenBereik, dekkingVan,
 } = require('./ads-contract');
 const {
-  zoekKlant, haalGoogleAdsBron, leesBetrouwbaarheid, PLATFORM: PLATFORM_GOOGLE,
+  zoekKlant, haalGoogleAdsBron, leesBetrouwbaarheid, leesCampagnes, PLATFORM: PLATFORM_GOOGLE,
 } = require('./ads-query');
 const {signalenVoor, zwaarste} = require('./portfolio-signalen');
 const ga4Contract = require('./ga4-contract');
@@ -1247,10 +1247,7 @@ app.get('/api/meta/insights', async (req, res) => {
     // Campagnenamen en het Meta-oordeel hangen alleen van de klant af, niet van
     // elkaar; achter elkaar zetten kost een round-trip die niets toevoegt.
     const [campagnerijen, betrouwbaarheid] = await Promise.all([
-      sb.lees('campaigns', {
-        kolommen: 'id,name,channel_type',
-        filters: {client_id: klant.id, platform: PLATFORM_META},
-      }),
+      leesCampagnes(sb, klant.id, PLATFORM_META),
       leesBetrouwbaarheid(sb, klant.id, PLATFORM_META),
     ]);
     const campagnes = new Map(campagnerijen.map((c) => [c.id, c]));

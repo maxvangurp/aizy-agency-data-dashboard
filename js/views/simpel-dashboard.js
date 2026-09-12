@@ -469,9 +469,10 @@ function prestatieTabel(items, rlabel, { eersteKolom = 'Campagne', metPlatform =
 }
 
 /** Kolomdefinitie voor een interactieve prestatietabel (sorteren/zoeken/CSV). */
-function prestatieKolommen(rlabel, { eersteKolom = 'Campagne', metPlatform = false, extra = null } = {}) {
+function prestatieKolommen(rlabel, { eersteKolom = 'Campagne', metPlatform = false, extra = null, metStatus = false } = {}) {
   const cols = [{ label: eersteKolom, type: 'txt', cel: (c) => esc(c.name), waarde: (c) => c.name }];
   if (metPlatform) cols.push({ label: 'Platform', type: 'txt', cel: (c) => badge(c.platform, 'muted'), waarde: (c) => c.platform });
+  if (metStatus) cols.push(statusKolom());
   if (extra) cols.push({ label: extra.kop, type: 'txt', cel: extra.cel, waarde: extra.waarde ?? ((c) => c[extra.veld] ?? '') });
   cols.push(
     { label: 'Uitgaven', uitlijn: 'rechts', type: 'num', cel: (c) => fmt.euro(c.spend), waarde: (c) => c.spend ?? 0 },
@@ -483,6 +484,85 @@ function prestatieKolommen(rlabel, { eersteKolom = 'Campagne', metPlatform = fal
     { label: `Kosten/${enkelvoud(rlabel)}`, uitlijn: 'rechts', type: 'num', cel: (c) => (c.costPerResult == null ? '—' : fmt.euro2(c.costPerResult)), waarde: (c) => c.costPerResult },
   );
   return cols;
+}
+
+/**
+ * De statuskolom: loopt deze campagne nog?
+ *
+ * De status is van nu, de cijfers zijn van de periode. Dat is geen
+ * inconsistentie maar de kern: een campagne die gisteren is uitgezet heeft drie
+ * weken geld uitgegeven. Hem uit de lijst laten zou die uitgaven laten
+ * verdwijnen; hem tonen zonder status suggereert dat hij nog loopt.
+ *
+ * Sorteert op de status zelf, zodat één klik de actieve campagnes bij elkaar
+ * zet. Dat is wat je meestal wilt zien -- daar kun je nog iets aan doen.
+ */
+function statusKolom() {
+  return {
+    label: 'Status', type: 'txt',
+    waarde: (c) => STATUS_VOLGORDE[c.status] ?? 'z',
+    cel: (c) => statusBadge(c),
+  };
+}
+
+// Actief eerst bij oplopend sorteren: daar kun je vandaag nog iets aan doen.
+const STATUS_VOLGORDE = { active: 'a', draft: 'b', paused: 'c', ended: 'd' };
+
+const STATUS_LABEL = {
+  active: 'Actief', paused: 'Gepauzeerd', ended: 'Beëindigd', draft: 'Concept',
+};
+
+function statusBadge(c) {
+  if (!c.status) {
+    // Onbekend is niet actief. Bij ingeplakte connectordata is de status nooit
+    // gemeten, en dat hoort zichtbaar te zijn in plaats van te verdwijnen
+    // achter een groen vinkje.
+    return badge('Onbekend', 'muted');
+  }
+  // Loopt wel, maar er is iets mis met de advertenties of de betaling. Dat is
+  // geen aparte status maar een waarschuwing bij een actieve campagne, en het
+  // is vaak het antwoord op "waarom komt er niets binnen".
+  if (c.platformStatus === 'WITH_ISSUES') {
+    return `${badge('Actief', 'ok')} ${badge('met problemen', 'middel')}`;
+  }
+  const variant = c.status === 'active' ? 'ok' : 'muted';
+  const label = STATUS_LABEL[c.status] ?? c.status;
+  return c.platformStatus
+    ? `<span title="${esc(c.platformStatus)}">${badge(label, variant)}</span>`
+    : badge(label, variant);
+}
+
+/**
+ * Wat de statusverdeling zegt over deze cijfers.
+ *
+ * Het aantal gepauzeerde campagnes zegt weinig: een account kan honderd oude
+ * campagnes hebben die niets kostten. Het bedrag zegt alles -- gaat een groot
+ * deel van het budget naar campagnes die nu uitstaan, dan beschrijven deze
+ * cijfers een situatie die niet meer bestaat.
+ */
+function statusSamenvattingHtml(samenvatting) {
+  if (!samenvatting) return '';
+  const { aantal, uitgaven, aandeelUit, metProblemen, statusGemeten } = samenvatting;
+  const regels = [];
+
+  if (!statusGemeten) {
+    regels.push(`Van ${aantal.onbekend} ${aantal.onbekend === 1 ? 'campagne' : 'campagnes'} is niet `
+      + 'gemeten of hij nog loopt. Die tellen hieronder niet als actief en niet als uit.');
+  }
+  if (aantal.uit > 0) {
+    regels.push(`${aantal.uit} van de ${aantal.actief + aantal.uit + aantal.onbekend} campagnes met `
+      + `uitgaven staan inmiddels uit. Samen ${fmt.euro(uitgaven.uit)}`
+      + (aandeelUit != null ? ` van ${fmt.euro(uitgaven.actief + uitgaven.uit + uitgaven.onbekend)} (${aandeelUit}%)` : '')
+      + '. Die uitgaven zijn echt gedaan; wat je eraan verandert, verandert niets meer.');
+  }
+  if (metProblemen > 0) {
+    regels.push(`${metProblemen} actieve ${metProblemen === 1 ? 'campagne heeft' : 'campagnes hebben'} `
+      + 'een probleem bij het platform -- afgekeurde advertenties of een betaling die vastloopt. '
+      + 'Die geven geld uit zonder te draaien zoals bedoeld.');
+  }
+  if (!regels.length) return '';
+
+  return `<p class="campagne-status-uitleg muted">${regels.map(esc).join(' ')}</p>`;
 }
 
 function platformSplitTabel(platforms, rlabel) {
@@ -746,7 +826,8 @@ function renderPlatformView(dashboard, blok, platforms, vergelijking) {
     ${trendMetriekFiguur('simpel-trend-platform', enkelPlatform, { titel: 'Ontwikkeling per dag', dashboard, vergelijking, toonSwitcher: false, actief: actiefMetriek })}
     <section class="card">
       <h2>Campagnes</h2>
-      ${interTabel('campagnes', blok.campaigns ?? [], {})}
+      ${statusSamenvattingHtml(blok.campagnestatus)}
+      ${interTabel('campagnes', blok.campaigns ?? [], { metStatus: true })}
     </section>
     ${adGroups}
     ${keywords}
@@ -768,18 +849,55 @@ function renderCampagnesView(dashboard, platforms, vergelijking) {
   // De platform-chips (en dus de 'filter'-belofte) hebben alleen zin bij >1 kanaal.
   const metFilter = platformOpties.length > 2;
 
+  const actief = campagnes.filter((c) => c.status === 'active').length;
+  const uit = campagnes.filter((c) => c.status && c.status !== 'active').length;
+  const samen = statusSamenvattingHtml(samenvattingOver(campagnes));
+
   return `
-    ${simpelKop('Campagnes', dashboard, platforms, { ondertitel: `${campagnes.length} campagnes`, vergelijking })}
+    ${simpelKop('Campagnes', dashboard, platforms, {
+      ondertitel: uit > 0
+        ? `${campagnes.length} campagnes met uitgaven, waarvan ${actief} nu actief`
+        : `${campagnes.length} campagnes`,
+      vergelijking,
+    })}
     <section class="card">
       <div class="card-kop-rij">
         <p class="muted">Alle campagnes ${kanalenZin(platforms)} — sorteer, zoek${metFilter ? ', filter' : ''} of exporteer.</p>
         ${metFilter ? chips('campagnes-alle', platformOpties, 'alle') : ''}
       </div>
-      ${interactieveTabel('campagnes-alle', prestatieKolommen(rlabel, { metPlatform: true }), campagnes, {
+      ${samen}
+      ${interactieveTabel('campagnes-alle', prestatieKolommen(rlabel, { metPlatform: true, metStatus: true }), campagnes, {
         csvNaam: 'campagnes', rijAttr: (c) => `data-platform="${esc(c.platform)}"`,
       })}
     </section>
   `;
+}
+
+/**
+ * Dezelfde samenvatting, maar over campagnes van meerdere platforms.
+ *
+ * De platformblokken rekenen elk hun eigen verdeling uit; op deze pagina staan
+ * ze door elkaar, en twee losse samenvattingen naast elkaar beantwoorden de
+ * vraag niet die je hier stelt.
+ */
+function samenvattingOver(campagnes) {
+  const som = { actief: 0, uit: 0, onbekend: 0 };
+  const aantal = { actief: 0, uit: 0, onbekend: 0 };
+  let metProblemen = 0;
+  for (const c of campagnes) {
+    const bak = c.status == null ? 'onbekend' : (c.status === 'active' ? 'actief' : 'uit');
+    som[bak] += Number(c.spend) || 0;
+    aantal[bak] += 1;
+    if (c.platformStatus === 'WITH_ISSUES') metProblemen += 1;
+  }
+  const totaal = som.actief + som.uit + som.onbekend;
+  return {
+    aantal,
+    uitgaven: som,
+    aandeelUit: totaal > 0 ? Math.round((som.uit / totaal) * 1000) / 10 : null,
+    metProblemen,
+    statusGemeten: aantal.onbekend === 0,
+  };
 }
 
 /* ---------- View 5: Conversies ---------- */

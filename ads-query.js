@@ -66,6 +66,31 @@ async function leesBetrouwbaarheid(sb, clientId, platform = PLATFORM) {
 }
 
 /**
+ * De campagnes van een klant, met hun status.
+ *
+ * `platform_status` komt uit migratie 020 en houdt het woord van het platform
+ * zelf: ENABLED, PAUSED, WITH_ISSUES. Staat die migratie nog niet, dan valt de
+ * vraag terug op de kolommen die er wél zijn -- een dashboard dat omvalt omdat
+ * een kolom nog ontbreekt is erger dan een dashboard zonder statusbadge.
+ *
+ * Alleen op de kolomfout terugvallen en niet op elke 400: een fout in de
+ * filters of de rechten hoort door te komen, niet stilzwijgend minder data op
+ * te leveren.
+ */
+async function leesCampagnes(sb, klantId, platform) {
+  const filters = { client_id: klantId, platform };
+  try {
+    return await sb.lees('campaigns', {
+      kolommen: 'id,name,channel_type,status,platform_status',
+      filters,
+    });
+  } catch (error) {
+    if (!/column .*platform_status/i.test(String(error && error.message))) throw error;
+    return sb.lees('campaigns', { kolommen: 'id,name,channel_type,status', filters });
+  }
+}
+
+/**
  * Haalt alles op wat het campagneblok nodig heeft.
  *
  * @param {object} sb            Supabaseclient uit `supabase.js`
@@ -90,10 +115,7 @@ async function haalGoogleAdsBron(sb, { klantId, since } = {}) {
       filters,
       order: 'snapshot_date.asc',
     }),
-    sb.lees('campaigns', {
-      kolommen: 'id,name,channel_type',
-      filters: { client_id: klantId, platform: PLATFORM },
-    }),
+    leesCampagnes(sb, klantId, PLATFORM),
     leesBetrouwbaarheid(sb, klantId),
   ]);
 
@@ -104,4 +126,4 @@ async function haalGoogleAdsBron(sb, { klantId, since } = {}) {
   };
 }
 
-module.exports = { zoekKlant, leesBetrouwbaarheid, haalGoogleAdsBron, PLATFORM };
+module.exports = { zoekKlant, leesBetrouwbaarheid, haalGoogleAdsBron, leesCampagnes, PLATFORM };
