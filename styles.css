@@ -71,6 +71,9 @@
   --positief-badge-ink: #166600;
 
   --shadow: 0 2px 8px rgba(22, 13, 39, 0.06), 0 12px 28px rgba(22, 13, 39, 0.06);
+
+  /* De randschaduw die aangeeft dat een tabel horizontaal verder loopt. */
+  --scroll-schaduw: rgba(22, 13, 39, 0.16);
 }
 
 /* ---------- Donker thema ---------- */
@@ -89,6 +92,9 @@
 
   --border: rgba(255, 255, 255, 0.12);
   --border-strong: rgba(255, 255, 255, 0.22);
+
+  /* Zwart op donker is niets; hier werkt een lichte rand als diepte. */
+  --scroll-schaduw: rgba(255, 255, 255, 0.16);
 
   --accent: var(--aizy-magenta);
   --accent-ink: #1a1030;
@@ -402,9 +408,27 @@ h1, h2, h3 {
 
 /* ---------- Tabellen ---------- */
 
+/**
+ * Een brede tabel schuift binnen zijn eigen kader in plaats van de pagina
+ * breder te maken. Dat werkte, maar het was onzichtbaar: op een breed scherm
+ * verscheen er geen scrollbalk en werd de laatste kolom gewoon afgesneden --
+ * een kop las als "Kosten per resul", en niemand zag dat er nog vier kolommen
+ * achter stonden. De lezer moet kunnen zien dát er meer is.
+ *
+ * De schaduwen hieronder doen dat zonder JavaScript: twee dekkende vlakken in
+ * de kleur van de kaart (`background-attachment: local`, schuift mee) en twee
+ * verlopen (`scroll`, blijven staan). Waar de inhoud tegen de rand zit, dekt
+ * het vlak het verloop af; zodra er iets voorbij de rand ligt, schuift het vlak
+ * weg en wordt het verloop zichtbaar. Precies aan de kant waar meer staat.
+ */
 .table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  background:
+    linear-gradient(to right, var(--surface) 30%, transparent) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, transparent) right center / 24px 100% no-repeat local,
+    linear-gradient(to right, var(--scroll-schaduw), transparent) left center / 14px 100% no-repeat scroll,
+    linear-gradient(to left, var(--scroll-schaduw), transparent) right center / 14px 100% no-repeat scroll;
 }
 
 table {
@@ -420,6 +444,20 @@ th, td {
   white-space: nowrap;
 }
 
+/**
+ * Een cel met een opsomming mag afbreken.
+ *
+ * `nowrap` hierboven is goed voor bedragen, datums en labels: die horen niet
+ * middenin te breken. Voor een cel met drie klantnamen achter elkaar is het
+ * funest -- die wordt dan vierhonderd pixels breed en duwt in zijn eentje de
+ * kolommen erachter buiten beeld. Zet deze klasse op zulke cellen.
+ */
+.cel-lijst {
+  display: inline-block;
+  white-space: normal;
+  max-width: 190px;
+}
+
 th {
   font-size: 11px;
   font-weight: 700;
@@ -429,6 +467,20 @@ th {
   background: var(--surface-sunken);
   position: sticky;
   top: 0;
+  /**
+   * Een kop mag over twee regels.
+   *
+   * Koppen erfden `white-space: nowrap` van de regel hierboven, en dat is voor
+   * een kop veel duurder dan voor een cel: hij staat in hoofdletters met extra
+   * letterafstand, dus "Klanten met aandachtspunten" legde in zijn eentje een
+   * ondergrens van ruim tweehonderd pixels op een kolom met enkel het getal 0
+   * erin. Zo werden tabellen breder dan het scherm door hun koppen, niet door
+   * hun inhoud. Twee regels kost één keer twaalf pixels hoogte voor de hele
+   * tabel; een kolom die buiten beeld valt kost de lezer alles.
+   */
+  white-space: normal;
+  max-width: 160px;
+  vertical-align: bottom;
 }
 
 tbody tr:last-child td {
@@ -452,6 +504,14 @@ tbody tr:hover td {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* `.link` zit zowel op <a> als op <button>. Een knop centreert zijn tekst van
+   huis uit en een link niet, dus stond dezelfde soort link in het ene blok
+   gecentreerd en in het andere links uitgelijnd -- het duidelijkst in de widgets
+   op Mijn werk, waar een gecentreerde klantnaam boven een links uitgelijnde
+   ondertitel stond. Erven van de omgeving is hier het juiste gedrag: in een
+   gecentreerd blok centreert hij mee. */
+button.link, button.link-klein { text-align: inherit; }
 
 /* ---------- Badges en tags ---------- */
 
@@ -1046,7 +1106,11 @@ code {
 .inzicht-aandacht { border-left-color: var(--waarschuwing); }
 .inzicht p { margin: 4px 0 0; font-size: 13px; }
 
-.actie-groep { display: flex; gap: 4px; flex-wrap: wrap; }
+/* De knoppen wikkelen al, maar zonder bovengrens vormen ze in een tabelcel één
+   lange regel: "Uitnodiging opnieuw versturen" zette in zijn eentje een kolom
+   van 256 pixels neer. Met een grens breekt zo'n label netjes af. */
+.actie-groep { display: flex; gap: 4px; flex-wrap: wrap; max-width: 180px; }
+.actie-groep .btn { white-space: normal; text-align: left; }
 
 .intern-blok { border-left: 3px solid var(--accent); }
 .intern-rij { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: var(--space-2); }
@@ -1694,6 +1758,7 @@ code {
   margin: 0 0 2px !important;
 }
 
+.contactblok { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
 .contactblok .medewerker { margin-bottom: var(--space-2); }
 
 .demo-account-naam { font-weight: 700; display: block; }
@@ -1808,6 +1873,17 @@ code {
 }
 .paginatab.active .tab-teller { background: var(--accent-soft); color: var(--accent); }
 
+/* Een tab zonder databron. Lichter én met een stip, zodat het verschil niet
+   alleen op kleur rust -- wie kleur slecht onderscheidt ziet de stip. De tab
+   blijft gewoon bereikbaar; hij belooft alleen geen cijfers. */
+.paginatab-nogniet { color: var(--ink-subtle); }
+.paginatab-nogniet:hover { color: var(--ink-muted); }
+.tab-nogniet-punt {
+  width: 5px; height: 5px; border-radius: 999px;
+  background: var(--ink-subtle); opacity: 0.65;
+}
+.paginatab-nogniet.active { color: var(--ink-muted); border-bottom-color: var(--border-strong); }
+
 /* ---------- Detailpaneel ---------- */
 
 .detailpaneel {
@@ -1917,7 +1993,12 @@ code {
 .kolom-greep { display: inline-block; width: 8px; cursor: col-resize; margin-left: 4px; color: var(--border-strong); }
 .grid-groepkop th { background: var(--surface-sunken); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
 .cel-selectie { width: 36px; }
-.cel-klant { display: inline; }
+.cel-klant { display: inline; font-weight: 600; }
+/* De navigatielink staat onder de naam en niet ernaast: naast elkaar lazen de
+   twee als één lange klantnaam, terwijl het twee verschillende handelingen zijn.
+   Lichter en kleiner, zodat de naam de primaire ingang blijft. */
+.cel-klant-pagina { display: block; margin-top: 2px; font-size: 11px; color: var(--ink-muted); }
+.cel-klant-pagina:hover { color: var(--accent); }
 .cel-reden { white-space: normal; display: block; max-width: 320px; }
 
 .grid-bulkbalk {
@@ -1942,6 +2023,14 @@ code {
 .kanaalkaart:hover { border-color: var(--border-strong); }
 .kanaalkaart-naam { font-weight: 700; }
 .kanaalkaart-waarde { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Het resultaat onder de uitgaven. Blijft op één regel zolang het past en wrapt
+   daarna, zodat een kanaal met zowel e-commerce als leadgeneratie de kaart niet
+   verbreedt. */
+.kanaalkaart-resultaat {
+  display: flex; flex-wrap: wrap; gap: 2px 4px;
+  margin-top: 2px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.kanaalkaart-resultaat .muted { font-weight: 400; }
 
 .koppelstatus { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); display: grid; gap: 6px; }
 .koppelstatus-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -2011,7 +2100,8 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
 .agenda-item-kop { display: flex; align-items: center; gap: 5px; }
 .agenda-item-titel { font-weight: 600; text-align: left; }
 .agenda-item-labels { display: flex; gap: 4px; flex-wrap: wrap; }
-.agenda-item-knoppen { display: flex; gap: 3px; }
+.agenda-item-knoppen { display: flex; gap: 3px; margin-top: 6px; flex-wrap: wrap; }
+.agenda-item-knoppen .btn { padding: 2px 6px; font-size: 11px; }
 .agenda-leeg { text-align: center; }
 .wachtlijst { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .wachtlijst li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -2089,6 +2179,9 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
 .klantactie-kop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .klantactie-knoppen { display: flex; gap: 6px; margin-top: 4px; }
 .inzichtrij { border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); display: grid; gap: 4px; }
+/* Eén link per genoemde klant, naast elkaar. Bij een bevinding over vier klanten
+   hoort dat te blijven wrappen in plaats van de kaart te verbreden. */
+.inzichtrij-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin: 0; }
 
 /* ---------- Zoekresultaat ---------- */
 
@@ -2206,6 +2299,13 @@ body[data-sleept] .kanban-kolom, body[data-sleept] .agenda-dag, body[data-sleept
 .kpi-label-tip { cursor: help; }
 .kpi-label-tip:hover .kpi-info,
 .kpi-label-tip:focus-visible .kpi-info { border-color: var(--accent); color: var(--accent); }
+/* Op een klikbare kaart draagt de kaart zelf de tooltip -- een focusbaar element
+   binnen een link zou een tweede tabstop voor dezelfde uitleg opleveren -- dus
+   reageert de 'i' op de kaart en niet op het label. De cursor blijft een pointer:
+   klikken is hier de hoofdhandeling, de uitleg is bijvangst. */
+.kpi-klikbaar[data-tip-text] { cursor: pointer; }
+.kpi-klikbaar:hover .kpi-info,
+.kpi-klikbaar:focus-visible .kpi-info { border-color: var(--accent); color: var(--accent); }
 .kolom-tip { cursor: help; }
 [data-tip], [data-tip-text] { cursor: help; }
 .grid-sorteer[data-tip], .grid-sorteer[data-tip-text] { cursor: pointer; }

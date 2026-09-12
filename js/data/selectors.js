@@ -16,7 +16,7 @@ import {
 } from './metrics.js';
 import {
   DEMO_TODAY, DATA_VOLLEDIG_TOT, aantalDagen, datumReeks, isVoor, isNa,
-  dagenInMaand, plusDagen,
+  dagenInMaand, plusDagen, toonDatum,
 } from '../filters/period.js';
 import { kanalenTekst, kanaalLabel } from '../filters/channels.js';
 import { ConversieScope } from '../filters/filter-context.js';
@@ -500,7 +500,10 @@ export function dekkingMeldingen(dekking, { crmGekoppeld = true } = {}) {
   if (dekking.bevatVoorlopigeDagen) {
     meldingen.push({
       soort: 'voorlopig',
-      tekst: `De meest recente dagen kunnen nog onvolledig zijn. Alle bronnen zijn compleet tot en met ${dekking.volledigTot}.`,
+      // `volledigTot` is een ISO-datum. Die stond hier onbewerkt in de zin, dus
+      // een klant las "compleet tot en met 2026-07-21" op een pagina waar
+      // iedere andere datum "21 jul 2026" is.
+      tekst: `De meest recente dagen kunnen nog onvolledig zijn. Alle bronnen zijn compleet tot en met ${toonDatum(dekking.volledigTot)}.`,
     });
   }
   if (!crmGekoppeld) {

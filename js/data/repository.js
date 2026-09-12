@@ -640,6 +640,29 @@ export function getPortfolioInzichten(user, filters) {
   if (!samenvattingen.length) return [];
 
   const inzichten = [];
+
+  /**
+   * De klanten waar een inzicht over gaat, met hun naam.
+   *
+   * Een bevinding als "Havenkwartier en Noordlicht hebben een trackingprobleem"
+   * droeg één `clientId`: die van de eerste. De link eronder heette "Klant
+   * openen" en opende dus stilzwijgend een van de twee. Met de hele lijst erbij
+   * kan de view per klant een eigen link zetten, met de naam erin.
+   */
+  const klantenVan = (lijst) => lijst.map((s) => ({ id: s.client.id, naam: s.client.name }));
+
+  /**
+   * De namen van die klanten als lopende zin.
+   *
+   * Ze werden met komma's aan elkaar geplakt, dus er stond "Havenkwartier
+   * Makelaars, Noordlicht Software hebben een trackingprobleem" -- een opsomming
+   * die halverwege afgebroken lijkt. De laatste naam krijgt nu "en".
+   */
+  const namenlijst = (lijst) => {
+    const namen = lijst.map((s) => s.client.name);
+    if (namen.length <= 1) return namen.join('');
+    return `${namen.slice(0, -1).join(', ')} en ${namen[namen.length - 1]}`;
+  };
   const pct = (s) => {
     const metriek = PRIMAIRE_METRIEK[s.client.businessModel];
     const delta = metriek ? s.deltas[metriek] : null;
@@ -659,6 +682,7 @@ export function getPortfolioInzichten(user, filters) {
         titel: 'Grootste positieve ontwikkeling',
         tekst: `${beste.s.client.name} groeide met ${beste.pct.toFixed(1)} procent ten opzichte van ${filters.vergelijking.label.toLowerCase()}.`,
         clientId: beste.s.client.id,
+        klanten: klantenVan([beste.s]),
       });
     }
 
@@ -669,6 +693,7 @@ export function getPortfolioInzichten(user, filters) {
         titel: 'Grootste negatieve ontwikkeling',
         tekst: `${slechtste.s.client.name} daalde met ${Math.abs(slechtste.pct).toFixed(1)} procent ten opzichte van ${filters.vergelijking.label.toLowerCase()}.`,
         clientId: slechtste.s.client.id,
+        klanten: klantenVan([slechtste.s]),
       });
     }
   }
@@ -680,8 +705,9 @@ export function getPortfolioInzichten(user, filters) {
     inzichten.push({
       soort: 'aandacht',
       titel: 'Geen meetbare CRM-uitkomst',
-      tekst: `Voor ${zonderCrm.length === 1 ? '1 klant' : `${zonderCrm.length} klanten`} ontbreekt een CRM-koppeling: ${zonderCrm.map((s) => s.client.name).join(', ')}.`,
+      tekst: `Voor ${zonderCrm.length === 1 ? '1 klant' : `${zonderCrm.length} klanten`} ontbreekt een CRM-koppeling: ${namenlijst(zonderCrm)}.`,
       clientId: zonderCrm[0].client.id,
+      klanten: klantenVan(zonderCrm),
     });
   }
 
@@ -690,8 +716,9 @@ export function getPortfolioInzichten(user, filters) {
     inzichten.push({
       soort: 'negatief',
       titel: 'Boven budget',
-      tekst: `${boven.map((s) => s.client.name).join(', ')} ${boven.length === 1 ? 'ligt' : 'liggen'} boven het budget voor deze periode.`,
+      tekst: `${namenlijst(boven)} ${boven.length === 1 ? 'ligt' : 'liggen'} boven het budget voor deze periode.`,
       clientId: boven[0].client.id,
+      klanten: klantenVan(boven),
     });
   }
 
@@ -700,8 +727,9 @@ export function getPortfolioInzichten(user, filters) {
     inzichten.push({
       soort: 'aandacht',
       titel: 'Achterblijvende budgetbesteding',
-      tekst: `${onder.map((s) => s.client.name).join(', ')} ${onder.length === 1 ? 'blijft' : 'blijven'} onder het budget voor deze periode.`,
+      tekst: `${namenlijst(onder)} ${onder.length === 1 ? 'blijft' : 'blijven'} onder het budget voor deze periode.`,
       clientId: onder[0].client.id,
+      klanten: klantenVan(onder),
     });
   }
 
@@ -710,8 +738,9 @@ export function getPortfolioInzichten(user, filters) {
     inzichten.push({
       soort: 'aandacht',
       titel: 'Onvolledige dekking in deze periode',
-      tekst: `${onvolledig.map((s) => s.client.name).join(', ')} ${onvolledig.length === 1 ? 'heeft' : 'hebben'} niet over de hele periode data.`,
+      tekst: `${namenlijst(onvolledig)} ${onvolledig.length === 1 ? 'heeft' : 'hebben'} niet over de hele periode data.`,
       clientId: onvolledig[0].client.id,
+      klanten: klantenVan(onvolledig),
     });
   }
 
@@ -719,9 +748,14 @@ export function getPortfolioInzichten(user, filters) {
   if (tracking.length) {
     inzichten.push({
       soort: 'negatief',
-      titel: 'Trackingproblemen',
-      tekst: `${tracking.map((s) => s.client.name).join(', ')} ${tracking.length === 1 ? 'heeft' : 'hebben'} een trackingprobleem dat de cijfers onbetrouwbaar maakt.`,
+      // "Trackingproblemen" is het jargon dat `meetstatusBadge` al uit de
+      // interface heeft gehaald ten gunste van "Meting onvolledig". Dit inzicht
+      // was blijven staan, dus dezelfde toestand heette op de ene pagina een
+      // trackingprobleem en op de andere een onvolledige meting.
+      titel: 'Meting onvolledig',
+      tekst: `Bij ${namenlijst(tracking)} ${tracking.length === 1 ? 'is' : 'zijn'} de meting onvolledig, waardoor de cijfers onbetrouwbaar zijn.`,
       clientId: tracking[0].client.id,
+      klanten: klantenVan(tracking),
     });
   }
 
@@ -1204,6 +1238,12 @@ export function getKanaalOverzicht(user, filters) {
       revenue: som((r) => (r.model === 'ecommerce' ? r.totalen.revenue : null)),
       purchases: som((r) => (r.model === 'ecommerce' ? r.totalen.purchases : null)),
       leads: som((r) => (r.model === 'leadgen' ? r.totalen.leads : null)),
+      // Uitgaven per bedrijfsmodel, om dezelfde reden dat omzet en leads al
+      // gescheiden staan: een ROAS over de totale spend van dit kanaal zou de
+      // uitgaven van leadgenklanten in de noemer van een e-commerceverhouding
+      // zetten. Dat getal lijkt te kloppen en is te laag.
+      ecommerceSpend: som((r) => (r.model === 'ecommerce' ? r.totalen.spend : null)),
+      leadgenSpend: som((r) => (r.model === 'leadgen' ? r.totalen.spend : null)),
       ecommerceKlanten: ecommerce.length,
       leadgenKlanten: leadgen.length,
     };
@@ -1238,7 +1278,12 @@ export function getKanaalDetails(user, filters, kanaal) {
     const profiel = dashboard?.profiel;
     if (!profiel?.googleAdsBeschikbaar) continue;
 
-    const metKlant = (rijen) => (rijen ?? []).map((r) => ({ ...r, klantNaam: s.client.name, klantId: s.client.id }));
+    // Het bedrijfsmodel reist mee. Zonder dat staan aankopen en aanvragen in de
+    // kanaalpagina onder één kop "Resultaat", en dan lijkt 23 leads à 231 euro
+    // dertien keer zo slecht als 370 aankopen à 17 euro.
+    const metKlant = (rijen) => (rijen ?? []).map((r) => ({
+      ...r, klantNaam: s.client.name, klantId: s.client.id, klantModel: s.client.businessModel,
+    }));
     campagnes.push(...metKlant(profiel.googleAds.campagnes));
     advertentiegroepen.push(...metKlant(profiel.googleAds.advertentiegroepen));
     zoekwoorden.push(...metKlant(profiel.googleAds.zoekwoorden));

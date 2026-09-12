@@ -223,11 +223,21 @@ function renderItem(item, magVerplaatsen, { compact = false } = {}) {
       </div>
       <p class="muted klein">${esc(item.medewerkerNaam)}</p>
       ${item.signaal ? `<button type="button" class="link-klein" data-signaalpaneel="${esc(item.signaal.id)}">Volgt signaal op ↗</button>` : ''}`}
+    ${/**
+      * Een dag opschuiven, voor wie niet sleept.
+      *
+      * Deze knoppen droegen ◀ en ▶ -- exact dezelfde twee tekens als de
+      * weeknavigatie boven aan dezelfde pagina, die iets heel anders doet. Op
+      * een weekoverzicht stonden zo veertien identieke pijlparen naast één paar
+      * dat de hele week verschuift, zonder dat er iets op het scherm stond wat
+      * het verschil verklaarde. De schermlezer wist het wel (het aria-label
+      * zei het al), de kijker niet. Nu staat het er gewoon.
+      */''}
     ${sleepbaarheid ? `<div class="agenda-item-knoppen">
-      <button type="button" class="icoonknop klein" data-plan-dag="${esc(item.id)}" data-richting="vorige"
-        aria-label="${esc(item.titel)} een dag eerder plannen">◀</button>
-      <button type="button" class="icoonknop klein" data-plan-dag="${esc(item.id)}" data-richting="volgende"
-        aria-label="${esc(item.titel)} een dag later plannen">▶</button>
+      <button type="button" class="btn klein" data-plan-dag="${esc(item.id)}" data-richting="vorige"
+        aria-label="${esc(item.titel)} een dag eerder plannen">&minus;1 dag</button>
+      <button type="button" class="btn klein" data-plan-dag="${esc(item.id)}" data-richting="volgende"
+        aria-label="${esc(item.titel)} een dag later plannen">+1 dag</button>
     </div>` : ''}
     ${!item.verplaatsbaar ? '<p class="muted klein">Komt uit een externe agenda en wordt daar gewijzigd.</p>' : ''}
   </article>`;

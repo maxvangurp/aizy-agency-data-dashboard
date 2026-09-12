@@ -44,12 +44,16 @@ export function renderAgencyTeam(user, { team }) {
 
       <div class="table-scroll">
         ${tabel(
-          [LABELS.medewerker, LABELS.functietitel, LABELS.toegangsniveau, LABELS.accountstatus,
-            LABELS.toegewezenKlanten, 'Verantwoordelijk voor', 'Ondersteunt bij',
-            'Klanten met aandachtspunten', LABELS.openActies, LABELS.laatsteLogin, 'Acties'],
+          [LABELS.medewerker, LABELS.functietitel, LABELS.toegangsniveau, LABELS.toegewezenKlanten,
+            'Klanten met aandachtspunten', 'Open signalen', 'Acties'],
           team.map((lid) => teamRij(lid))
         )}
       </div>
+      <p class="muted note">
+        Klik op een naam voor het laatste inlogmoment en de volledige
+        klantverdeling. Klanttoewijzingen en toegangsniveaus liggen in deze demo
+        vast en zijn niet te wijzigen.
+      </p>
       <p class="muted note">
         De namen van het Aizy Performance Team zijn gebruikt om de demo herkenbaar
         te maken. Toegangsniveaus, klanttoewijzingen, inlogmomenten en
@@ -59,41 +63,95 @@ export function renderAgencyTeam(user, { team }) {
     </section>`;
 }
 
+/**
+ * Eén medewerker als tabelrij.
+ *
+ * WAT ER MIS WAS
+ * De tabel was op een scherm van 1440 pixels tot halverwege zichtbaar; de rest
+ * stond achter een horizontale schuif zonder enige aanwijzing dat hij er was.
+ * Uitgerekend de laatste kolom bevatte de knoppen -- de enige handelingen op
+ * deze pagina -- en die bepaalden ondertussen wél de rijhoogte. Vandaar de
+ * wisselende, kapot ogende rijen: een beheerder zonder knoppen kreeg een rij van
+ * 80 pixels, een medewerker met drie gestapelde knoppen een van 130.
+ *
+ * Twee oorzaken, twee ingrepen. De knoppen die niets deden zijn weg (zie
+ * `teamActies`), en de kolommen zijn teruggebracht van elf naar zeven. Dat
+ * laatste is geen smaak maar rekenwerk: gemeten in de browser had de tabel 1838
+ * pixels nodig in een werkgebied van 1096. Vier kolommen konden er per definitie
+ * niet bij.
+ *
+ * WAT ER NIET IS VERDWENEN
+ * Verantwoordelijkheid en ondersteuning blijven uit elkaar gehouden -- dat is
+ * een regel van dit overzicht, geen detail. Ze stonden als twee kolommen met
+ * volledige klantnamen, samen zo'n achthonderd pixels, en juist die twee waren
+ * daardoor bij niemand in beeld. Ze staan nu als telling in de kolom Toegewezen
+ * klanten ("3 · 1 verantwoordelijk · 2 ondersteunend"), met de namen zelf op de
+ * medewerkerpagina achter de naam. Hetzelfde geldt voor de accountstatus, die
+ * alleen nog opvalt wanneer hij afwijkt, en voor de laatste login.
+ */
 function teamRij(lid) {
   const g = lid.gebruiker;
   const rol = primaireRol(g);
   const niveau = toegangsniveauTerm(rol);
   const status = accountstatusTerm(g.status);
 
-  const klantenlijst = (lijst) => (lijst.length
-    ? lijst.map((s) => `<a class="link klein" href="#/agency/clients/${esc(s.client.id)}">${esc(s.client.name)}</a>`).join(', ')
-    : '<span class="muted">Geen</span>');
-
   return [
     `<a class="link" href="#/agency/team/${esc(g.id)}">${esc(g.displayName)}</a><br><span class="muted klein">${esc(g.email)}</span>`,
     esc(g.jobTitle ?? 'Niet vastgelegd'),
-    `<span title="${esc(niveau.omschrijving)}">${badge(niveau.kort, rol === 'agency_admin' ? 'ok' : 'muted')}</span>`,
-    `<span title="${esc(status.omschrijving)}">${badge(status.kort, status.variant)}</span>`,
-    lid.isBeheerder ? '<span class="muted">Alle klanten</span>' : `${lid.toegewezen.length}`,
-    klantenlijst(lid.primair),
-    klantenlijst(lid.ondersteunend),
+    // "Actief" bij negen van de negen medewerkers is een kolom die nooit iets
+    // zegt. Een afwijkende status is wél nieuws en staat er daarom bij.
+    `<span title="${esc(niveau.omschrijving)}">${badge(niveau.kort, rol === 'agency_admin' ? 'ok' : 'muted')}</span>
+     ${g.status === AccountStatus.ACTIEF ? '' : `<br><span title="${esc(status.omschrijving)}">${badge(status.kort, status.variant)}</span>`}`,
+    teamKlantencel(lid),
     lid.aandachtNodig.length ? `<span class="trend-negatief">${lid.aandachtNodig.length}</span>` : '0',
+    // Stond onder de kop "Open acties", maar telt signalen op de klanten
+    // waarvoor iemand verantwoordelijk is. Overal elders in het dashboard heet
+    // dat getal "open signalen", en die twee door elkaar halen is precies het
+    // soort verwarring dat een teamoverzicht niet moet veroorzaken.
     String(lid.openSignalen),
-    g.laatsteLogin
-      ? new Date(g.laatsteLogin).toLocaleDateString('nl-NL')
-      : '<span class="muted">Nog niet ingelogd</span>',
     teamActies(g, lid.isBeheerder),
   ];
 }
 
+/**
+ * Hoeveel klanten, en in welke rol.
+ *
+ * Het kale aantal verwarde: een beheerder stond op "Alle klanten" met "Geen" in
+ * de kolom ernaast, en bij een medewerker zei "3" niets over de vraag of hij
+ * ervoor verantwoordelijk is of meekijkt. Dat onderscheid is het hele punt van
+ * dit overzicht en staat er nu in dezelfde cel bij.
+ */
+function teamKlantencel(lid) {
+  if (lid.isBeheerder) {
+    return `<span class="muted">Alle klanten</span>
+      <br><span class="muted klein">Ziet alles, is nergens verantwoordelijk</span>`;
+  }
+  if (!lid.toegewezen.length) return '<span class="muted">Nog geen klanten</span>';
+
+  const delen = [
+    lid.primair.length ? `${lid.primair.length} verantwoordelijk` : null,
+    lid.ondersteunend.length ? `${lid.ondersteunend.length} ondersteunend` : null,
+  ].filter(Boolean);
+
+  return `${lid.toegewezen.length}
+    <br><span class="muted klein">${esc(delen.join(' · ') || 'alleen toegang')}</span>`;
+}
+
+/**
+ * De handelingen die deze rij wél kan uitvoeren.
+ *
+ * Hier stonden ook "Klanttoewijzing wijzigen" en "Toegangsniveau wijzigen". Die
+ * twee deden niets: ze openden geen scherm en wijzigden niets, ze meldden dat
+ * de wijziging in de demo niet beschikbaar is. Zo'n knop is erger dan geen
+ * knop -- hij maakt de kolom twee keer zo breed, hij duwt de knoppen die wél
+ * werken buiten beeld, en de gebruiker klikt hem één keer per medewerker aan om
+ * er telkens dezelfde melding voor terug te krijgen. Dat de toewijzingen
+ * vastliggen staat nu één keer onder de tabel, waar het thuishoort.
+ */
 function teamActies(lid, isBeheerder) {
   const knoppen = [];
   const naam = esc(lid.displayName);
 
-  if (!isBeheerder) {
-    knoppen.push(`<button type="button" class="btn klein" data-actie="wijzig-klanten" data-user="${esc(lid.id)}">Klanttoewijzing wijzigen</button>`);
-    knoppen.push(`<button type="button" class="btn klein" data-actie="wijzig-rol" data-user="${esc(lid.id)}">Toegangsniveau wijzigen</button>`);
-  }
   if (lid.status === AccountStatus.UITGENODIGD) {
     knoppen.push(`<button type="button" class="btn klein" data-actie="opnieuw-uitnodigen" data-user="${esc(lid.id)}">Uitnodiging opnieuw versturen</button>`);
   }
@@ -227,7 +285,7 @@ export function renderAgencySettings(user) {
       </p>
       <div class="instelling-rij">
         <button type="button" class="btn klein" id="menuThemaInstellingen">Wissel tussen licht en donker thema</button>
-        <button type="button" class="btn klein gevaar" id="menuDemoReset">Demo-indeling en demo-interacties resetten</button>
+        <button type="button" class="btn klein gevaar" id="menuDemoResetInstellingen">Demo-indeling en demo-interacties resetten</button>
       </div>
       <p class="muted klein">
         Resetten zet acties, signaalstatussen, planning, tabelweergaven en

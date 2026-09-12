@@ -27,6 +27,7 @@ import { ItemBron } from '../model/planning.js';
 import { toonDatum, toonKorteDatum, DEMO_TODAY, plusDagen } from '../filters/period.js';
 import { dashboardtypeTerm, budgetstatusTerm, LABELS } from '../terminology.js';
 import { DekkingStatus, PacingStatus } from '../data/selectors.js';
+import { kanaalLabel } from '../filters/channels.js';
 import { hoofdreden } from './portfolio.js';
 
 export const WERK_TABS = [
@@ -99,8 +100,11 @@ function widgetActiesVandaag(acties) {
       <button type="button" class="link" data-actiepaneel="${esc(a.id)}">${esc(a.titel)}</button>
       <span class="muted klein">${esc(a.klantNaam)} · ${esc(a.statusTerm.kort)}</span>
       ${a.verlopen ? badge('Deadline verstreken', 'hoog') : a.deadline ? badge(`Deadline ${toonKorteDatum(a.deadline)}`, 'middel') : ''}
-    </li>`), 'Er staat vandaag niets op je lijst met een deadline.')}
-    <a class="link-klein" href="#/agency/work?tab=acties">Alle acties bekijken</a>`;
+    </li>`), acties.length
+      ? 'Er staat vandaag niets op je lijst met een deadline.'
+      : 'Er staan geen acties op jouw naam. Bij Acties zie je waar je collega’s aan werken.')}
+    <a class="link-klein" href="#/agency/work?tab=acties">Al je acties bekijken</a>
+    <a class="link-klein" href="#/agency/actions">Acties van het hele team</a>`;
 }
 
 function widgetMeetings(planning) {
@@ -118,6 +122,27 @@ function widgetMeetings(planning) {
 }
 
 /**
+ * Jouw rol bij deze klant.
+ *
+ * Er waren twee gevallen: verantwoordelijk, of "je ondersteunt hier". Een
+ * agencybeheerder is geen van beide -- hij ziet alle klanten omdat hij alles mag
+ * zien, niet omdat hij eraan werkt. Die viel in het tweede geval, en dan staat
+ * er "Je ondersteunt hier" bij vier klanten terwijl de kop van dezelfde pagina
+ * meldt dat je bij nul klanten ondersteunt. Beide waren waar over hun eigen
+ * telling en spraken elkaar op het scherm tegen.
+ *
+ * Geen rol geeft ook geen regel. De kop van de pagina meldt al dat je bij geen
+ * van deze klanten als vaste medewerker staat; dat er dan onder alle vier de
+ * klanten "Je hebt toegang, geen rol" komt te staan voegt daar niets aan toe en
+ * duwt de reden waaróm een klant aandacht vraagt een regel naar beneden.
+ */
+function rolTekst(s) {
+  if (s.verantwoordelijk) return 'Jij bent verantwoordelijk';
+  if (s.ondersteunend) return 'Je ondersteunt hier';
+  return '';
+}
+
+/**
  * Klanten met aandacht.
  * Draagt bewust het id `vandaagAandacht`: dit is de opvolger van het blok dat
  * eerder zo heette op het persoonlijke overzicht.
@@ -126,13 +151,16 @@ function widgetKlantenAandacht(persoonlijk) {
   const items = [...persoonlijk.vandaagAandacht, ...persoonlijk.dezeWeek];
 
   return `<div id="vandaagAandacht">
-    ${lijst(items.slice(0, 5).map((s) => `<li>
-      <button type="button" class="link" data-klantpaneel="${esc(s.client.id)}">${esc(s.client.name)}</button>
-      ${badge(s.prioriteit.label, s.prioriteit.variant)}
-      ${badge(dashboardtypeTerm(s.model).kort, 'muted')}
-      <span class="muted klein">${esc(hoofdreden(s))}</span>
-      <span class="muted klein">${s.verantwoordelijk ? 'Jij bent verantwoordelijk' : 'Je ondersteunt hier'}</span>
-    </li>`), 'Binnen deze selectie liggen al je klanten op koers en is de meting volledig.')}
+    ${lijst(items.slice(0, 5).map((s) => {
+      const rol = rolTekst(s);
+      return `<li>
+        <button type="button" class="link" data-klantpaneel="${esc(s.client.id)}">${esc(s.client.name)}</button>
+        ${badge(s.prioriteit.label, s.prioriteit.variant)}
+        ${badge(dashboardtypeTerm(s.model).kort, 'muted')}
+        <span class="muted klein">${esc(hoofdreden(s))}</span>
+        ${rol ? `<span class="muted klein">${esc(rol)}</span>` : ''}
+      </li>`;
+    }), 'Binnen deze selectie liggen al je klanten op koers en is de meting volledig.')}
     <a class="link-klein" href="#/agency/clients">Al je klanten bekijken</a>
   </div>`;
 }
@@ -170,15 +198,68 @@ function widgetBudget(persoonlijk) {
   </li>`), 'Alle budgetten liggen op schema binnen deze periode.');
 }
 
+/**
+ * Wat er bij deze klant aan de meting mankeert.
+ *
+ * De lijst bevat twee verschillende problemen -- een kapotte teller en een gat
+ * in de dekking -- en die werden door elkaar getekend: de badge kwam uit de
+ * trackingstatus, de regel eronder uit de dekking. Bij een klant met een kapotte
+ * teller en een volledige periode stond er letterlijk "Meting onvolledig" boven
+ * "30 van 30 dagen met gegevens". Iedere regel noemt nu het probleem dat híj
+ * heeft, met de onderbouwing die daarbij hoort.
+ *
+ * De derde toestand is geen probleem maar vertraging: bij een periode die tot
+ * vandaag loopt zijn de laatste dagen simpelweg nog niet binnen. Dat als
+ * meetprobleem melden leert de lezer de widget te negeren.
+ */
+function meetprobleem(s) {
+  const gemist = s.dekking.totaalDagen - s.dekking.dagenMetData;
+
+  if (s.client.trackingStatus === 'probleem') {
+    return {
+      label: 'Meting onvolledig',
+      variant: 'hoog',
+      tekst: `Datakwaliteit ${s.client.dataHealth} procent${gemist > 0 ? `, en ${gemist} van de ${s.dekking.totaalDagen} dagen zonder gegevens` : ''}`,
+    };
+  }
+
+  if (s.dekking.status === DekkingStatus.GEEN_DATA) {
+    return {
+      label: 'Geen gegevens',
+      variant: 'hoog',
+      tekst: `Geen enkele dag met gegevens in deze periode van ${s.dekking.totaalDagen} dagen`,
+    };
+  }
+
+  if (s.dekking.bevatVoorlopigeDagen && !s.dekking.kanalenZonderData.length) {
+    return {
+      label: 'Nog niet compleet',
+      variant: 'muted',
+      tekst: `De bronnen zijn compleet tot en met ${toonDatum(s.dekking.volledigTot)}; de dagen daarna komen nog binnen`,
+    };
+  }
+
+  const kanalen = s.dekking.kanalenZonderData.map(kanaalLabel);
+  return {
+    label: 'Dekking onvolledig',
+    variant: 'middel',
+    tekst: kanalen.length
+      ? `Geen gegevens uit ${kanalen.join(' en ')}`
+      : `${gemist} van de ${s.dekking.totaalDagen} dagen zonder gegevens`,
+  };
+}
+
 function widgetMeetproblemen(persoonlijk) {
   const problemen = persoonlijk.datakwaliteit;
 
-  return lijst(problemen.slice(0, 5).map((s) => `<li>
-    <button type="button" class="link" data-klantpaneel="${esc(s.client.id)}">${esc(s.client.name)}</button>
-    ${badge(s.client.trackingStatus === 'probleem' ? 'Meting onvolledig' : 'Meting controleren',
-      s.client.trackingStatus === 'probleem' ? 'hoog' : 'middel')}
-    <span class="muted klein">${s.dekking.dagenMetData} van ${s.dekking.totaalDagen} dagen met gegevens</span>
-  </li>`), 'Alle bronnen van je klanten leveren volledige gegevens binnen deze periode.');
+  return lijst(problemen.slice(0, 5).map((s) => {
+    const p = meetprobleem(s);
+    return `<li>
+      <button type="button" class="link" data-klantpaneel="${esc(s.client.id)}">${esc(s.client.name)}</button>
+      ${badge(p.label, p.variant)}
+      <span class="muted klein">${esc(p.tekst)}</span>
+    </li>`;
+  }), 'Alle bronnen van je klanten leveren volledige gegevens binnen deze periode.');
 }
 
 function widgetRecenteKlanten(recente) {

@@ -575,7 +575,17 @@ function renderKlantActies(acties, magDeelnemen, contactpersoon) {
           ])
         )}
       </div>
-      ${contactpersoon ? `<div class="contactblok">${renderMedewerker(contactpersoon)}</div>` : ''}
+      ${/**
+        * Een naam met een functietitel, los onder een tabel, zonder dat ergens
+        * staat wie dat is of waarom hij daar hangt. Hij plakte bovendien tegen
+        * de laatste tabelrij aan en las daardoor als een rij die uit de tabel
+        * gevallen was. Eén regel erboven maakt het een antwoord op een vraag
+        * die een klant echt heeft: bij wie moet ik hiervoor zijn?
+        */''}
+      ${contactpersoon ? `<div class="contactblok">
+        <p class="eyebrow">Je vaste contactpersoon bij Aizy</p>
+        ${renderMedewerker(contactpersoon)}
+      </div>` : ''}
     </section>`;
 }
 

@@ -78,7 +78,7 @@ import {
   renderPaginatabs, renderDetailpaneel, actieveTab,
 } from './ui/app-shell.js';
 import { renderAssistent } from './ui/assistant.js';
-import { laadEchteClients, clientHerkomst } from './clients-bron.js';
+import { laadEchteClients, clientHerkomst, isDemoClient } from './clients-bron.js';
 import * as assistent from './assistant/assistant-controller.js';
 import { bouwAssistantContext } from './assistant/assistant-context.js';
 import { navigatieVoor, actiefItem, KANAALNAMEN, ANALYSE_TABS } from './ui/navigation.js';
@@ -381,6 +381,11 @@ function render() {
       conversieOpties: opties.conversieOpties,
       bronnen: omgeving === 'client' ? opties.bronnen : [],
       correcties: ctx.correcties,
+      // Alleen wanneer hij ook echt tussen echte klanten staat. In demomodus is
+      // álles voorbeeld en zou de melding niets onderscheiden.
+      demoklant: clientHerkomst() === 'live'
+        ? (klanten.find(isDemoClient)?.name ?? null)
+        : null,
       klanten,
       actieveKlantId,
       meldingen: signalenVoorTeller,
@@ -1022,7 +1027,6 @@ function paginaMijnWerk({ user, filters, tab, uiParams }) {
   const actiefTab = actieveTab(WERK_TABS, tab);
   const persoonlijk = getPersoonlijkOverzicht(user, filters);
   const eigenActies = getToegankelijkeActies(user, { alleenEigen: true });
-  const alleActies = getToegankelijkeActies(user);
   const signalen = getWerkSignalen(user, filters);
   const eigenSignalen = signalen.filter((s) => s.verantwoordelijkeId === user.id || s.verantwoordelijkeId == null);
   const voorkeuren = leesUiVoorkeuren(user.id);
@@ -1030,10 +1034,19 @@ function paginaMijnWerk({ user, filters, tab, uiParams }) {
     .map((id) => getClientById(user, id))
     .filter(Boolean);
 
+  // Een agencybeheerder is bij geen enkele klant verantwoordelijk of
+  // ondersteunend: hij ziet ze omdat hij alles mag zien. "Verantwoordelijk voor
+  // 0 en ondersteunt bij 0 klanten" is dan formeel juist en zegt niets; het las
+  // bovendien als een tegenspraak met de vier klanten die er onder stonden.
+  const heeftRol = persoonlijk.verantwoordelijkVoor.length || persoonlijk.ondersteuntBij.length;
+  const rolzin = heeftRol
+    ? `Je bent verantwoordelijk voor ${persoonlijk.verantwoordelijkVoor.length} en ondersteunt bij ${persoonlijk.ondersteuntBij.length} klanten.`
+    : `Je hebt toegang tot ${persoonlijk.samenvattingen.length} ${persoonlijk.samenvattingen.length === 1 ? 'klant' : 'klanten'}, zonder dat je op een van hen als vaste medewerker staat.`;
+
   const basis = {
     titel: `${dagdeel()}, ${user.firstName}`,
     ondertitel: persoonlijk.samenvattingen.length
-      ? `Je bent verantwoordelijk voor ${persoonlijk.verantwoordelijkVoor.length} en ondersteunt bij ${persoonlijk.ondersteuntBij.length} klanten. Weergave over ${toonBereik(filters.periode.startDate, filters.periode.endDate)}.`
+      ? `${rolzin} Weergave over ${toonBereik(filters.periode.startDate, filters.periode.endDate)}.`
       : 'Er zijn nog geen klanten aan je account toegewezen.',
     kruimelpad: [AGENCY_KRUIMEL, { label: 'Mijn werk' }],
     labels: persoonlijk.vandaagAandacht.length
@@ -1088,7 +1101,14 @@ function paginaMijnWerk({ user, filters, tab, uiParams }) {
       indeling: leesIndeling(user.id),
       bewerken: widgetBewerken,
       persoonlijk,
-      acties: eigenActies.length ? eigenActies : alleActies,
+      // Stond hier als `eigenActies.length ? eigenActies : alleActies`. Had je
+      // zelf geen acties, dan vulde de widget "Mijn acties vandaag" zich met de
+      // acties van je collega's -- zonder dat ergens stond dat het die van een
+      // ander waren. De tab ernaast meldde tegelijk "Mijn acties 0". Een
+      // Performance Lead las daar drie taken op zijn naam die van Benito en
+      // Berry waren. Een lege lijst is het eerlijke antwoord; de lege staat van
+      // de widget wijst de weg naar het teamoverzicht.
+      acties: eigenActies,
       signalen,
       planning: getPlanning(user, {
         van: DEMO_TODAY,
@@ -1267,8 +1287,14 @@ function paginaConversies({ user, filters }) {
 
 /* ---- Werk ---- */
 
+/**
+ * De knop in de paginakop is de enige ingang naar het aanmaakformulier.
+ * Zolang dat formulier open staat verdwijnt hij: het formulier heeft zelf een
+ * Annuleren, en een knop "Actie aanmaken" boven een geopend aanmaakformulier
+ * belooft een tweede formulier dat er niet komt.
+ */
 function knopNieuweActie(user) {
-  if (!can(user, Permission.MANAGE_ACTIONS)) return '';
+  if (!can(user, Permission.MANAGE_ACTIONS) || nieuweActieOpen) return '';
   return `<button type="button" class="btn klein primary" id="nieuweActieKop">Actie aanmaken</button>`;
 }
 
@@ -1303,12 +1329,22 @@ function paginaActies({ user, filters, tab, uiParams }) {
 
   return {
     titel: 'Acties',
-    ondertitel: `${samenvatting.open.length} openstaande ${samenvatting.open.length === 1 ? 'actie' : 'acties'}, waarvan ${samenvatting.verlopen.length} over de deadline.`,
+    // De kop meldde "13 openstaande acties" terwijl de tab ernaast "Lijst 14"
+    // aangaf en de tabel "14 van 14 rijen": drie getallen over dezelfde tabel,
+    // twee ervan verschillend. De lijst bevat ook afgeronde acties, dus het
+    // totaal hoort erbij om het verschil te verklaren.
+    ondertitel: `${acties.length} ${acties.length === 1 ? 'actie' : 'acties'} in deze lijst, waarvan ${samenvatting.open.length} openstaand.`,
     kruimelpad: [AGENCY_KRUIMEL, { label: 'Acties' }],
+    // Een nul over de deadline is geen nieuws en stond het nieuws in de weg.
+    // Is hij niet nul, dan is het het belangrijkste getal op de pagina en hoort
+    // hij vooraan te staan, met het gewicht van een waarschuwing.
     labels: [
+      samenvatting.verlopen.length
+        ? { tekst: `${samenvatting.verlopen.length} over de deadline`, variant: 'hoog' }
+        : null,
       { tekst: `${samenvatting.perStatus[ActieStatus.WACHT_OP_KLANT]} wacht op klant`, variant: 'middel' },
       { tekst: `${samenvatting.perStatus[ActieStatus.BEZIG]} bezig`, variant: 'muted' },
-    ],
+    ].filter(Boolean),
     acties: knopNieuweActie(user),
     tabs: ACTIE_TABS.map((t) => ({ ...t, aantal: t.key === 'lijst' ? acties.length : undefined })),
     tabKey: actiefTab,
@@ -2358,7 +2394,11 @@ async function onClick(e) {
     sluitAccountmenu();
     return;
   }
-  if (el.id === 'menuDemoReset') {
+  // Twee knoppen, één handeling: in het accountmenu en op de instellingenpagina.
+  // Ze droegen hetzelfde id, en dat is op een pagina waar beide staan geen
+  // schoonheidsfoutje: `getElementById` levert er dan willekeurig één van, en een
+  // `<label for>` wijst naar de verkeerde. Zelfde patroon als `menuThema`.
+  if (el.id === 'menuDemoReset' || el.id === 'menuDemoResetInstellingen') {
     if (!window.confirm('De demo-indeling en alle demo-interacties terugzetten? Acties, signaalstatussen, planning, tabelweergaven en widgets gaan terug naar de uitgangssituatie.')) return;
     wisAlleDemoGegevens();
     widgetBewerken = false;
@@ -3239,7 +3279,9 @@ async function init() {
   // leest hem meteen, en een lege lijst zou als "geen toegang" ogen.
   const klanten = await laadEchteClients();
   if (klanten.melding) console.warn('Klantenlijst:', klanten.melding);
-  console.info(`Klantenlijst: ${klanten.aantal} klanten (${clientHerkomst()})`);
+  console.info(klanten.demo
+    ? `Klantenlijst: ${klanten.echt} echte klanten plus ${klanten.demo} voorbeeldklant als controle (${clientHerkomst()})`
+    : `Klantenlijst: ${klanten.aantal} klanten (${clientHerkomst()})`);
 
   startRouter(render);
   onAuthChange(() => {});

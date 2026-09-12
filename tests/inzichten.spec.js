@@ -410,8 +410,17 @@ test.describe('Microcopy en lege staten', () => {
     for (const label of labels) {
       expect(vaag, `knoplabel "${label}" is te vaag`).not.toContain(label.trim());
     }
-    expect(labels.some((l) => l.includes('Klanttoewijzing wijzigen'))).toBe(true);
-    expect(labels.some((l) => l.includes('Toegangsniveau wijzigen'))).toBe(true);
+
+    // Hier werd de aanwezigheid van "Klanttoewijzing wijzigen" en
+    // "Toegangsniveau wijzigen" afgedwongen. Die twee knoppen wijzigden niets:
+    // ze toonden de melding dat de wijziging in de demo niet beschikbaar is. Een
+    // knoplabel dat belooft wat de knop niet doet is precies het tegenovergestelde
+    // van wat deze test bewaakt, dus de eis is omgedraaid: elke knop die er staat,
+    // doet ook iets.
+    expect(labels.length, 'het teamoverzicht hoort knoppen te hebben').toBeGreaterThan(0);
+    for (const dood of ['Klanttoewijzing wijzigen', 'Toegangsniveau wijzigen']) {
+      expect(labels, `"${dood}" doet niets en hoort er niet te staan`).not.toContain(dood);
+    }
   });
 
   test('een bevestigingsdialoog benoemt wat er verandert', async ({ page }) => {

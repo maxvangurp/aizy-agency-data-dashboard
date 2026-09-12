@@ -574,6 +574,19 @@ export function renderBudget(dashboard) {
       ${kpi('Budget voor deze periode', b.budget == null ? 'Niet ingesteld' : fmt.euro(b.budget),
         b.maandbudget == null ? 'Geen budget vastgelegd' : `Maandbudget ${fmt.euro(b.maandbudget)} naar rato`)}
       ${kpi('Uitgaven', fmt.euro(b.uitgaven), `${b.verstrekenDagen} van ${b.totaalDagen} dagen verstreken`)}
+      ${/**
+        * "Geen prognose" staat er met zoveel woorden, met de reden erbij.
+        *
+        * De neiging is om deze kaart weg te laten zodra er niets te voorspellen
+        * valt -- een kaart die enkel meldt dat hij leeg is, naast drie kaarten
+        * met een bedrag, oogt als een storing. Toch hoort hij te blijven: een
+        * weggelaten kaart is niet te onderscheiden van een kaart die iemand
+        * vergeten is, en dat is precies de verwarring die dit dashboard overal
+        * elders vermijdt (zie `ontbrekendeCel`). Bij een afgeronde periode is
+        * "geen prognose" bovendien geen gebrek maar het juiste antwoord: alle
+        * dagen zijn verstreken, dus het eindbedrag ís de uitgave. Dat verschil
+        * kan de lezer alleen zien als het er staat.
+        */''}
       ${kpi('Verwacht eindbedrag', b.prognose == null ? 'Geen prognose' : fmt.euro(b.prognose),
         b.prognose == null ? b.reden : `Gemiddeld ${fmt.euro(b.gemiddeldPerDag)} per dag`, variant)}
       ${kpi('Verschil met budget', b.verschil == null ? 'Niet beschikbaar' : fmt.euro(b.verschil),
