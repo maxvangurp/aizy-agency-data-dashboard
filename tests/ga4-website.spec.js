@@ -276,6 +276,36 @@ test.describe('GA4-module — het klanttype bepaalt de inhoud', () => {
     await expect(page.locator('.ga4-meldingen')).toContainText('48 uur');
   });
 
+  test('een vergelijking met een lege periode wordt als zodanig gemeld', async ({ page }) => {
+    // Waltmanns property is van maart 2026. Een vergelijking met september 2025
+    // toont nul tegenover duizenden, en dat leest als explosieve groei. De
+    // cijfers blijven staan -- ze zijn waar -- maar de pagina zegt wat het is.
+    await simpelLogin(page, ACCOUNTS.admin, {
+      ...LEADGEN,
+      vergelijking: {
+        ...VERGELIJKING, start: '2025-08-15', eind: '2025-09-11', label: 'Vorig jaar',
+        voorbehoud: 'In de vergelijkingsperiode is geen enkel bezoek gemeten. Waarschijnlijk '
+          + 'bestond deze property toen nog niet.',
+      },
+    });
+    await naarWebsite(page);
+    await expect(page.locator('.ga4-meldingen')).toContainText('geen enkel bezoek gemeten');
+  });
+
+  test('de vensterkeuze staat op de pagina en legt uit waarom hij eigen is', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.admin, LEADGEN);
+    await naarWebsite(page);
+
+    const keuze = page.locator('.ga4-venster');
+    await expect(keuze.locator('[data-venster="7"]')).toBeVisible();
+    await expect(keuze.locator('[data-venster="28"]')).toHaveClass(/actief/);
+    await expect(keuze.locator('[data-venster="90"]')).toBeVisible();
+    await expect(keuze).toContainText('eigen periode en niet het filter bovenaan');
+
+    // De keuze staat in de hash, zodat hij deelbaar is en een herlading overleeft.
+    await expect(keuze.locator('[data-venster="7"]')).toHaveAttribute('href', /venster=7/);
+  });
+
   test('een ontbrekende vergelijking zegt waarom hij ontbreekt', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.admin, {
       ...LEADGEN,

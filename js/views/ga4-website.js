@@ -195,6 +195,11 @@ function vensterKeuze(data) {
          href="${link(actief, 'vorige')}" data-vergelijk="vorige">Vorige periode</a>
       <a class="ga4-venster-knop${vergelijk === 'vorigJaar' ? ' actief' : ''}"
          href="${link(actief, 'vorigJaar')}" data-vergelijk="vorigJaar">Vorig jaar</a>
+      <p class="ga4-venster-uitleg">
+        Deze pagina volgt zijn eigen periode en niet het filter bovenaan. GA4 rekent op
+        volledige dagen: een dag die nog loopt is altijd lager dan hij wordt, en laat elke
+        trend op het eind dalen zonder dat er iets gebeurde.
+      </p>
     </div>`;
 }
 
@@ -220,6 +225,9 @@ function propertyRegel(property) {
  */
 function meldingenBlok(data) {
   const regels = [...(data.meldingen ?? [])];
+  if (data.vergelijking?.voorbehoud) {
+    regels.unshift({ code: 'vergelijking_leeg', tekst: data.vergelijking.voorbehoud });
+  }
   if (data.synchronisatie?.nogInVerwerking) {
     regels.unshift({
       code: 'verwerking',

@@ -977,6 +977,12 @@ app.get('/api/ga4', async (req, res) => {
     // Een vergelijking tussen twee verschillende definities is geen
     // vergelijking. Beter geen dan een die stilzwijgend appels en peren telt.
     const definitieGewijzigd = Boolean(vorigeRij && vorigeRij.fingerprint !== rapportRij.fingerprint);
+
+    // Nul sessies in de vorige periode is meestal geen daling maar een property
+    // die toen nog niet bestond. Waltmanns property is van maart 2026; een
+    // vergelijking met september 2025 leest dan als oneindige groei. De cijfers
+    // blijven staan -- ze zijn waar -- maar de pagina zegt erbij wat het is.
+    const vorigeLeeg = Boolean(vorig && Number(vorig.totalen?.sessies ?? 0) === 0);
     const bruikbaarVorig = definitieGewijzigd ? null : vorig;
 
     const prioriteit = instellingen.priority ?? null;
@@ -1010,6 +1016,13 @@ app.get('/api/ga4', async (req, res) => {
               : definitieGewijzigd
                 ? 'De conversiedefinitie is tussen deze twee perioden gewijzigd; de cijfers zijn niet vergelijkbaar.'
                 : 'Voor die periode is nog geen rapport opgehaald.',
+            // Apart van `reden`: de vergelijking is er wél, hij betekent alleen
+            // iets anders dan hij lijkt.
+            voorbehoud: vorigeLeeg && bruikbaarVorig
+              ? 'In de vergelijkingsperiode is geen enkel bezoek gemeten. Waarschijnlijk bestond '
+                + 'deze property toen nog niet, of liep de meting nog niet. Elke stijging hieronder '
+                + 'is dan een vergelijking met niets.'
+              : null,
           }
         : null,
       kpis: ga4Contract.kpiGroepen(rapport, bruikbaarVorig, {prioriteit}),

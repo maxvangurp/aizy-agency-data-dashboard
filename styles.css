@@ -4676,3 +4676,11 @@ h1, h2, .kpi-value {
 }
 .ga4-beschikbaar { margin: 4px 0 12px 18px; font-size: 14px; }
 .ga4-beschikbaar li { margin: 2px 0; }
+.ga4-venster-uitleg {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--tekst-zacht, #6B6B7B);
+  max-width: 70ch;
+}
