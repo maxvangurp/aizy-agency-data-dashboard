@@ -159,7 +159,10 @@ export function renderKlantAnalyse({ dashboard, tab }) {
     video: () => videoBlok(dashboard),
     betrokkenheid: () => betrokkenheidBlok(dashboard),
     // Gedeeld
-    campagnes: () => campagnesBlok(dashboard),
+    // Op de analysepagina alle kanalen samen: die pagina gaat over de klant en
+    // niet over één platform, en twee losse tabellen beantwoorden de vraag niet
+    // welke campagne het meeste opleverde.
+    campagnes: () => campagnesBlok(dashboard, 'alle'),
   };
 
   return bouwers[tab] ? bouwers[tab]() : bouwers.campagnes();
@@ -268,31 +271,68 @@ function kwaliteitBlok(d) {
     </section>`;
 }
 
+/**
+ * Waar mensen op zochten, en waarop geboden werd.
+ *
+ * Twee verschillende dingen, en dat verschil is de hele waarde van deze pagina.
+ * Een zoekwoord is wat jij hebt ingesteld; een zoekterm is wat iemand
+ * werkelijk intikte. De tweede lijst is waar het budget weglekt naar vragen
+ * waar je niets mee kunt, en juist die stond hier niet.
+ */
 function zoektermenBlok(d) {
+  if (d.profiel?.laden) {
+    return `<section class="card" aria-busy="true"><h2>Waar mensen op zochten</h2>
+      <p class="muted">Cijfers laden…</p></section>`;
+  }
+
+  const zoektermen = d.profiel?.googleAds?.zoektermen ?? [];
   const zoekwoorden = d.profiel?.googleAds?.zoekwoorden ?? [];
-  if (!zoekwoorden.length) {
+
+  if (!zoektermen.length && !zoekwoorden.length) {
     return `<section class="card">
       ${koppelStatus({
         bron: 'Google Ads zoektermen',
         status: KanaalStatus.NIET_GEKOPPELD,
-        uitleg: 'Zoektermen komen uit Google Ads. Voeg Google Ads toe aan de kanaalselectie om ze te zien.',
+        uitleg: d.profiel?.echt
+          ? 'Er zijn binnen deze periode geen zoektermen met cijfers. Dat betekent niet dat het '
+            + 'resultaat nul is; er is niets gemeten.'
+          : 'Zoektermen komen uit Google Ads. Voeg Google Ads toe aan de kanaalselectie om ze te zien.',
       })}
     </section>`;
   }
 
-  return `<section class="card">
-    <h2>Waar mensen op zochten</h2>
-    <div class="table-scroll">
-      ${tabel(
-        ['Zoekwoord', 'Matchtype', 'Vertoningen', 'Klikken', 'Kosten', 'Aanvragen'],
-        zoekwoorden.map((z) => [
-          esc(z.zoekwoord), esc(z.matchtype ?? ''), fmt.getal(z.vertoningen),
-          fmt.getal(z.klikken), fmt.euro(z.kosten),
-          z.leads == null ? ontbrekendeCel('niet_gemeten') : fmt.getal(z.leads),
-        ])
-      )}
-    </div>
-  </section>`;
+  const periode = d.profiel?.entiteitPeriodes;
+  const isEcommerce = d.type === BusinessModel.ECOMMERCE;
+  const resultaatKop = isEcommerce ? 'Aankopen' : 'Aanvragen';
+
+  const lijst = (titel, rijen, soort, kolommen, rij) => (rijen.length ? `
+    <section class="card">
+      <h2>${esc(titel)}</h2>
+      ${periode?.[soort]?.afwijkend ? `<p class="campagne-status-uitleg muted">${esc(
+        `Deze lijst beslaat ${toonBereik(periode[soort].start, periode[soort].eind)}, niet de periode hierboven.`
+      )}</p>` : ''}
+      <div class="table-scroll">
+        ${tabel(kolommen, rijen.slice(0, 100).map(rij))}
+      </div>
+      ${rijen.length > 100
+        ? `<p class="ga4-dekking muted">${esc(`${rijen.length} rijen; de 100 duurste staan hierboven.`)}</p>`
+        : ''}
+    </section>` : '');
+
+  return `
+    ${lijst('Waar mensen werkelijk op zochten', zoektermen, 'zoektermen',
+      ['Zoekterm', 'Campagne', 'Vertoningen', 'Klikken', 'Kosten', resultaatKop],
+      (z) => [
+        esc(z.naam), esc(z.campagne ?? '—'), fmt.getal(z.vertoningen),
+        fmt.getal(z.klikken), fmt.euro(z.kosten), fmt.getal(z.conversies),
+      ])}
+    ${lijst('Waarop geboden werd', zoekwoorden, 'zoekwoorden',
+      ['Zoekwoord', 'Matchtype', 'Vertoningen', 'Klikken', 'Kosten', resultaatKop],
+      (z) => [
+        esc(z.naam), esc(z.detail?.matchtype ?? '—'), fmt.getal(z.vertoningen),
+        fmt.getal(z.klikken), fmt.euro(z.kosten), fmt.getal(z.conversies),
+      ])}
+  `;
 }
 
 function omzetBlok(d) {
@@ -429,8 +469,10 @@ function campagnesBlok(d, kanaal = 'google_ads') {
     </section>`;
   }
 
-  const bron = kanaal === 'meta_ads' ? d.profiel?.metaAds : d.profiel?.googleAds;
-  const campagnes = bron?.campagnes ?? [];
+  const campagnes = kanaal === 'alle'
+    ? [...(d.profiel?.googleAds?.campagnes ?? []), ...(d.profiel?.metaAds?.campagnes ?? [])]
+      .sort((a, b) => (b.kosten ?? 0) - (a.kosten ?? 0))
+    : (kanaal === 'meta_ads' ? d.profiel?.metaAds : d.profiel?.googleAds)?.campagnes ?? [];
 
   if (!campagnes.length) {
     return `<section class="card">
@@ -438,9 +480,11 @@ function campagnesBlok(d, kanaal = 'google_ads') {
         bron: 'Campagnegegevens',
         status: KanaalStatus.NIET_GEKOPPELD,
         uitleg: d.profiel?.echt
-          ? `Er zijn binnen deze periode geen campagnes met cijfers van ${kanaalTitel(kanaal)}. `
+          ? `Er zijn binnen deze periode geen campagnes met cijfers${kanaal === 'alle' ? '' : ` van ${kanaalTitel(kanaal)}`}. `
             + 'Dat betekent niet dat het resultaat nul is; er is niets gemeten.'
-          : `Campagnegegevens komen uit ${kanaalTitel(kanaal)}. Voeg dat kanaal toe aan de selectie om ze te zien.`,
+          : kanaal === 'alle'
+            ? 'Campagnegegevens komen uit de advertentieplatforms. Voeg een kanaal toe aan de selectie om ze te zien.'
+            : `Campagnegegevens komen uit ${kanaalTitel(kanaal)}. Voeg dat kanaal toe aan de selectie om ze te zien.`,
       })}
     </section>`;
   }
