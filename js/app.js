@@ -79,7 +79,8 @@ import {
   renderPaginatabs, renderDetailpaneel, actieveTab,
 } from './ui/app-shell.js';
 import { renderAssistent } from './ui/assistant.js';
-import { laadEchteClients, clientHerkomst, laadEchteReeksen } from './clients-bron.js';
+import { laadEchteClients, clientHerkomst, laadEchteReeksen, laadKlantDetail } from './clients-bron.js';
+import { heeftKlantDetail, detailGeprobeerd, markeerGeprobeerd } from './data/echt-klantdetail.js';
 import * as assistent from './assistant/assistant-controller.js';
 import { bouwAssistantContext } from './assistant/assistant-context.js';
 import { navigatieVoor, actiefItem, KANAALNAMEN, ANALYSE_TABS } from './ui/navigation.js';
@@ -223,6 +224,44 @@ function renderAuthScherm(html, titel) {
   document.title = `${titel} · Aizy`;
   document.body.dataset.shell = 'auth';
   app().innerHTML = html;
+}
+
+/**
+ * Zorgt dat de detailcijfers van deze klant klaarstaan, en tekent opnieuw zodra
+ * ze binnen zijn.
+ *
+ * De repository is synchroon -- dat is wat het hele dashboard eenvoudig houdt --
+ * dus een asynchrone vraag kan alleen zo: kijken of het antwoord er is, anders
+ * vragen en daarna opnieuw tekenen.
+ *
+ * De teller voorkomt dat een traag antwoord een nieuwere weergave overschrijft:
+ * wie doorklikt naar een andere klant wil niet dat de vorige alsnog binnenkomt.
+ */
+let klantDetailToken = 0;
+
+function zorgVoorKlantDetail(klantId, filters) {
+  if (!klantId || !filters?.periode?.startDate) return;
+  if (heeftKlantDetail(klantId, filters.periode)) return;
+  if (detailGeprobeerd(klantId, filters.periode)) return;
+
+  // Synchroon markeren, vóór de vraag: deze render moet al kunnen zien dat de
+  // cijfers onderweg zijn. Gebeurt het pas in de loader -- achter een await --
+  // dan is de eerste tekening al klaar en staat er "niet gekoppeld" waar
+  // "laden" hoort.
+  markeerGeprobeerd(klantId, filters.periode);
+
+  const token = ++klantDetailToken;
+  laadKlantDetail(klantId, filters.periode)
+    .then((uit) => {
+      if (token !== klantDetailToken) return;
+      if (uit.herkomst === 'live') render();
+    })
+    .catch((fout) => {
+      // Niet stilzwijgend: een fout hier betekent dat de pagina blijft zeggen
+      // dat er niets gekoppeld is, en dan zoekt iemand in de koppeling naar een
+      // probleem dat in deze code zit.
+      console.error('Klantdetail laden mislukt:', fout);
+    });
 }
 
 function render() {
@@ -751,6 +790,7 @@ function renderSimpelPagina({ user, ctx, route }) {
   // klant. Een agency-org is géén klant en zou anders een leeg dashboard geven.
   const voorkeur = getActieveKlantId() ?? primaireOrganisatieId(user);
   const klantId = klanten.some((k) => k.id === voorkeur) ? voorkeur : (klanten[0]?.id ?? null);
+  zorgVoorKlantDetail(klantId, filters);
   const dashboard = klantId ? getClientDashboard(user, klantId, filters) : null;
   const view = route.naam; // 'simpel-overzicht' | 'simpel-google' | ...
 
@@ -1171,6 +1211,7 @@ function paginaKlanten({ user, filters, uiParams }) {
 }
 
 function paginaKlantdetail({ user, filters, params }) {
+  zorgVoorKlantDetail(params.clientId, filters);
   const dashboard = getClientDashboard(user, params.clientId, filters);
   if (!dashboard) return { titel: 'Klantdetail', inhoud: null };
 
@@ -1661,6 +1702,7 @@ function paginaIntegraties({ user, filters }) {
 
 function bouwKlantpagina({ user, route, params, filters, tab, uiParams }) {
   const klantId = getActieveKlantId() ?? primaireOrganisatieId(user);
+  zorgVoorKlantDetail(klantId, filters);
   const dashboard = getClientDashboard(user, klantId, filters);
   if (!dashboard) return { titel: route.titel, inhoud: null };
 

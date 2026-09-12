@@ -410,27 +410,59 @@ function betrokkenheidBlok(d) {
   return kpiRij(d, ['engagements', 'engagementRatio', 'clicks', 'brandedSearchClicks']);
 }
 
-function campagnesBlok(d) {
-  const campagnes = d.profiel?.googleAds?.campagnes ?? [];
+/**
+ * De campagnetabel van één kanaal.
+ *
+ * Kanaalbewust, want Meta-campagnes stonden hier niet: het blok las altijd uit
+ * `googleAds`, en de Meta-tab kreeg daarom de melding dat de koppeling nog niet
+ * bestond -- terwijl de campagnes er wel waren.
+ *
+ * De status staat erbij. Die is van nu en de cijfers zijn van de periode, en
+ * dat is precies het punt: een campagne die gisteren is uitgezet heeft deze
+ * uitgaven wél gedaan.
+ */
+function campagnesBlok(d, kanaal = 'google_ads') {
+  if (d.profiel?.laden) {
+    return `<section class="card" aria-busy="true">
+      <h2>Campagnes</h2>
+      <p class="muted">Campagnecijfers laden…</p>
+    </section>`;
+  }
+
+  const bron = kanaal === 'meta_ads' ? d.profiel?.metaAds : d.profiel?.googleAds;
+  const campagnes = bron?.campagnes ?? [];
+
   if (!campagnes.length) {
     return `<section class="card">
       ${koppelStatus({
         bron: 'Campagnegegevens',
         status: KanaalStatus.NIET_GEKOPPELD,
-        uitleg: 'Campagnegegevens komen in deze demo uit Google Ads. Voeg Google Ads toe aan de kanaalselectie om ze te zien.',
+        uitleg: d.profiel?.echt
+          ? `Er zijn binnen deze periode geen campagnes met cijfers van ${kanaalTitel(kanaal)}. `
+            + 'Dat betekent niet dat het resultaat nul is; er is niets gemeten.'
+          : `Campagnegegevens komen uit ${kanaalTitel(kanaal)}. Voeg dat kanaal toe aan de selectie om ze te zien.`,
       })}
     </section>`;
   }
 
   const isEcommerce = d.type === BusinessModel.ECOMMERCE;
+  const uit = campagnes.filter((c) => c.status && c.status !== 'active');
+  const uitgavenUit = uit.reduce((som, c) => som + (Number(c.kosten) || 0), 0);
+  const totaal = campagnes.reduce((som, c) => som + (Number(c.kosten) || 0), 0);
 
   return `<section class="card">
     <h2>Campagnes</h2>
+    ${uit.length ? `<p class="campagne-status-uitleg muted">${esc(
+      `${uit.length} van de ${campagnes.length} campagnes met uitgaven staan inmiddels uit. `
+      + `Samen ${fmt.euro(uitgavenUit)}${totaal > 0 ? ` van ${fmt.euro(totaal)}` : ''}. `
+      + 'Die uitgaven zijn echt gedaan; wat je eraan verandert, verandert niets meer.'
+    )}</p>` : ''}
     <div class="table-scroll">
       ${tabel(
-        ['Campagne', 'Type', 'Kosten', 'Klikken', 'Vertoningen', isEcommerce ? 'Aankopen' : 'Aanvragen'],
+        ['Campagne', 'Type', 'Status', 'Kosten', 'Klikken', 'Vertoningen', isEcommerce ? 'Aankopen' : 'Aanvragen'],
         campagnes.map((c) => [
-          esc(c.naam), esc(c.type ?? ''), fmt.euro(c.kosten), fmt.getal(c.klikken), fmt.getal(c.vertoningen),
+          esc(c.naam), esc(c.type ?? ''), campagneStatusCel(c),
+          fmt.euro(c.kosten), fmt.getal(c.klikken), fmt.getal(c.vertoningen),
           (isEcommerce ? c.conversies : c.leads) == null
             ? ontbrekendeCel('niet_gemeten')
             : fmt.getal(isEcommerce ? c.conversies : c.leads),
@@ -438,6 +470,21 @@ function campagnesBlok(d) {
       )}
     </div>
   </section>`;
+}
+
+const CAMPAGNE_STATUS_LABEL = {
+  active: 'Actief', paused: 'Gepauzeerd', ended: 'Beëindigd', draft: 'Concept',
+};
+
+function campagneStatusCel(c) {
+  // Onbekend is niet actief: bij campagnes waarvan de status nooit is opgehaald
+  // hoort dat te staan en geen groen vinkje.
+  if (!c.status) return badge('Onbekend', 'muted');
+  if (c.platformStatus === 'WITH_ISSUES') {
+    return `${badge('Actief', 'ok')} ${badge('met problemen', 'middel')}`;
+  }
+  const label = CAMPAGNE_STATUS_LABEL[c.status] ?? c.status;
+  return badge(label, c.status === 'active' ? 'ok' : 'muted');
 }
 
 function leesbaar(sleutel) {
@@ -464,17 +511,23 @@ export function renderKlantKanaal({ dashboard, kanaal, tab }) {
   }
 
   if (actief.key !== 'overzicht' && actief.bron === 'geen') {
+    // De reden komt uit het profiel zodra die er is: "wordt niet opgehaald bij
+    // Meta" zegt meer dan "de koppeling bestaat nog niet", want die bestaat wel
+    // -- dit stuk wordt er alleen niet uit gehaald.
+    const reden = dashboard.profiel?.ontbreekt?.[actief.key];
     return `<section class="card">
       ${koppelStatus({
         bron: `${kanaalTitel(kanaal)} — ${actief.label}`,
         status: KanaalStatus.TOEKOMSTIG,
-        uitleg: `Dit onderdeel komt rechtstreeks uit ${kanaalTitel(kanaal)}. Zolang die koppeling er niet is, tonen we hier geen tabel, want een lege tabel leest als "geen resultaat".`,
+        uitleg: reden
+          ? `${reden} Er wordt hier geen tabel getoond, want een lege tabel leest als "geen resultaat" -- en dat is iets anders dan "niet gemeten".`
+          : `Dit onderdeel komt rechtstreeks uit ${kanaalTitel(kanaal)}. Zolang die koppeling er niet is, tonen we hier geen tabel, want een lege tabel leest als "geen resultaat".`,
       })}
     </section>`;
   }
 
   if (actief.key === 'campagnes' || actief.key === 'zoekwoorden' || actief.key === 'advertentiegroepen') {
-    return campagnesBlok(dashboard);
+    return campagnesBlok(dashboard, kanaal);
   }
 
   const isEcommerce = dashboard.type === BusinessModel.ECOMMERCE;

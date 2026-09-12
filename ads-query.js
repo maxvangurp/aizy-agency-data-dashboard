@@ -77,8 +77,11 @@ async function leesBetrouwbaarheid(sb, clientId, platform = PLATFORM) {
  * filters of de rechten hoort door te komen, niet stilzwijgend minder data op
  * te leveren.
  */
-async function leesCampagnes(sb, klantId, platform) {
-  const filters = { client_id: klantId, platform };
+async function leesCampagnes(sb, klantId, platform = null) {
+  // Zonder platform alle campagnes van de klant. Het veld weglaten en niet op
+  // null filteren: `platform=eq.null` zoekt naar de letterlijke waarde en
+  // levert niets, zonder dat er iets misgaat.
+  const filters = platform ? { client_id: klantId, platform } : { client_id: klantId };
   try {
     return await sb.lees('campaigns', {
       kolommen: 'id,name,channel_type,status,platform_status',

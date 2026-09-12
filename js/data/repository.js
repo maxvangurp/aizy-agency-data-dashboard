@@ -36,6 +36,9 @@ import {
 import {
   heeftEchteReeks, echteRijen, echteKanalen, echteConversieConfig, echteConversieLabels,
 } from './echte-reeks.js';
+import {
+  klantCampagnes, klantVerdeling, nietBeschikbaar, klantDetailGeladen, detailOnderweg,
+} from './echt-klantdetail.js';
 
 /**
  * De dagrijen van een klant.
@@ -917,11 +920,106 @@ function bouwConversieOverzicht(client, basis, filters) {
 }
 
 /**
+ * Het profiel van een echte klant.
+ *
+ * Dezelfde vorm als het voorbeeldprofiel, maar gevuld uit wat er werkelijk
+ * gemeten is. Drie onderdelen zijn er: campagnes per kanaal, apparaten en
+ * regio's. De rest -- advertentiegroepen, zoekwoorden, zoektermen,
+ * advertenties, creatives, doelgroepen -- wordt nergens opgehaald en blijft
+ * leeg, met in `ontbreekt` de reden.
+ *
+ * Die reden meegeven is het punt. Een lege tabel zonder uitleg leest als "geen
+ * resultaat", en dat is iets heel anders dan "niet gemeten".
+ */
+function echtProfiel(client, basis, filters) {
+  if (!klantDetailGeladen(client.id)) {
+    // Onderweg is een toestand, geen afwezigheid. Zonder dit onderscheid toont
+    // de pagina "niet gekoppeld" terwijl de cijfers binnen een seconde komen --
+    // een bewering over de koppeling in plaats van over het moment.
+    return detailOnderweg(client.id, filters.periode)
+      ? { echt: true, laden: true, googleAds: null, metaAds: null, verdelingen: {}, ontbreekt: {} }
+      : null;
+  }
+
+  const kanalen = basis.kanalen ?? [];
+  const ecommerce = client.businessModel === BusinessModel.ECOMMERCE;
+
+  // Alleen kanalen die ook geselecteerd zijn: anders staan er campagnes in de
+  // tabel van een kanaal dat de gebruiker net heeft weggefilterd.
+  const campagnesVan = (kanaal) => (kanalen.includes(kanaal)
+    ? klantCampagnes(client.id, kanaal).map((c) => ({
+      naam: c.naam,
+      type: c.type ?? null,
+      status: c.status ?? null,
+      platformStatus: c.platformStatus ?? null,
+      kosten: c.kosten,
+      klikken: c.klikken,
+      vertoningen: c.vertoningen,
+      // Het model kent twee namen voor hetzelfde getal: `leads` bij
+      // leadgeneratie, `conversies` bij e-commerce. Beide zetten zodat de
+      // tabellen niet hoeven te weten welk model dit is.
+      leads: ecommerce ? null : c.conversies,
+      conversies: ecommerce ? c.conversies : null,
+      conversiewaarde: c.conversiewaarde,
+    }))
+    : []);
+
+  const google = campagnesVan('google_ads');
+  const meta = campagnesVan('meta_ads');
+
+  return {
+    laatsteSync: null,
+    echt: true,
+    googleAdsBeschikbaar: google.length > 0,
+    metaAdsBeschikbaar: meta.length > 0,
+    googleAds: {
+      campagnes: google,
+      // Niet opgehaald bij Google Ads; zie `ontbreekt`.
+      advertentiegroepen: [], zoekwoorden: [], matchtypes: [], eindUrls: [],
+      apparaten: klantVerdeling(client.id, 'apparaten', 'google-ads'),
+    },
+    metaAds: {
+      campagnes: meta,
+      advertentiesets: [], advertenties: [], creatives: [], doelgroepen: [],
+      apparaten: klantVerdeling(client.id, 'apparaten', 'meta-ads'),
+      plaatsingen: klantVerdeling(client.id, 'plaatsingen', 'meta-ads'),
+    },
+    verdelingen: {
+      apparaten: klantVerdeling(client.id, 'apparaten'),
+      regios: klantVerdeling(client.id, 'regios'),
+      landingspaginas: [],
+      sourceMedium: [],
+      landen: [],
+    },
+    ontbreekt: {
+      advertentiegroepen: nietBeschikbaar(client.id, 'advertentiegroepen'),
+      zoekwoorden: nietBeschikbaar(client.id, 'zoekwoorden'),
+      zoektermen: nietBeschikbaar(client.id, 'zoektermen'),
+      advertenties: nietBeschikbaar(client.id, 'advertenties'),
+      advertentiesets: nietBeschikbaar(client.id, 'advertentiesets'),
+      creatives: nietBeschikbaar(client.id, 'creatives'),
+      doelgroepen: nietBeschikbaar(client.id, 'doelgroepen'),
+      landingspaginas: nietBeschikbaar(client.id, 'landingspaginas'),
+      sourceMedium: nietBeschikbaar(client.id, 'sourceMedium'),
+    },
+    googleBusinessProfile: null,
+    merchantCenter: null,
+    searchConsole: null,
+    werk: null,
+  };
+}
+
+/**
  * De vaste verdelingen, geschaald naar de geselecteerde periode en kanalen.
  * Zonder Google Ads in de selectie verdwijnen de Google Ads-tabellen: ze tonen
  * dan geen data in plaats van data die niet bij de selectie hoort.
  */
 function bouwProfiel(client, basis, filters) {
+  // Een echte klant heeft geen voorbeeldprofiel. Zijn campagnes en doorsnedes
+  // komen uit Supabase; wat daar niet in zit blijft leeg mét de reden erbij,
+  // zodat een lege tabel niet als "geen resultaat" gelezen wordt.
+  if (heeftEchteReeks(client.id)) return echtProfiel(client, basis, filters);
+
   const { totalen, model } = basis;
   const googleGeselecteerd = (basis.kanalen ?? []).includes('google_ads');
   const googleRij = basis.periodeRijen.length

@@ -118,3 +118,42 @@ export async function laadEchteReeksen() {
   zetEchteReeksen(uitkomst.data);
   return { herkomst: 'live', klanten: Object.keys(uitkomst.data.klanten).length };
 }
+
+/**
+ * De detailcijfers van één klant over één periode.
+ *
+ * Aparte vraag omdat het antwoord per klant en per periode verschilt en te
+ * groot is om voor alle klanten tegelijk op te halen. Wordt aangeroepen vlak
+ * voordat een klantpagina getekend wordt.
+ */
+export async function laadKlantDetail(clientId, periode) {
+  const {
+    zetKlantDetail, wisKlantDetail, heeftKlantDetail, markeerGeprobeerd, markeerKlaar,
+  } = await import('./data/echt-klantdetail.js');
+
+  if (isSampleMode()) { wisKlantDetail(); return { herkomst: 'sample' }; }
+  if (!clientId || !periode?.startDate || !periode?.endDate) return { herkomst: 'geen' };
+  if (heeftKlantDetail(clientId, periode)) return { herkomst: 'cache' };
+
+  // De aanroeper markeert al synchroon -- zie `zorgVoorKlantDetail` in app.js --
+  // zodat de lopende render weet dat de cijfers onderweg zijn. Hier nog een keer
+  // markeren is onschadelijk maar overbodig; wie deze functie los aanroept,
+  // krijgt de markering alsnog.
+  markeerGeprobeerd(clientId, periode);
+
+  const q = new URLSearchParams({
+    client: clientId, since: periode.startDate, until: periode.endDate,
+  });
+  const uitkomst = await safeFetchJson(`/api/klantdetail?${q}`);
+
+  markeerKlaar();
+  if (uitkomst.status !== DataStatus.LIVE || !uitkomst.data) {
+    // Wissen en niet laten staan: de oude cijfers gaan over een andere klant of
+    // een andere periode, en die horen hier niet te blijven hangen.
+    wisKlantDetail();
+    return { herkomst: 'geen', melding: uitkomst.message || 'Geen detailcijfers ontvangen.' };
+  }
+
+  zetKlantDetail(clientId, periode, uitkomst.data);
+  return { herkomst: 'live', campagnes: (uitkomst.data.campagnes ?? []).length };
+}

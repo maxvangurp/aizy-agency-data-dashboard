@@ -44,7 +44,9 @@ export const KANAAL_TABS = {
   ],
   meta_ads: [
     { key: 'overzicht', label: 'Overzicht', bron: 'kanaal' },
-    { key: 'campagnes', label: 'Campagnes', bron: 'geen' },
+    // Meta-campagnes komen uit dezelfde tabellen als die van Google; ze stonden
+    // alleen op 'geen' omdat de campagnetabel altijd uit `googleAds` las.
+    { key: 'campagnes', label: 'Campagnes', bron: 'campagnes' },
     { key: 'advertentiesets', label: 'Advertentiesets', bron: 'geen' },
     { key: 'advertenties', label: 'Advertenties', bron: 'geen' },
     { key: 'creatives', label: 'Creatives', bron: 'geen' },

@@ -1014,6 +1014,170 @@ app.get('/api/reeks', async (req, res) => {
   }
 });
 
+/**
+ * De detailcijfers van één klant: campagnes en doorsnedes over één periode.
+ *
+ * WAAROM APART VAN /api/reeks
+ *
+ * `/api/reeks` levert kanaalrijen per dag voor alle klanten samen; daar rekent
+ * het dashboard zijn totalen en grafieken uit. Campagnedetail hoort daar niet
+ * bij: vijftien klanten maal een jaar maal een paar honderd campagnes is een
+ * antwoord van tientallen megabytes, en je kijkt altijd naar één klant tegelijk.
+ *
+ * WAT HIER WEL EN NIET IN ZIT
+ *
+ * Campagnes komen uit `performance_snapshots` en dragen hun status mee. Apparaat
+ * en regio komen uit `segment_performance`, dat dagrijen heeft en dus elke
+ * periode aankan.
+ *
+ * Landingspagina's en bron/medium zitten er níet in. Die bestaan alleen in de
+ * GA4-rapporten, en die zijn per vast venster opgehaald -- 7, 28 of 90 volledige
+ * dagen. Ze hier tonen voor een willekeurige periode zou betekenen dat de
+ * tabellen een andere periode beslaan dan de KPI's erboven, zonder dat iemand
+ * dat ziet. Ze staan wél op de Website-pagina, waar het venster expliciet is.
+ */
+app.get('/api/klantdetail', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+
+  const gevraagd = String(req.query.client || '').trim();
+  if (!gevraagd) return res.status(400).json({message: 'Parameter `client` ontbreekt.'});
+
+  try {
+    const sb = supabase.maakSupabase();
+    const {klant, beschikbaar} = await zoekKlant(sb, gevraagd);
+    if (!klant) {
+      return res.status(404).json({message: 'Onbekende klant "' + gevraagd + '".', beschikbaar});
+    }
+
+    const sinds = geldigeDatum(req.query.since);
+    const tot = geldigeDatum(req.query.until);
+    if (!sinds || !tot || sinds > tot) {
+      return res.status(400).json({message: 'Parameters `since` en `until` vereisen YYYY-MM-DD, met since <= until.'});
+    }
+
+    const [snapshots, campagnerijen, segmenten] = await Promise.all([
+      sb.lees('performance_snapshots', {
+        kolommen: 'campaign_id,platform,spend,impressions,clicks,conversions_primary,revenue',
+        filters: {
+          client_id: klant.id,
+          granularity: 'eq.day',
+          snapshot_date: `gte.${sinds}`,
+          period_end: `lte.${tot}`,
+        },
+      }),
+      leesCampagnes(sb, klant.id, null),
+      sb.lees('segment_performance', {
+        kolommen: 'platform,dimension,dimension_value,spend,clicks,conversions_primary,revenue,sessions,users',
+        filters: {
+          client_id: klant.id,
+          granularity: 'eq.day',
+          snapshot_date: `gte.${sinds}`,
+          period_end: `lte.${tot}`,
+        },
+      }),
+    ]);
+
+    const meta = new Map(campagnerijen.map((c) => [c.id, c]));
+    const perCampagne = new Map();
+    for (const r of snapshots) {
+      const sleutel = `${r.platform}|${r.campaign_id ?? 'onbekend'}`;
+      const c = perCampagne.get(sleutel) ?? {
+        platform: r.platform, campaignId: r.campaign_id,
+        spend: 0, impressions: 0, clicks: 0, conversies: 0, revenue: 0,
+      };
+      c.spend += Number(r.spend) || 0;
+      c.impressions += Number(r.impressions) || 0;
+      c.clicks += Number(r.clicks) || 0;
+      c.conversies += Number(r.conversions_primary) || 0;
+      c.revenue += Number(r.revenue) || 0;
+      perCampagne.set(sleutel, c);
+    }
+
+    const campagnes = [...perCampagne.values()].map((c) => {
+      const m = meta.get(c.campaignId) ?? {};
+      return {
+        kanaal: KANAAL_PER_PLATFORM[c.platform] ?? c.platform,
+        naam: m.name ?? 'Onbekende campagne',
+        type: m.channel_type ?? null,
+        // De status van nu, naast cijfers van de periode. Een campagne die
+        // gisteren is uitgezet heeft deze uitgaven wél gedaan.
+        status: m.status ?? null,
+        platformStatus: m.platform_status ?? null,
+        kosten: rond(c.spend),
+        vertoningen: c.impressions,
+        klikken: c.clicks,
+        conversies: rond(c.conversies),
+        conversiewaarde: rond(c.revenue),
+      };
+    }).sort((a, b) => b.kosten - a.kosten);
+
+    return res.json({
+      klant: {slug: klant.slug, naam: klant.name || klant.slug},
+      periode: {start: sinds, eind: tot},
+      campagnes,
+      verdelingen: {
+        apparaten: verdeling(segmenten, 'device'),
+        regios: verdeling(segmenten, 'region'),
+        plaatsingen: verdeling(segmenten, 'placement'),
+      },
+      // Uitgeschreven wat hier níet in zit, zodat een lege tabel niet als
+      // "geen resultaat" gelezen wordt.
+      nietBeschikbaar: {
+        landingspaginas: 'Alleen per vast GA4-venster beschikbaar; zie de Website-pagina.',
+        sourceMedium: 'Alleen per vast GA4-venster beschikbaar; zie de Website-pagina.',
+        advertentiegroepen: 'Wordt niet opgehaald bij Google Ads.',
+        zoekwoorden: 'Wordt niet opgehaald bij Google Ads.',
+        zoektermen: 'Wordt niet opgehaald bij Google Ads.',
+        advertenties: 'Wordt niet opgehaald.',
+        advertentiesets: 'Wordt niet opgehaald bij Meta.',
+        creatives: 'Wordt niet opgehaald bij Meta.',
+        doelgroepen: 'Wordt niet opgehaald bij Meta.',
+      },
+    });
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
+});
+
+/**
+ * Eén doorsnede, opgeteld over de periode.
+ *
+ * Per platform apart houden en niet samenvoegen: Google zegt "Mobiel", Meta
+ * zegt "Mobiele app" en "Mobiel web", GA4 zegt "mobile". Ze op naam samenvoegen
+ * levert een verdeling op die geen van drieën herkent.
+ */
+function verdeling(rijen, dimensie) {
+  const per = new Map();
+  for (const r of rijen) {
+    if (r.dimension !== dimensie) continue;
+    const sleutel = `${r.platform}|${r.dimension_value}`;
+    const v = per.get(sleutel) ?? {
+      platform: r.platform, naam: r.dimension_value,
+      kosten: 0, klikken: 0, conversies: 0, conversiewaarde: 0, sessies: 0, gebruikers: 0,
+    };
+    v.kosten += Number(r.spend) || 0;
+    v.klikken += Number(r.clicks) || 0;
+    v.conversies += Number(r.conversions_primary) || 0;
+    v.conversiewaarde += Number(r.revenue) || 0;
+    v.sessies += Number(r.sessions) || 0;
+    v.gebruikers += Number(r.users) || 0;
+    per.set(sleutel, v);
+  }
+  return [...per.values()]
+    .map((v) => ({
+      ...v,
+      kosten: rond(v.kosten), conversies: rond(v.conversies), conversiewaarde: rond(v.conversiewaarde),
+    }))
+    .sort((a, b) => (b.kosten - a.kosten) || (b.sessies - a.sessies));
+}
+
+const rond = (v) => Math.round((Number(v) || 0) * 100) / 100;
+
 /** Onze platformnamen naar de kanaalsleutels van het dashboard. */
 const KANAAL_PER_PLATFORM = {'google-ads': 'google_ads', 'meta-ads': 'meta_ads'};
 
