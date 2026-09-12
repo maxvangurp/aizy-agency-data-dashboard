@@ -67,7 +67,12 @@ export function afgeleideRatios({ spend, impressions, clicks, results, revenue, 
     cpc: clicks ? spend / clicks : null,
     cpm: impressions ? (spend / impressions) * 1000 : null,
     costPerResult: results ? spend / results : null,
-    conversieratio: clicks ? (results / clicks) * 100 : null,
+    // `results` mag null zijn sinds de API een KPI kan onderdrukken die op dit
+    // account niets betekent. Zonder de expliciete null-check wordt
+    // `null / clicks` in JavaScript gewoon 0, en dan staat er 0% conversie waar
+    // "niet te berekenen" hoort te staan -- dezelfde valkuil die `roas`
+    // hieronder al afving.
+    conversieratio: (results != null && clicks) ? (results / clicks) * 100 : null,
     roas: (revenue != null && spend) ? revenue / spend : null,
     frequentie: reach ? impressions / reach : null,
   };
@@ -92,7 +97,10 @@ export function combineerTotalen(platforms) {
   const spend = som('spend');
   const impressions = som('impressions');
   const clicks = som('clicks');
-  const results = som('results');
+  // Resultaten mogen ontbreken en niet als nul binnenkomen. Een conversieteller
+  // waar zachte conversies in zitten komt terug als null, en die op 0 laten
+  // uitkomen zou eruitzien als "gemeten, en het waren er geen".
+  const results = somOfNull('results');
   const revenue = somOfNull('revenue');
   const reach = somOfNull('reach');
 
@@ -105,6 +113,27 @@ export function combineerTotalen(platforms) {
     reach,
     ...afgeleideRatios({ spend, impressions, clicks, results, revenue, reach }),
     resultLabel: blokken[0].resultLabel,
+    betrouwbaarheid: gecombineerdeBetrouwbaarheid(blokken),
+  };
+}
+
+/**
+ * Het voorbehoud van de platformen samen.
+ *
+ * Zegt één platform dat zijn ROAS niets betekent, dan betekent de opgetelde
+ * ROAS ook niets -- een som is nooit betrouwbaarder dan zijn slechtste term.
+ * Vandaar de vereniging en niet de doorsnede.
+ *
+ * Null wanneer geen enkel platform een oordeel meestuurt: niet beoordeeld is
+ * iets anders dan beoordeeld en goed bevonden.
+ */
+function gecombineerdeBetrouwbaarheid(blokken) {
+  const oordelen = blokken.map((b) => b.betrouwbaarheid).filter(Boolean);
+  if (!oordelen.length) return null;
+  return {
+    beoordeeld: true,
+    onbetrouwbareKpis: [...new Set(oordelen.flatMap((o) => o.onbetrouwbareKpis ?? []))],
+    oordelen,
   };
 }
 

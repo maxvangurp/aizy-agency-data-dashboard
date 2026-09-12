@@ -36,11 +36,26 @@ export function hasBackend() {
   return true;
 }
 
+/**
+ * De actieve datamodus.
+ *
+ * Zonder expliciete keuze is het antwoord altijd `sample`, óók wanneer er een
+ * backend beschikbaar is. Dat is een veiligheidskeuze en geen omissie: live
+ * betekent hier echte klantnamen en echte omzet uit Supabase, en dat hoort niet
+ * te verschijnen omdat er toevallig een server antwoordt. Een mens zet hem om
+ * via `setDataMode`, en die keuze blijft in localStorage staan.
+ *
+ * Hier stond eerder `hasBackend() ? DataMode.SAMPLE : DataMode.SAMPLE` -- twee
+ * identieke takken, dus een aanroep waarvan de uitkomst werd weggegooid. Dat
+ * leest als een bug die nog gerepareerd moet worden, terwijl het gedrag
+ * waarschijnlijk precies goed is. De ternaire is weg; het gedrag niet.
+ * `hasBackend()` bepaalt nog steeds of een fetch überhaupt vertrekt (zie
+ * `safeFetchJson`) en of de interface de knop toont.
+ */
 export function getDataMode() {
   const stored = localStorage.getItem(MODE_STORAGE_KEY);
   if (stored === DataMode.LIVE || stored === DataMode.SAMPLE) return stored;
-  // Zonder backend is live data per definitie onmogelijk.
-  return hasBackend() ? DataMode.SAMPLE : DataMode.SAMPLE;
+  return DataMode.SAMPLE;
 }
 
 export function setDataMode(mode) {

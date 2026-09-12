@@ -89,6 +89,11 @@ export function getClientById(user, clientId) {
  * Het verdienmodel is gewoon bekend: het komt met de klant mee uit Supabase.
  * Dat gaat dus voor. De voorbeelddata blijft de bron voor de voorbeeldklant,
  * die geen `businessModel` draagt.
+ *
+ * Vandaag spreken de twee elkaar nergens tegen -- een voorbeeldklant heeft geen
+ * verdienmodel en een echte klant staat niet in CLIENT_CONFIG -- dus deze
+ * volgorde is nu niet te merken. Hij staat er voor de dag dat ze elkaar wél
+ * raken: dan hoort wat de klant zelf zegt te winnen van een tabel in deze repo.
  */
 function modelVan(client) {
   if (client?.businessModel === 'ecommerce' || client?.businessModel === 'leadgen') {

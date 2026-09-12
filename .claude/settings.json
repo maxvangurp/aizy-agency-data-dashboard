@@ -6,7 +6,6 @@
       "Read(./.env.*)",
       "Read(./**/.env)",
       "Read(./**/.env.*)",
-      "Read(./data/**)",
       "Read(./**/*.pem)",
       "Read(./**/*.key)",
       "Read(./**/credentials*.json)",

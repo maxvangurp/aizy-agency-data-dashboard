@@ -237,3 +237,121 @@ test('zonder rijen is Meta niet aanwezig in plaats van leeg', () => {
   assert.equal(blok.totals, null);
   assert.deepEqual(blok.campaigns, []);
 });
+
+/* --------------------------------------------------- betrouwbaarheid -- */
+
+const {onderdrukOnbetrouwbaar} = require('../../ads-contract');
+
+const NOMINAAL = {
+  assessed_period_start: '2026-09-01',
+  assessed_period_end: '2026-09-07',
+  platform_metrics_reliable: true,
+  conversion_count_reliable: true,
+  conversion_value_reliable: false,
+  unreliable_kpis: ['revenue', 'roas'],
+  verdict: 'Gebruik omzet en ROAS niet zonder de conversieopzet eerst na te lopen.',
+  findings: [{code: 'nominale_conversiewaarde'}],
+};
+
+test('een KPI die niets betekent wordt null, geen getal met twee decimalen', () => {
+  // Whoon: vijftien campagnes op precies 1,00 per conversie. De ROAS van 0,22
+  // die daaruit rolt ziet er precies zo uit als een ROAS die wel iets zegt.
+  const blok = googleBlokVan(SNAPSHOTS, CAMPAGNES, {businessModel: 'ecommerce', betrouwbaarheid: NOMINAAL});
+
+  assert.equal(blok.totals.revenue, null);
+  assert.equal(blok.totals.roas, null);
+  assert.equal(blok.totals.spend, 300, 'uitgaven factureert het platform zelf en blijven staan');
+  assert.equal(blok.totals.results, 15, 'de conversieteller is hier niet in twijfel getrokken');
+  assert.equal(blok.betrouwbaarheid.lagen.conversiewaarde, false);
+  assert.match(blok.betrouwbaarheid.oordeel, /ROAS/);
+});
+
+test('een onbetrouwbare conversieteller neemt ook de kosten per resultaat mee', () => {
+  const blok = googleBlokVan(SNAPSHOTS, CAMPAGNES, {
+    businessModel: 'leadgen',
+    betrouwbaarheid: {...NOMINAAL, conversion_count_reliable: false, unreliable_kpis: ['leads', 'cpl', 'conversieratio']},
+  });
+
+  assert.equal(blok.totals.results, null);
+  assert.equal(blok.totals.costPerResult, null, 'kosten per lead hangt aan dezelfde teller');
+  assert.equal(blok.totals.conversieratio, null);
+  assert.equal(blok.totals.clicks, 300, 'klikken komen van het platform en overleven dit');
+});
+
+test('geen oordeel is niet hetzelfde als een goed oordeel', () => {
+  const blok = googleBlokVan(SNAPSHOTS, CAMPAGNES, {businessModel: 'ecommerce'});
+  assert.equal(blok.betrouwbaarheid, null, 'niet beoordeeld hoort zichtbaar te zijn');
+  assert.equal(blok.totals.roas, 5, 'zonder oordeel verandert er niets aan de cijfers');
+});
+
+test('onderdrukken raakt alleen de genoemde velden en verzint er geen bij', () => {
+  const totals = {spend: 10, clicks: 2, results: 1, revenue: 40, roas: 4};
+  assert.deepEqual(onderdrukOnbetrouwbaar(totals, []), totals);
+  assert.deepEqual(onderdrukOnbetrouwbaar(totals, ['roas']), {...totals, roas: null});
+  assert.deepEqual(
+    onderdrukOnbetrouwbaar(totals, ['onbekende_kpi']), totals,
+    'een naam die het contract niet kent hoort niets stuk te maken'
+  );
+});
+
+/* ------------------------------------------------------ periodegrens -- */
+
+const {periodeVan, binnenBereik, dekkingVan} = require('../../ads-contract');
+
+test('leidt het einde af zolang period_end er nog niet is', () => {
+  // Migratie 014 zet die kolom erbij. Tussen deze code en die migratie hoort
+  // het endpoint gewoon te blijven werken, dus granularity is de terugval.
+  assert.equal(periodeVan({snapshot_date: '2026-09-01', period_end: '2026-09-30'}).eind, '2026-09-30');
+  assert.equal(periodeVan({snapshot_date: '2026-09-01', granularity: 'day'}).eind, '2026-09-01');
+  assert.equal(periodeVan({snapshot_date: '2026-09-01', granularity: 'week'}).eind, '2026-09-07');
+  assert.equal(periodeVan({snapshot_date: '2026-02-01', granularity: 'month'}).eind, '2026-02-28');
+  assert.equal(periodeVan({snapshot_date: '2026-09-01'}).eind, '2026-09-01',
+    'zonder granulariteit is één dag de enige aanname die niets toevoegt');
+});
+
+test('een periode die buiten het venster doorloopt telt niet mee', () => {
+  // Dit was de bug: de bovengrens lag op snapshot_date, dus een maandrij die
+  // op `since` begon telde in een weekvraag helemaal mee.
+  const rijen = [
+    {snapshot_date: '2026-09-01', period_end: '2026-09-07', granularity: 'week'},
+    {snapshot_date: '2026-09-01', period_end: '2026-09-30', granularity: 'month'},
+  ];
+  const uit = binnenBereik(rijen, {since: '2026-09-01', until: '2026-09-07'});
+  assert.deepEqual(uit.map((r) => r.granularity), ['week']);
+});
+
+test('een periode die vóór het venster begon telt ook niet mee', () => {
+  const rijen = [
+    {snapshot_date: '2026-08-31', period_end: '2026-09-06', granularity: 'week'},
+    {snapshot_date: '2026-09-07', period_end: '2026-09-13', granularity: 'week'},
+  ];
+  const uit = binnenBereik(rijen, {since: '2026-09-01', until: '2026-09-30'});
+  assert.deepEqual(uit.map((r) => r.snapshot_date), ['2026-09-07'],
+    'dagen van buiten het venster binnenhalen is erger dan ze missen');
+});
+
+test('zonder grenzen valt er niets af', () => {
+  const rijen = [{snapshot_date: '2026-09-01', period_end: '2026-09-30', granularity: 'month'}];
+  assert.equal(binnenBereik(rijen, {}).length, 1);
+  assert.equal(binnenBereik(null, {since: '2026-09-01'}).length, 0);
+});
+
+test('de dekking zegt hoeveel van de gevraagde dagen er echt in zitten', () => {
+  // Vier hele weken in een maand van dertig dagen: 28 gedekt, niet volledig.
+  const weken = ['2026-09-01', '2026-09-08', '2026-09-15', '2026-09-22'].map((d) => ({
+    snapshot_date: d, granularity: 'week',
+  }));
+  const dekking = dekkingVan(weken, {since: '2026-09-01', until: '2026-09-30'});
+  assert.equal(dekking.dagen, 28);
+  assert.equal(dekking.gevraagd, 30);
+  assert.equal(dekking.volledig, false, 'zonder dit is "weinig uitgegeven" niet van "niet alles gemeten" te onderscheiden');
+});
+
+test('dezelfde dag uit twee campagnes telt één keer mee in de dekking', () => {
+  const rijen = [
+    {campaign_id: 'k1', snapshot_date: '2026-09-01', granularity: 'day'},
+    {campaign_id: 'k2', snapshot_date: '2026-09-01', granularity: 'day'},
+  ];
+  assert.equal(dekkingVan(rijen, {since: '2026-09-01', until: '2026-09-01'}).dagen, 1);
+  assert.equal(dekkingVan(rijen, {}), null, 'zonder venster is dekking geen begrip');
+});

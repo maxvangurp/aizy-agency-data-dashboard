@@ -7,14 +7,19 @@ const dotenv = require('dotenv');
 const {v4: uuidv4} = require('uuid');
 const {encrypt, decrypt} = require('./utils');
 const supabase = require('./supabase');
-const {googleBlokVan, metaBlokVan, kiesGranulariteit} = require('./ads-contract');
+const {
+  googleBlokVan, metaBlokVan, kiesGranulariteit, binnenBereik, dekkingVan,
+} = require('./ads-contract');
+const {
+  zoekKlant, haalGoogleAdsBron, leesBetrouwbaarheid, PLATFORM: PLATFORM_GOOGLE,
+} = require('./ads-query');
 
 /**
- * Onder welke platformnaam max-marketing-os wegschrijft. Deze twee strings
- * staan aan beide kanten van de koppeling en moeten gelijk blijven; hier één
- * keer, zodat een typefout een fout is en geen lege grafiek.
+ * Onder welke platformnaam max-marketing-os wegschrijft. Deze strings staan aan
+ * beide kanten van de koppeling en moeten gelijk blijven, dus elk op één plek:
+ * Google komt uit `ads-query.js`, die hem zelf gebruikt om te filteren. Een
+ * typefout is dan een fout en geen lege grafiek.
  */
-const PLATFORM_GOOGLE = 'google-ads';
 const PLATFORM_META = 'meta-ads';
 const {
   getGoogleConnection,
@@ -639,7 +644,11 @@ app.get('/api/clients/live', async (req, res) => {
       // om /api/google-ads/campaigns, en zo blijft dat een en dezelfde naam.
       id: r.slug,
       name: r.name || r.slug,
-      businessModel: r.business_model || 'leadgen',
+      // Null en niet 'leadgen'. Dit veld bepaalt of het dashboard ROAS of CPL
+      // toont, welke conversiescopes je mag kiezen en hoe de klant in het
+      // agencyoverzicht meetelt. Een gok ziet er daar precies zo uit als een
+      // vastgelegd gegeven; `modelVan` valt bij null zichtbaar terug.
+      businessModel: r.business_model || null,
       website: r.website || null,
       land: Array.isArray(r.countries) && r.countries.length ? r.countries[0] : null,
       valuta: 'EUR',
@@ -675,6 +684,17 @@ app.get('/api/clients/live', async (req, res) => {
  * Staat er niets, dan `aanwezig: false` en niet een 404. Die laatste landt als
  * fout in de console en ziet eruit alsof er iets stuk is, terwijl niet elke
  * klant op Meta adverteert -- Pouw en 123Watches.de bijvoorbeeld niet.
+ *
+ * LET OP, en dit is geen opmaakpunt. Dit endpoint leest Meta apart en telt
+ * niets op; daar gaat het goed. Maar Meta staat inmiddels wél in
+ * `performance_snapshots`, en `api.blended_kpis()` telt conversies over
+ * platformen heen op terwijl Google en Meta dezelfde aankoop allebei claimen.
+ * Elke weergave die op blended_kpis leunt -- de portefeuillepagina om te
+ * beginnen -- laat de CPA daardoor te mooi zien.
+ *
+ * Dat moet aan de databasekant opgelost worden, niet hier: hier weer aftrekken
+ * zet dezelfde regel op twee plekken, en dan klopt er één van de twee niet
+ * meer zodra iemand de andere aanpast.
  */
 /**
  * Doorsnedes van dezelfde uitgaven: per apparaat en per plaatsing.
@@ -1068,13 +1088,22 @@ app.get('/api/meta/insights', async (req, res) => {
     const gekozen = kiesGranulariteit(inBereik, {since: req.query.since, until: req.query.until});
     const binnenPeriode = inBereik.filter((r) => r.granularity === gekozen);
 
-    const campagnes = new Map((await sb.lees('campaigns', {
-      kolommen: 'id,name,channel_type',
-      filters: {client_id: klant.id, platform: PLATFORM_META},
-    })).map((c) => [c.id, c]));
+    // Campagnenamen en het Meta-oordeel hangen alleen van de klant af, niet van
+    // elkaar; achter elkaar zetten kost een round-trip die niets toevoegt.
+    const [campagnerijen, betrouwbaarheid] = await Promise.all([
+      sb.lees('campaigns', {
+        kolommen: 'id,name,channel_type',
+        filters: {client_id: klant.id, platform: PLATFORM_META},
+      }),
+      leesBetrouwbaarheid(sb, klant.id, PLATFORM_META),
+    ]);
+    const campagnes = new Map(campagnerijen.map((c) => [c.id, c]));
 
     return res.json({
-      ...metaBlokVan(binnenPeriode, campagnes, {businessModel: klant.business_model}),
+      ...metaBlokVan(binnenPeriode, campagnes, {
+        businessModel: klant.business_model,
+        betrouwbaarheid,
+      }),
       granulariteit: gekozen,
     });
   } catch (error) {
@@ -1099,43 +1128,37 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
 
   try {
     const sb = supabase.maakSupabase();
-    const klanten = await sb.lees('clients', {kolommen: 'id,slug,name,business_model'});
-    const klant = klanten.find((c) => c.slug === gevraagd || c.id === gevraagd);
+    const {klant, beschikbaar} = await zoekKlant(sb, gevraagd);
     if (!klant) {
-      return res.status(404).json({
-        message: 'Onbekende klant "' + gevraagd + '".',
-        beschikbaar: klanten.map((c) => c.slug).filter(Boolean),
-      });
+      return res.status(404).json({message: 'Onbekende klant "' + gevraagd + '".', beschikbaar});
     }
 
-    // De periode is optioneel. Zonder grenzen krijg je alles wat er is; dat is
-    // bruikbaarder dan een lege grafiek als de filters nog niet gezet zijn.
-    const filters = {client_id: klant.id, platform: PLATFORM_GOOGLE};
-    if (req.query.since) filters.snapshot_date = 'gte.' + req.query.since;
+    // Prestaties, campagnenamen en het conversieoordeel in één keer: ze hangen
+    // alleen van de klant af en niet van elkaar. Zie ads-query.js.
+    const bron = await haalGoogleAdsBron(sb, {klantId: klant.id, since: req.query.since});
 
-    const rijen = await sb.lees('performance_snapshots', {
-      kolommen: 'campaign_id,snapshot_date,granularity,spend,impressions,clicks,conversions_primary,revenue',
-      filters,
-      order: 'snapshot_date.asc',
-    });
-    const inBereik = req.query.until
-      ? rijen.filter((r) => String(r.snapshot_date) <= String(req.query.until))
-      : rijen;
+    // De bovengrens ligt op `period_end`, niet op `snapshot_date`: een maandrij
+    // die op `since` begint liep anders drie weken buiten het venster door en
+    // telde toch helemaal mee. Zie binnenBereik.
+    const inBereik = binnenBereik(bron.snapshots, {since: req.query.since, until: req.query.until});
 
     // Zie kiesGranulariteit: dag- en weekrijen bestrijken dezelfde periode, dus
     // alles optellen telt alles dubbel.
     const gekozen = kiesGranulariteit(inBereik, {since: req.query.since, until: req.query.until});
     const binnenPeriode = inBereik.filter((r) => r.granularity === gekozen);
 
-    const campagnerijen = await sb.lees('campaigns', {
-      kolommen: 'id,name,channel_type',
-      filters: {client_id: klant.id, platform: PLATFORM_GOOGLE},
-    });
-    const campagnes = new Map(campagnerijen.map((c) => [c.id, c]));
-
     return res.json({
-      ...googleBlokVan(binnenPeriode, campagnes, {businessModel: klant.business_model}),
+      ...googleBlokVan(binnenPeriode, bron.campagnes, {
+        businessModel: klant.business_model,
+        // Welke KPI's op dit account betekenis hebben. Ontbreekt de rij, dan is
+        // de conversieopzet niet beoordeeld -- dat is iets anders dan
+        // beoordeeld en goed bevonden, en het blok laat dat verschil zien.
+        betrouwbaarheid: bron.betrouwbaarheid,
+      }),
       granulariteit: gekozen,
+      // Containment laat dagen aan de randen vallen. Zonder dit getal is
+      // "weinig uitgegeven" niet te onderscheiden van "niet alles gemeten".
+      dekking: dekkingVan(binnenPeriode, {since: req.query.since, until: req.query.until}),
     });
   } catch (error) {
     return res.status(502).json({message: formatError(error)});

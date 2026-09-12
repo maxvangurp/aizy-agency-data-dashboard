@@ -384,7 +384,11 @@ function kpiBandDelta(dashboard, totaal, dagreeks, vergelijking = null, { grafie
   // zet die metriek in de trendgrafiek eronder. De actieve metriek is gemarkeerd.
   const kaart = (key, label, raw, opmaak, { tip } = {}) =>
     kpiDelta(label, raw == null ? 'Niet te berekenen' : FMT[opmaak](raw), deltas[key], {
-      sparkData: metriekReeks(dagreeks, key), tip: tip === false ? null : (tip ?? key),
+      // Geen sparkline onder een waarde die we niet kunnen noemen. De dagreeks
+      // bevat de onderliggende cijfers nog wel, maar een lijn tekenen onder
+      // "Niet te berekenen" maakt van een voorbehoud een weergavefoutje.
+      sparkData: raw == null ? null : metriekReeks(dagreeks, key),
+      tip: tip === false ? null : (tip ?? key),
       metric: grafiekId ? key : null, grafiekId, actief: key === actief,
       // Het voorbehoud hoort bij het cijfer, niet op een aparte pagina. Bij
       // Whoon zijn CPA en conversieratio in Supabase als betekenisloos

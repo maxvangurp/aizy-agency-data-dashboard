@@ -67,9 +67,138 @@ function dagenTussen(since, until) {
   return Math.round((b - a) / 86400000) + 1;
 }
 
+/**
+ * Welke dagen bestrijkt deze rij?
+ *
+ * `period_end` staat er sinds migratie 014 bij. Draait die nog niet, dan is het
+ * einde af te leiden uit `granularity` -- precies de afleiding die deze code
+ * anders impliciet toch al deed. Zonder die terugval hangt dit endpoint aan de
+ * volgorde waarin code en migratie uitgerold worden, en dat is een afhankelijk-
+ * heid die niemand wil bewaken.
+ */
+function periodeVan(rij) {
+  const start = String(rij.snapshot_date);
+  if (rij.period_end) return { start, eind: String(rij.period_end) };
+
+  const dag = new Date(`${start}T00:00:00.000Z`);
+  if (Number.isNaN(dag.getTime())) return { start, eind: start };
+  if (rij.granularity === 'week') {
+    dag.setUTCDate(dag.getUTCDate() + 6);
+    return { start, eind: dag.toISOString().slice(0, 10) };
+  }
+  if (rij.granularity === 'month') {
+    const eind = new Date(Date.UTC(dag.getUTCFullYear(), dag.getUTCMonth() + 1, 0));
+    return { start, eind: eind.toISOString().slice(0, 10) };
+  }
+  return { start, eind: start };
+}
+
+/**
+ * Alleen de rijen die HEEL binnen het gevraagde bereik vallen.
+ *
+ * Hiervoor werd de bovengrens op `snapshot_date` gelegd, en dat is de
+ * verkeerde kant van de periode: een maandrij die op `since` begint liep dan
+ * drie weken buiten het venster door en telde toch helemaal mee. Een halve
+ * periode naar rato omslaan is geen alternatief -- dat verzint een verdeling
+ * die niet gemeten is.
+ *
+ * Dezelfde regel als `blended_kpis()` in Supabase. Dat die twee hetzelfde
+ * antwoord geven is belangrijker dan welke van de twee grenzen je kiest.
+ */
+function binnenBereik(rijen, { since = null, until = null } = {}) {
+  return (rijen ?? []).filter((rij) => {
+    const { start, eind } = periodeVan(rij);
+    if (since && start < String(since)) return false;
+    if (until && eind > String(until)) return false;
+    return true;
+  });
+}
+
+/**
+ * Hoeveel van de gevraagde dagen zitten er daadwerkelijk in deze rijen?
+ *
+ * Containment laat dagen aan de randen vallen: een week die op 31 augustus
+ * begon hoort niet bij september, maar de eerste zes dagen van september
+ * zitten dan ook nergens in. Dat is geen fout, maar het is wel iets waar een
+ * lezer van moet weten voordat hij twee perioden vergelijkt -- en zonder dit
+ * getal is het verschil tussen "weinig uitgegeven" en "niet alles gemeten"
+ * niet te zien.
+ */
+function dekkingVan(rijen, { since = null, until = null } = {}) {
+  const gevraagd = dagenTussen(since, until);
+  if (!gevraagd) return null;
+
+  const dagen = new Set();
+  for (const rij of rijen ?? []) {
+    const { start, eind } = periodeVan(rij);
+    const van = Date.parse(`${start}T00:00:00.000Z`);
+    const tot = Date.parse(`${eind}T00:00:00.000Z`);
+    if (!Number.isFinite(van) || !Number.isFinite(tot)) continue;
+    for (let t = van; t <= tot; t += 86400000) dagen.add(t);
+  }
+  return { dagen: dagen.size, gevraagd, volledig: dagen.size >= gevraagd };
+}
+
 /** Welk woord hoort bij de conversies van dit verdienmodel? */
 function resultLabelVan(businessModel) {
   return businessModel === 'ecommerce' ? 'Aankopen' : 'Leads';
+}
+
+/**
+ * Welke contractvelden sneuvelen bij welke KPI uit `client_kpi_reliability`?
+ *
+ * `unreliable_kpis` gebruikt de namen uit `lib/conversies.js` van
+ * max-marketing-os; het contract gebruikt die van docs/api-contract-ads.md.
+ * Eén tabel in plaats van twee woordenlijsten die uit elkaar gaan lopen.
+ */
+const KPI_NAAR_CONTRACT = {
+  spend: ['spend'], impressions: ['impressions'], clicks: ['clicks'],
+  ctr: ['ctr'], cpc: ['cpc'], cpm: ['cpm'],
+  leads: ['results'], purchases: ['results'],
+  conversieratio: ['conversieratio'],
+  cpl: ['costPerResult'], cpa: ['costPerResult'],
+  revenue: ['revenue'], roas: ['roas'],
+};
+
+/**
+ * Haalt de KPI's weg die op dit account geen betekenis hebben.
+ *
+ * Bij drie van de veertien aangesloten accounts levert de conversieopzet
+ * getallen op waar niets achter zit: vijftien campagnes op precies €1,00 per
+ * conversie is een instelling, geen orderwaarde. De ROAS van 0,22 die daaruit
+ * rolt ziet er precies zo uit als een ROAS die wél iets betekent.
+ *
+ * Null en niet nul, en niet weggelaten: het dashboard toont een null als
+ * "Niet te berekenen" of "—", en dat is het eerlijke antwoord. Een nul zou
+ * eruitzien als een meting en een ontbrekend veld als een storing.
+ */
+function onderdrukOnbetrouwbaar(totals, onbetrouwbareKpis) {
+  if (!totals || !Array.isArray(onbetrouwbareKpis) || onbetrouwbareKpis.length === 0) return totals;
+  const uit = { ...totals };
+  for (const kpi of onbetrouwbareKpis) {
+    for (const veld of KPI_NAAR_CONTRACT[kpi] ?? []) {
+      if (veld in uit) uit[veld] = null;
+    }
+  }
+  return uit;
+}
+
+/** De rij uit `client_kpi_reliability` in de vorm die het contract meegeeft. */
+function betrouwbaarheidVan(rij) {
+  if (!rij) return null;
+  return {
+    beoordeeld: true,
+    periode: { since: rij.assessed_period_start ?? null, until: rij.assessed_period_end ?? null },
+    beoordeeldOp: rij.assessed_at ?? null,
+    lagen: {
+      platform: rij.platform_metrics_reliable !== false,
+      conversieteller: rij.conversion_count_reliable !== false,
+      conversiewaarde: rij.conversion_value_reliable !== false,
+    },
+    onbetrouwbareKpis: Array.isArray(rij.unreliable_kpis) ? rij.unreliable_kpis : [],
+    oordeel: rij.verdict ?? null,
+    bevindingen: Array.isArray(rij.findings) ? rij.findings : [],
+  };
 }
 
 /**
@@ -78,11 +207,11 @@ function resultLabelVan(businessModel) {
  *
  * @param {Array<object>} snapshots rijen uit performance_snapshots
  * @param {Map<string, object>} campagnes campaign_id -> campagnerij
- * @param {{businessModel?: string}} opties
+ * @param {{businessModel?: string, betrouwbaarheid?: object}} opties
  */
-function googleBlokVan(snapshots, campagnes = new Map(), { businessModel } = {}) {
+function googleBlokVan(snapshots, campagnes = new Map(), { businessModel, betrouwbaarheid = null } = {}) {
   return blokVan(snapshots, campagnes, {
-    businessModel, platform: 'google', label: 'Google Ads',
+    businessModel, betrouwbaarheid, platform: 'google', label: 'Google Ads',
     breakdowns: { adGroups: [], keywords: [] },
   });
 }
@@ -99,24 +228,25 @@ function googleBlokVan(snapshots, campagnes = new Map(), { businessModel } = {})
  * label. Niet stilzwijgend: `resultSoort` vertelt de interface welke soort het
  * geworden is, zodat er niets wordt opgeteld dat niet bij elkaar hoort.
  */
-function metaBlokVan(snapshots, campagnes = new Map(), { businessModel } = {}) {
+function metaBlokVan(snapshots, campagnes = new Map(), { businessModel, betrouwbaarheid = null } = {}) {
   const rijen = Array.isArray(snapshots) ? snapshots : [];
   const primair = rijen.reduce((som, r) => som + getal(r.conversions_primary), 0);
   const leads = rijen.reduce((som, r) => som + getal(r.leads), 0);
   const opLeads = primair === 0 && leads > 0;
 
   return blokVan(rijen, campagnes, {
-    businessModel, platform: 'meta', label: 'Meta Ads',
+    businessModel, betrouwbaarheid, platform: 'meta', label: 'Meta Ads',
     breakdowns: { adSets: [], placements: [] },
     ...(opLeads ? { resultKolom: 'leads', resultLabel: 'Leads', resultSoort: 'leads' } : {}),
   });
 }
 
 function blokVan(snapshots, campagnes, {
-  businessModel, platform, label, breakdowns,
+  businessModel, betrouwbaarheid = null, platform, label, breakdowns,
   resultKolom = 'conversions_primary', resultLabel = null, resultSoort = null,
 }) {
   const rijen = Array.isArray(snapshots) ? snapshots : [];
+  const oordeel = betrouwbaarheidVan(betrouwbaarheid);
   if (rijen.length === 0) {
     return {
       platform,
@@ -127,6 +257,7 @@ function blokVan(snapshots, campagnes, {
       series: [],
       campaigns: [],
       breakdowns,
+      betrouwbaarheid: oordeel,
     };
   }
 
@@ -157,10 +288,11 @@ function blokVan(snapshots, campagnes, {
     aanwezig: true,
     resultLabel: resultLabel ?? resultLabelVan(businessModel),
     ...(resultSoort ? { resultSoort } : {}),
-    totals,
+    totals: onderdrukOnbetrouwbaar(totals, oordeel?.onbetrouwbareKpis),
     series: reeksVan(rijen, resultKolom),
     campaigns: campagnesVan(rijen, campagnes, resultKolom),
     breakdowns,
+    betrouwbaarheid: oordeel,
   };
 }
 
@@ -227,4 +359,8 @@ function rond(waarde, decimalen = 2) {
   return Math.round(n * f) / f;
 }
 
-module.exports = { afgeleideRatios, resultLabelVan, googleBlokVan, metaBlokVan, kiesGranulariteit };
+module.exports = {
+  afgeleideRatios, resultLabelVan, googleBlokVan, metaBlokVan, kiesGranulariteit,
+  onderdrukOnbetrouwbaar, betrouwbaarheidVan,
+  periodeVan, binnenBereik, dekkingVan,
+};

@@ -99,6 +99,58 @@ trendgrafiek en de campagnetabel. De `breakdowns` voeden de per-platform
 deep-dive-pagina's (Google Ads: zoekwoorden + advertentiegroepen; Meta Ads: ad
 sets + placements). Ontbrekende arrays (`[]`) laten de betreffende tabel weg.
 
+### `dekking` — hoeveel van de gevraagde periode er echt in zit
+
+Een rij telt alleen mee als hij **heel** binnen het bereik valt. De bovengrens
+ligt op `period_end`, niet op `snapshot_date`: anders liep een maandrij die op
+`since` begint drie weken buiten het venster door en telde hij toch helemaal
+mee. Dezelfde regel als `blended_kpis()` in Supabase — dat die twee hetzelfde
+antwoord geven weegt zwaarder dan welke van de twee grenzen je kiest.
+
+De keerzijde is dat er dagen aan de randen wegvallen: een week die op 31
+augustus begon hoort niet bij september, maar dan zit 1 tot en met 6 september
+ook nergens in. Daarom staat er `dekking` bij:
+
+```jsonc
+"dekking": { "dagen": 28, "gevraagd": 30, "volledig": false }
+```
+
+Zonder dat getal is "weinig uitgegeven" niet te onderscheiden van "niet alles
+gemeten". Staat `period_end` er nog niet (migratie 014 nog niet gedraaid), dan
+wordt het einde uit `granularity` afgeleid en verandert er niets.
+
+### `betrouwbaarheid` — welke KPI's op dit account betekenis hebben
+
+Het platformblok heeft er één veld bij. `null` betekent **niet beoordeeld**;
+dat is iets anders dan beoordeeld en goed bevonden, en het blok laat dat
+verschil zien in plaats van het weg te poetsen.
+
+```jsonc
+"betrouwbaarheid": {
+  "beoordeeld": true,
+  "periode": { "since": "2026-09-01", "until": "2026-09-07" },
+  "lagen": {                   // waar elke KPI aan hangt
+    "platform": true,          // spend, vertoningen, klikken, CTR, CPC — die factureert het platform zelf
+    "conversieteller": true,   // sneuvelt bij zachte conversies
+    "conversiewaarde": false   // sneuvelt bij een nominale waarde
+  },
+  "onbetrouwbareKpis": ["revenue", "roas"],
+  "oordeel": "Gebruik omzet en ROAS niet zonder de conversieopzet eerst na te lopen.",
+  "bevindingen": [{ "code": "nominale_conversiewaarde", "ernst": "hoog", "tekst": "…" }]
+}
+```
+
+De genoemde KPI's staan in `totals` op `null` — niet op `0` en niet weggelaten.
+Het dashboard toont een `null` als "Niet te berekenen" of "—", en dat is het
+eerlijke antwoord: een nul zou eruitzien als een meting en een ontbrekend veld
+als een storing. `combineerTotalen` neemt de **vereniging** van de platformen
+over — een som is nooit betrouwbaarder dan zijn slechtste term — en onder de
+KPI-band staat de reden, zodat een lege kaart niet op een storing lijkt.
+
+Bron: `client_kpi_reliability` in Supabase, geschreven door `sync` en `verwerk`
+in max-marketing-os (migratie 015). Bestaat die tabel nog niet, dan komt
+`betrouwbaarheid` als `null` terug en verandert er niets.
+
 ### Segmenten (apparaat, regio/land, weekdag)
 
 De **Segmenten**-pagina (`#/pulse/segmenten`) bundelt cross-platform segmenten die

@@ -775,9 +775,43 @@ appregistraties of beschikbare API's.
 ## Tests
 
 ```bash
-npm test           # Playwright, start de server automatisch
+npm test           # Playwright (*.spec.js), start de server automatisch
+npm run test:unit  # node:test (tests/unit/*.test.js), geen browser
 npm run test:ui    # interactieve testrunner
 ```
+
+Twee runners, en ze horen los te draaien. Playwright's standaardpatroon dekt ook
+`*.test.js`, dus de unit-tests werden tot voor kort meegeladen tijdens het
+verzamelen -- waarmee de runner van `node:test` in hetzelfde proces startte, met
+eigen TAP-uitvoer en een eigen exitcode ertussendoor. `testMatch` staat daarom
+op `**/*.spec.js`.
+
+**Een browser die er al staat.** Playwright bindt zich aan één Chromium-revisie
+en weigert een andere, ook al is het dezelfde Chrome. Waar die download niet kan
+-- een CI-image met een eigen browser, een machine zonder vrije uitgang -- wijst
+`PLAYWRIGHT_CHROMIUM_PATH` naar het binary dat er wél is:
+
+```bash
+PLAYWRIGHT_CHROMIUM_PATH=/pad/naar/chrome npm test
+```
+
+Niet gezet is de normale situatie. Wie hem zet neemt bewust het risico dat de
+suite tegen een andere Chrome-versie draait; dat is een betere ruil dan niet
+kunnen draaien, maar het hoort geen stille standaard te zijn. Een pad dat niet
+bestaat gooit meteen, en niet pas bij de eerste test.
+
+**Twee externe bronnen.** `index.html` haalt het lettertype bij Google Fonts --
+een stylesheet in de `<head>`, dus renderblokkerend -- en Chart.js bij jsDelivr,
+onderaan de `<body>`. Dat tweede blokkeert het parsen niet meer, maar houdt wel
+`DOMContentLoaded` en daarmee de modulescript op. Op een netwerk waar die twee
+niet bereikbaar zijn blijft elke navigatie hangen tot de time-out -- gemeten op
+ruim twaalf seconden per bron -- en valt de suite om op iets buiten de
+applicatie. `login()` wacht daarom op `domcontentloaded` in plaats van `load`.
+Dat scheelt de helft; de rest zit in die twee bronnen zelf. De schermen met een
+grafiek blijven zonder Chart.js leeg (`js/charts.js` slaat de grafiek netjes
+over), dus die tests vragen om echte uitgang. Wie de suite structureel zonder
+CDN wil draaien, moet Chart.js lokaal zetten -- dat is een eigen besluit, want
+het verandert ook de productiepagina.
 
 De suite dekt authenticatie, autorisatie, data-isolatie, het filtersysteem, de
 agency- en klantomgeving, teambeheer, navigatie, thema's, de API-fallback, het
