@@ -713,6 +713,216 @@ const BRONNEN = [
     omschrijving: 'Sessies en regio over al het verkeer'},
 ];
 
+/**
+ * Alle klanten naast elkaar, gerangschikt op wat er aan de hand is.
+ *
+ * Dit is de weergave die pas bestaat nu alle vijftien accounts op één plek
+ * staan, en het is de vraag die een bureau maandagochtend stelt: waar begin ik.
+ * Per klant apart doorklikken beantwoordt die vraag niet, want dan zie je pas
+ * dat er iets mis is als je er al bent.
+ *
+ * Bewust geen score. Een getal van 0 tot 100 verbergt waaróm een klant bovenaan
+ * staat, en dan gaat iemand het getal vertrouwen in plaats van de reden. Er
+ * staan signalen, elk met hun eigen bewijs, en de volgorde volgt de zwaarte van
+ * het zwaarste signaal.
+ *
+ * De cijfers komen van `blended_kpis()` in de database. Die laat grovere rijen
+ * vallen waar fijnere hetzelfde bestrijken; dat hier overdoen zou dezelfde
+ * regel op twee plekken zetten, en daar ontstaat een dubbeltelling die niemand
+ * ziet.
+ */
+const ERNST_VOLGORDE = {hoog: 3, midden: 2, laag: 1};
+
+app.get('/api/portfolio', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+  const vormfout = supabase.sleutelProbleem();
+  if (vormfout) return res.status(503).json({message: vormfout});
+
+  const tot = String(req.query.until || '').trim();
+  const van = String(req.query.since || '').trim();
+  if (!van || !tot) return res.status(400).json({message: 'Parameters `since` en `until` zijn verplicht.'});
+
+  try {
+    const sb = supabase.maakSupabase();
+    const klanten = await sb.lees('clients', {
+      kolommen: 'id,slug,name,business_model', order: 'name.asc',
+    });
+
+    const oordelen = new Map();
+    for (const r of await sb.lees('client_kpi_reliability', {
+      kolommen: 'client_id,platform,conversion_count_reliable,conversion_value_reliable,unreliable_kpis,findings',
+    })) {
+      oordelen.set(r.client_id, [...(oordelen.get(r.client_id) ?? []), r]);
+    }
+
+    // De even lange periode ervoor, zodat "duurder geworden" iets betekent.
+    const dagen = Math.round((Date.parse(tot) - Date.parse(van)) / 86400000) + 1;
+    const vorigeEind = nieuweDatum(van, -1);
+    const vorigeStart = nieuweDatum(vorigeEind, -(dagen - 1));
+
+    const rijen = [];
+    for (const klant of klanten.filter((k) => k.slug)) {
+      const [nu] = (await sb.roepFunctie('blended_kpis', {
+        p_client_id: klant.id, p_start: van, p_end: tot,
+      })) ?? [];
+      const [vorig] = (await sb.roepFunctie('blended_kpis', {
+        p_client_id: klant.id, p_start: vorigeStart, p_end: vorigeEind,
+      })) ?? [];
+      if (!nu || Number(nu.spend ?? 0) <= 0) continue;
+
+      rijen.push({
+        slug: klant.slug,
+        naam: klant.name || klant.slug,
+        businessModel: klant.business_model || 'leadgen',
+        nu: getallen(nu),
+        vorig: vorig ? getallen(vorig) : null,
+        signalen: signalenVoor(nu, vorig, oordelen.get(klant.id) ?? []),
+      });
+    }
+
+    // Zwaarste signaal eerst; bij gelijke zwaarte de grootste uitgaven, want
+    // daar staat het meeste geld op het spel.
+    rijen.sort((a, b) => {
+      const za = Math.max(0, ...a.signalen.map((s) => ERNST_VOLGORDE[s.ernst] ?? 0));
+      const zb = Math.max(0, ...b.signalen.map((s) => ERNST_VOLGORDE[s.ernst] ?? 0));
+      return zb - za || b.nu.spend - a.nu.spend;
+    });
+
+    return res.json({
+      periode: {van, tot, dagen},
+      vergelijking: {van: vorigeStart, tot: vorigeEind},
+      klanten: rijen,
+      totaal: {
+        spend: Math.round(rijen.reduce((a, r) => a + r.nu.spend, 0) * 100) / 100,
+        klanten: rijen.length,
+        metSignaal: rijen.filter((r) => r.signalen.length).length,
+      },
+    });
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
+});
+
+/**
+ * Wat er aan de hand is bij deze klant, met het bewijs erbij.
+ *
+ * De volgorde is niet willekeurig. Bovenaan staat wat het sturen onmogelijk
+ * maakt (je kunt niet optimaliseren op een maat die niets meet), daarna wat
+ * geld kost, daarna wat verandert. Een klant zonder signalen krijgt er geen:
+ * een lege lijst is een antwoord.
+ */
+function signalenVoor(nu, vorig, oordelen) {
+  const signalen = [];
+  const spend = Number(nu.spend ?? 0);
+  const results = Number(nu.conversions_primary ?? 0);
+
+  // 1. Kun je hier überhaupt op sturen?
+  const kapot = new Set(oordelen.flatMap((o) => o.unreliable_kpis ?? []));
+  const stuurmaat = ['cpl', 'cpa'].filter((k) => kapot.has(k));
+  if (stuurmaat.length) {
+    const reden = oordelen
+      .flatMap((o) => o.findings ?? [])
+      .filter((b) => b.ernst === 'hoog')[0]?.tekst ?? null;
+    signalen.push({
+      code: 'niet_stuurbaar',
+      ernst: 'hoog',
+      // Kort genoeg om in een tabelcel te scannen; de uitleg zit in `detail`.
+      tekst: 'Conversiemeting stuurt nergens op',
+      detail: reden ?? 'De kolom Conversions meet niet waarop geboden wordt.',
+    });
+  } else if (spend > 0 && results === 0) {
+    // 2. Wel meetbaar, en toch niets. Dat is iets anders dan niet kunnen meten.
+    signalen.push({
+      code: 'geen_resultaat',
+      ernst: 'hoog',
+      tekst: 'Geld uit, niets gemeten',
+      detail: 'Uitgaven zonder één gemeten conversie in deze periode.',
+    });
+  }
+
+  // 3. Duurder geworden. Alleen zeggen waar de maat iets betekent, anders
+  //    vergelijk je twee getallen die allebei niets zeggen.
+  const cpaNu = Number(nu.cpa ?? 0);
+  const cpaVorig = Number(vorig?.cpa ?? 0);
+  if (!stuurmaat.length && cpaNu > 0 && cpaVorig > 0) {
+    const verschil = ((cpaNu - cpaVorig) / cpaVorig) * 100;
+    if (Math.abs(verschil) >= 25) {
+      signalen.push({
+        code: verschil > 0 ? 'duurder' : 'goedkoper',
+        ernst: verschil > 0 ? 'midden' : 'laag',
+        tekst: `Kosten per conversie ${verschil > 0 ? '+' : '−'}${Math.abs(verschil).toFixed(0)}%`,
+        detail: `Van ${euro(cpaVorig)} naar ${euro(cpaNu)}.`,
+      });
+    }
+  }
+
+  // 4. Het budget is grotendeels weggevallen. Dat is zelden bedoeld, en het
+  //    valt nergens anders op: een klant die niets uitgeeft maakt geen lawaai.
+  const spendVorig = Number(vorig?.spend ?? 0);
+  if (spendVorig > 0) {
+    const verschil = ((spend - spendVorig) / spendVorig) * 100;
+    if (verschil <= -50) {
+      signalen.push({
+        code: 'budget_weggevallen',
+        ernst: 'midden',
+        tekst: `Budget −${Math.abs(verschil).toFixed(0)}%`,
+        detail: `Van ${euro(spendVorig)} naar ${euro(spend)}.`,
+      });
+    } else if (verschil >= 50) {
+      signalen.push({
+        code: 'budget_gestegen',
+        ernst: 'laag',
+        tekst: `Budget +${verschil.toFixed(0)}%`,
+        detail: `Van ${euro(spendVorig)} naar ${euro(spend)}.`,
+      });
+    }
+  }
+
+  // 5. Gaten in de data. Geen bevinding over de klant maar over onszelf: een
+  //    oordeel over dertig dagen waarvan er tien ontbreken is geen oordeel.
+  const gedekt = Number(nu.covered_days ?? 0);
+  const gevraagd = Number(nu.requested_days ?? 0);
+  if (gevraagd > 0 && gedekt < gevraagd * 0.9) {
+    signalen.push({
+      code: 'gaten_in_data',
+      ernst: 'midden',
+      tekst: `${gedekt} van ${gevraagd} dagen`,
+      detail: 'De vergelijking en de gemiddelden hieronder zijn daarmee onvolledig.',
+    });
+  }
+
+  return signalen;
+}
+
+const euroFormat = new Intl.NumberFormat('nl-NL', {style: 'currency', currency: 'EUR', maximumFractionDigits: 2});
+const euro = (v) => euroFormat.format(Number(v) || 0);
+
+function nieuweDatum(iso, dagen) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dagen);
+  return d.toISOString().slice(0, 10);
+}
+
+function getallen(rij) {
+  const g = (v) => (v == null ? null : Number(v));
+  return {
+    spend: Math.round((g(rij.spend) ?? 0) * 100) / 100,
+    clicks: g(rij.clicks) ?? 0,
+    impressions: g(rij.impressions) ?? 0,
+    results: Math.round((g(rij.conversions_primary) ?? 0) * 100) / 100,
+    ctr: g(rij.ctr),
+    cpc: g(rij.cpc),
+    cpa: g(rij.cpa),
+    roas: g(rij.roas),
+    dekking: {gedekt: g(rij.covered_days) ?? 0, gevraagd: g(rij.requested_days) ?? 0},
+  };
+}
+
 app.get('/api/databronnen', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
   if (ontbreekt.length) {

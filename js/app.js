@@ -2452,6 +2452,14 @@ async function onClick(e) {
     return;
   }
 
+  /* --- Vanaf de portefeuille doorklikken naar één klant ---
+     Wissel de actieve klant en ga naar zijn overzicht. Zonder dit is de
+     klantnaam een knop die je op dezelfde pagina laat staan. */
+  if (el.dataset.portefKlant) {
+    if (setActieveKlantId(el.dataset.portefKlant)) navigeer('#/pulse');
+    return;
+  }
+
   /* --- Weergavevorm en subtabs --- */
   if (el.dataset.weergavevorm) { gaNaarParam(UiSleutel.WEERGAVE, el.dataset.weergavevorm); return; }
 

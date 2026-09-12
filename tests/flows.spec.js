@@ -86,8 +86,12 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
     expect(await page.evaluate(() => document.body.dataset.shell)).toBe('simpel');
     await expect(page.locator('.simpel-sidebar')).toBeVisible();
     await expect(page.locator('.simpel-topbar')).toBeVisible();
-    // Negen navigatie-items (7 datapagina's + Optimalisaties + Databronnen).
-    await expect(page.locator('.simpel-nav-item')).toHaveCount(9);
+    // De volledige navigatie, op naam en op volgorde. Een aantal zegt niet
+    // welke pagina erbij kwam of wegviel; deze lijst wel.
+    await expect(page.locator('.simpel-nav-item')).toHaveText([
+      'Alle klanten', 'Totaal overzicht', 'Google Ads', 'Meta Ads', 'Campagnes',
+      'Conversies', 'Segmenten', 'Trends', 'Optimalisaties', 'Databronnen',
+    ]);
     // Geen volledige systeem-sidebar in de simpele modus.
     await expect(page.locator('.app-grid .sidebar')).toHaveCount(0);
     // De overzichtspagina toont de gecombineerde KPI-band.

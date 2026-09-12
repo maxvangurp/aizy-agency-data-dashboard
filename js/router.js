@@ -35,6 +35,7 @@ export const ROUTES = [
   // Het simpele Meta/Google Ads-datadashboard: elke ingelogde rol mag hier komen
   // (agency ziet een gekozen klant, een klantgebruiker de eigen organisatie).
   // De vlag `simpel: true` markeert de routes die binnen de simpele modus vallen.
+  { pad: '/pulse/portefeuille', naam: 'simpel-portefeuille', simpel: true, titel: 'Alle klanten' },
   { pad: '/pulse', naam: 'simpel-overzicht', simpel: true, titel: 'Totaal overzicht' },
   { pad: '/pulse/google-ads', naam: 'simpel-google', simpel: true, titel: 'Google Ads' },
   { pad: '/pulse/meta-ads', naam: 'simpel-meta', simpel: true, titel: 'Meta Ads' },

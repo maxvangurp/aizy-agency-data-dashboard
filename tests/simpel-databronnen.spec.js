@@ -44,7 +44,9 @@ const googleKaart = (page) => page.locator('.databron-kaart').filter({ hasText: 
 test.describe('Simpele modus — databronnen koppelen (demo)', () => {
   test('de Databronnen-pagina toont beide platforms als demodata', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.medewerkerEcommerce);
-    await expect(page.locator('.simpel-nav-item')).toHaveCount(9);
+    // Wachten tot de zijbalk staat; het aantal items doet hier niet ter zake,
+    // alleen dat de link bestaat waar `naar()` zo op klikt.
+    await expect(page.locator('.simpel-nav-item', { hasText: 'Databronnen' })).toBeVisible();
     await naar(page, 'Databronnen');
     await expect(page.locator('#simpelInhoud h1')).toHaveText('Databronnen');
     await expect(metaKaart(page)).toContainText('Demodata');

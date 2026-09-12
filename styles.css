@@ -4397,3 +4397,94 @@ h1, h2, .kpi-value {
   font-weight: 700;
   color: var(--accent);
 }
+
+/* ================================================================
+   Portefeuille: alle klanten naast elkaar
+   ----------------------------------------------------------------
+   De markering zit links op de rij en niet in de tekstkleur: bij
+   vijftien regels leest een gekleurde rand als een lijst met
+   prioriteit, terwijl gekleurde tekst als vijftien waarschuwingen
+   leest. En kleur staat er nooit alleen: het signaal zelf staat
+   uitgeschreven in de laatste kolom.
+   ================================================================ */
+
+.portef-tabel td,
+.portef-tabel th {
+  vertical-align: top;
+}
+
+.portef-rij[data-ernst='hoog'] .portef-klant {
+  box-shadow: inset 3px 0 0 var(--negatief);
+}
+
+.portef-rij[data-ernst='midden'] .portef-klant {
+  box-shadow: inset 3px 0 0 var(--waarschuwing);
+}
+
+.portef-rij[data-ernst='laag'] .portef-klant {
+  box-shadow: inset 3px 0 0 var(--border-strong);
+}
+
+.portef-klant {
+  padding-left: var(--space-3) !important;
+}
+
+.portef-klant a {
+  font-family: var(--font-kop);
+  font-weight: 600;
+  display: block;
+}
+
+.portef-klant .klein {
+  display: block;
+}
+
+/* De flex op een binnenlaag en niet op de <td> zelf: display:flex haalt een
+   cel uit de tabelopmaak, en dan tekent de rijscheiding onder elke chip mee. */
+.portef-signalen {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Een knop die als link leest: hij navigeert, dus hij hoort er als link uit te
+   zien, maar het is een actie en geen adres. */
+.link-knop {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-knop:hover { text-decoration: none; }
+
+/* De signaalkolom neemt wat er over is; zonder deze breedte duwt de langste
+   tekst de tabel breder dan het scherm en verdwijnt hij aan de rechterkant. */
+.portef-tabel th:last-child,
+.portef-tabel td:last-child {
+  width: 34%;
+}
+
+.portef-signaal {
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+
+.portef-signaal[data-ernst='hoog'] {
+  background: var(--negatief-bg);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.portef-signaal[data-ernst='midden'] {
+  background: var(--waarschuwing-bg);
+  color: var(--ink);
+}

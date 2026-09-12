@@ -59,6 +59,9 @@ function enkelvoud(label) {
 
 /* De datapagina's in de sidebar. */
 const SIMPEL_NAV = [
+  // Bovenaan, want het is de vraag die vóór alle andere komt: bij welke klant
+  // begin ik. De pagina's daaronder gaan over de klant die je dan kiest.
+  { naam: 'simpel-portefeuille', pad: '#/pulse/portefeuille', label: 'Alle klanten' },
   { naam: 'simpel-overzicht', pad: '#/pulse', label: 'Totaal overzicht' },
   { naam: 'simpel-google', pad: '#/pulse/google-ads', label: 'Google Ads' },
   { naam: 'simpel-meta', pad: '#/pulse/meta-ads', label: 'Meta Ads' },
@@ -205,6 +208,7 @@ function renderSimpelLaden() {
 export function renderSimpelInhoud({ dashboard, platforms, view = 'simpel-overzicht', vergelijking = null }) {
   // Databronnen kun je juist koppelen wanneer er (nog) geen cijfers zijn — die
   // pagina staat daarom vóór de lege-data-terugval en leunt niet op platforms.
+  if (view === 'simpel-portefeuille') return renderPortefeuilleView(platforms?.portefeuille);
   if (view === 'simpel-databronnen') return renderDatabronnenView(dashboard, platforms);
   if (!platforms || (!platforms.meta?.aanwezig && !platforms.google?.aanwezig)) {
     return renderSimpelLeeg('Geen advertentiedata',
@@ -1370,6 +1374,91 @@ function databronKaart(platform, status) {
            </div>
          </div>`}
   </div>`;
+}
+
+/**
+ * Alle klanten naast elkaar, gerangschikt op wat er aan de hand is.
+ *
+ * Deze weergave bestaat pas sinds alle vijftien accounts op één plek staan, en
+ * beantwoordt de vraag die vóór alle andere komt: waar begin ik vandaag. Per
+ * klant doorklikken beantwoordt die niet, want dan zie je pas dat er iets mis
+ * is als je er al bent.
+ *
+ * Geen score. Een getal van 0 tot 100 verbergt waaróm een klant bovenaan staat,
+ * en dan gaat iemand het getal vertrouwen in plaats van de reden. Elke regel
+ * draagt zijn eigen signalen, en wie geen signaal heeft krijgt er geen -- een
+ * lege cel is een antwoord.
+ */
+function renderPortefeuilleView(portefeuille) {
+  if (!portefeuille?.klanten?.length) {
+    return renderSimpelLeeg(
+      'Nog geen portefeuille',
+      'Er zijn voor deze periode geen klanten met uitgaven gevonden.'
+    );
+  }
+
+  const { periode, vergelijking, totaal, klanten } = portefeuille;
+  const rijen = klanten.map((k) => `
+    <tr class="portef-rij" data-ernst="${esc(zwaarste(k.signalen))}">
+      <td class="portef-klant">
+        <button type="button" class="link-knop" data-portef-klant="${esc(k.slug)}">${esc(k.naam)}</button>
+        <span class="muted klein">${esc(k.businessModel === 'ecommerce' ? 'webshop' : 'leadgen')}</span>
+      </td>
+      <td class="uitlijn-rechts">${fmt.euro(k.nu.spend)}</td>
+      <td class="uitlijn-rechts">${fmt.getal(k.nu.results)}</td>
+      <td class="uitlijn-rechts">${k.nu.cpa == null ? '—' : fmt.euro2(k.nu.cpa)}</td>
+      <td class="uitlijn-rechts">${k.nu.cpc == null ? '—' : fmt.euro2(k.nu.cpc)}</td>
+      <td>
+        <div class="portef-signalen">
+          ${k.signalen.length
+    ? k.signalen.map((sig) => `<span class="portef-signaal" data-ernst="${esc(sig.ernst)}" title="${esc(sig.detail ?? '')}">${esc(sig.tekst)}</span>`).join('')
+    : '<span class="muted klein">Niets bijzonders</span>'}
+        </div>
+      </td>
+    </tr>`).join('');
+
+  const stuurloos = klanten.filter((k) => k.signalen.some((sig) => sig.code === 'niet_stuurbaar'));
+  const stuurloosGeld = stuurloos.reduce((a, k) => a + k.nu.spend, 0);
+
+  return `
+    <div class="simpel-kop">
+      <h1>Alle klanten</h1>
+      <p class="muted">${esc(toonBereik(periode.van, periode.tot))} · ${totaal.klanten} klanten met uitgaven</p>
+      <p class="muted klein">Vergeleken met ${esc(toonBereik(vergelijking.van, vergelijking.tot))}</p>
+    </div>
+
+    <div class="kpi-row simpel-kpi">
+      ${kpiDelta('Uitgaven', fmt.euro(totaal.spend), null, {})}
+      ${kpiDelta('Klanten met een signaal', `${totaal.metSignaal} van ${totaal.klanten}`, null, {})}
+      ${kpiDelta('Niet stuurbaar', fmt.euro(stuurloosGeld), null, {})}
+    </div>
+
+    ${stuurloos.length ? `<p class="kpi-band-voorbehoud" role="note">
+      <strong>Bij ${stuurloos.length} van de ${totaal.klanten} accounts meet de conversieopzet niet waarop gestuurd wordt.</strong>
+      Samen goed voor ${esc(fmt.euro(stuurloosGeld))} in deze periode. Zolang dat zo is, zegt elke optimalisatie op kosten per conversie niets.
+    </p>` : ''}
+
+    <section class="card">
+      <h2>Wie heeft aandacht nodig</h2>
+      <p class="muted">Het zwaarste signaal bovenaan; bij gelijke zwaarte de grootste uitgaven, want daar staat het meeste geld op het spel.</p>
+      <div class="table-scroll">
+        <table class="tabel portef-tabel">
+          <thead><tr>
+            <th>Klant</th>
+            ${['Uitgaven', 'Conversies', 'Kosten/conv.', 'CPC']
+    .map((k) => `<th class="uitlijn-rechts">${esc(k)}</th>`).join('')}
+            <th>Wat er speelt</th>
+          </tr></thead>
+          <tbody>${rijen}</tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
+/** De zwaarste ernst in een lijst signalen; bepaalt de markering van de rij. */
+function zwaarste(signalen) {
+  const rang = { hoog: 3, midden: 2, laag: 1 };
+  return (signalen ?? []).map((s) => s.ernst).sort((a, b) => (rang[b] ?? 0) - (rang[a] ?? 0))[0] ?? 'geen';
 }
 
 function renderDatabronnenView(dashboard, platforms) {

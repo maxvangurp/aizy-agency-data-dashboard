@@ -30,7 +30,7 @@ export async function haalAdsPlatforms(dashboard, filters) {
   const q = periodeQuery(filters);
   const clientId = encodeURIComponent(dashboard.client.id);
 
-  const [meta, google, segmenten, databronnen] = await Promise.all([
+  const [meta, google, segmenten, databronnen, portefeuille] = await Promise.all([
     fetchResource(`/api/meta/insights?client=${clientId}&${q}`, () => metaInsightsSample(dashboard)),
     fetchResource(`/api/google-ads/campaigns?client=${clientId}&${q}`, () => googleCampagnesSample(dashboard)),
     // Doorsnedes hebben geen voorbeeldvariant: die staan al in `dashboard.profiel`.
@@ -39,6 +39,9 @@ export async function haalAdsPlatforms(dashboard, filters) {
     // Welke bronnen er werkelijk data leveren. Geen voorbeeldvariant: in
     // demomodus houdt de koppelpagina zijn eigen gesimuleerde status.
     fetchResource(`/api/databronnen?client=${clientId}`, () => null),
+    // De hele portefeuille, los van de gekozen klant. Dat is precies het punt:
+    // de vraag "waar begin ik" gaat over alle klanten tegelijk.
+    fetchResource(`/api/portfolio?${q}`, () => null),
   ]);
 
   return {
@@ -46,6 +49,7 @@ export async function haalAdsPlatforms(dashboard, filters) {
     google: google.data ?? null,
     segmenten: segmenten.data ?? null,
     databronnen: databronnen.data ?? null,
+    portefeuille: portefeuille.data ?? null,
     status: { meta: meta.status, google: google.status },
     demodata: meta.status === DataStatus.SAMPLE || google.status === DataStatus.SAMPLE,
   };
