@@ -306,7 +306,9 @@ function verkeerTegenAankopen(data, d) {
 
 /** Een product dat veel bekeken wordt maar weinig verkoopt. */
 function productMetAandachtZonderAankoop(data, d) {
-  const producten = data.producten ?? [];
+  // `producten` is sinds de producttabel een object met rijen; een kale lijst
+  // blijft werken zodat een ouder antwoord niet stilletjes leeg wordt.
+  const producten = Array.isArray(data.producten) ? data.producten : (data.producten?.rijen ?? []);
   if (!producten.length) return null;
 
   const totaalBekeken = producten.reduce((s, p) => s + (p.bekeken ?? 0), 0);

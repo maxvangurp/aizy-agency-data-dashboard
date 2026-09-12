@@ -1029,7 +1029,7 @@ app.get('/api/ga4', async (req, res) => {
       tabellen,
       dagreeks: rapport.dagreeks ?? [],
       doelReeksen: rapport.doelReeksen ?? {},
-      producten: rapport.producten ?? null,
+      producten: ga4Contract.productTabel(rapport, {vorig: bruikbaarVorig}),
       stappen: rapport.stappen ?? null,
       gebeurtenissen: rapport.gebeurtenissen ?? [],
       meldingen: rapport.meldingen ?? [],

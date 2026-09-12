@@ -16,6 +16,7 @@
  */
 
 import { esc, uitklap, tabel, badge } from './components.js';
+import { interactieveTabel } from './simpel-widgets.js';
 
 const fmtGetal = (v) => (v == null ? '—' : Number(v).toLocaleString('nl-NL'));
 const fmtProcent = (v) => (v == null ? '—' : `${Number(v).toLocaleString('nl-NL', { maximumFractionDigits: 2 })}%`);
@@ -397,39 +398,99 @@ function apparaatEnLocatie(data, valuta) {
     </section>`;
 }
 
-/** Eén doorsnedetabel, met de kolommen die bij dit klanttype horen. */
-function doorsnedeTabelHtml(tabelData, data, valuta, { toonHost = false } = {}) {
+/**
+ * Eén doorsnedetabel: sorteerbaar, met de vorige periode ernaast.
+ *
+ * De verandering staat per rij en niet alleen bij de KPI erboven. Een kanaal
+ * dat halveerde terwijl het totaal gelijk bleef is de bevinding, en in een
+ * tabel zonder vergelijking is dat onzichtbaar -- dan zie je alleen een kanaal
+ * dat kleiner is dan een ander.
+ *
+ * Sorteren gaat op de onderliggende waarde en niet op de weergegeven tekst.
+ * `€ 1.225,65` sorteert als tekst tussen `€ 114` en `€ 130`, en dan staat de
+ * grootste omzet ergens in het midden.
+ */
+function doorsnedeTabelHtml(tabelData, data, valuta, { toonHost = false, id = null } = {}) {
   const groepen = tabelData.groepen ?? [];
   const toonOmzet = groepen.includes('aankopen');
+  const vergelijk = tabelData.heeftVergelijking;
+  const label = data.vergelijking?.label ?? 'vorige periode';
 
   const kolommen = [
-    { label: kolomLabel(tabelData.doorsnede) },
-    ...(toonHost ? [{ label: 'Hostnaam' }] : []),
-    { label: 'Sessies', klasse: 'num' },
-    { label: 'Engagement', klasse: 'num' },
-    ...groepen.flatMap((g) => ([
-      { label: g === 'aankopen' ? 'Aankopen' : g === 'leads' ? 'Aanvragen' : 'Contactklikken', klasse: 'num' },
-      ...(g === 'contactinteracties' ? [] : [{ label: `${g === 'aankopen' ? 'Aankoop' : 'Aanvraag'}ratio`, klasse: 'num' }]),
-    ])),
-    ...(toonOmzet ? [{ label: 'Omzet', klasse: 'num' }] : []),
+    {
+      label: kolomLabel(tabelData.doorsnede), type: 'txt',
+      waarde: (r) => r.segment,
+      cel: (r) => `${esc(r.segment)}${r.onbekend
+        ? ' <span class="ga4-onbekend" title="GA4 kon dit niet bepalen">(niet vastgesteld)</span>' : ''}`
+        + (r.nieuw ? ' <span class="ga4-nieuw" title="Kwam in de vorige periode niet voor">nieuw</span>' : ''),
+    },
+    ...(toonHost ? [{ label: 'Hostnaam', type: 'txt', waarde: (r) => r.hostnaam ?? '', cel: (r) => esc(r.hostnaam ?? '—') }] : []),
+    getalKolom('Sessies', (r) => r.sessies, fmtGetal),
+    ...(vergelijk ? [veranderKolom(`Sessies ${label.toLowerCase()}`, (r) => r.sessiesVerandering, (r) => r.sessiesVorig, fmtGetal)] : []),
+    getalKolom('Engagement', (r) => r.engagement, fmtProcent),
+    ...groepen.flatMap((g) => {
+      const naam = g === 'aankopen' ? 'Aankopen' : g === 'leads' ? 'Aanvragen' : 'Contactklikken';
+      return [
+        getalKolom(naam, (r) => r.resultaten?.[g]?.events, fmtGetal),
+        ...(g === 'contactinteracties' ? [] : [
+          getalKolom(`${g === 'aankopen' ? 'Aankoop' : 'Aanvraag'}ratio`, (r) => r.resultaten?.[g]?.ratio, fmtProcent),
+          ...(vergelijk ? [veranderKolom(
+            `${naam} t.o.v. ${label.toLowerCase()}`,
+            (r) => r.resultaten?.[g]?.verandering,
+            (r) => r.resultaten?.[g]?.vorig,
+            fmtGetal
+          )] : []),
+        ]),
+      ];
+    }),
+    ...(toonOmzet ? [
+      getalKolom('Omzet', (r) => r.omzet, (v) => fmtGeld(v, valuta)),
+      ...(vergelijk ? [veranderKolom(`Omzet t.o.v. ${label.toLowerCase()}`, (r) => r.omzetVerandering, (r) => r.omzetVorig, (v) => fmtGeld(v, valuta))] : []),
+    ] : []),
   ];
-
-  const rijen = tabelData.rijen.slice(0, 25).map((r) => [
-    `${esc(r.segment)}${r.onbekend ? ' <span class="ga4-onbekend" title="GA4 kon dit niet bepalen">(niet vastgesteld)</span>' : ''}`,
-    ...(toonHost ? [esc(r.hostnaam ?? '—')] : []),
-    fmtGetal(r.sessies),
-    fmtProcent(r.engagement),
-    ...groepen.flatMap((g) => ([
-      fmtGetal(r.resultaten?.[g]?.events),
-      ...(g === 'contactinteracties' ? [] : [fmtProcent(r.resultaten?.[g]?.ratio)]),
-    ])),
-    ...(toonOmzet ? [fmtGeld(r.omzet, valuta)] : []),
-  ]);
 
   const dekking = tabelData.dekking;
   return `
-    ${tabel(kolommen, rijen, { leegTekst: 'Geen rijen voor deze periode.' })}
+    ${interactieveTabel(id ?? `ga4-${tabelData.doorsnede}`, kolommen, tabelData.rijen, {
+      csvNaam: `ga4-${tabelData.doorsnede}`,
+      leegTekst: 'Geen rijen voor deze periode.',
+    })}
     ${dekking ? `<p class="ga4-dekking muted">${esc(dekking.tekst)}</p>` : ''}`;
+}
+
+/** Een getalkolom: rechts uitgelijnd, sorteert op de waarde en niet op de tekst. */
+function getalKolom(label, lees, formatteer) {
+  return {
+    label, uitlijn: 'rechts', type: 'num',
+    waarde: (r) => { const v = lees(r); return v == null ? '' : v; },
+    cel: (r) => esc(formatteer(lees(r))),
+  };
+}
+
+/**
+ * Een kolom met de verandering tegenover de vorige periode.
+ *
+ * Sorteert op het absolute verschil en niet op het percentage: van 2 naar 1 is
+ * vijftig procent en betekent niets, van 80 naar 60 is vijfentwintig procent en
+ * kost twintig. Wie op impact wil sorteren, wil het eerste onderaan.
+ *
+ * Geen kleur. Een stijging is hier niet vanzelf goed: meer sessies op een
+ * kanaal dat niets oplevert is geen vooruitgang.
+ */
+function veranderKolom(label, leesVerandering, leesVorig, formatteer) {
+  return {
+    label, uitlijn: 'rechts', type: 'num',
+    waarde: (r) => { const v = leesVerandering(r); return v?.absoluut == null ? '' : v.absoluut; },
+    cel: (r) => {
+      const v = leesVerandering(r);
+      const vorig = leesVorig(r);
+      if (!v || v.absoluut == null) return '<span class="muted">—</span>';
+      if (v.vanNul) return `<span class="ga4-vanaf-nul" title="De vorige periode stond op nul; een percentage zegt hier niets">vanaf nul</span>`;
+      const teken = v.absoluut > 0 ? '+' : '';
+      return `<span title="Was ${esc(formatteer(vorig))}">${teken}${esc(formatteer(v.absoluut))}`
+        + `${v.procent != null ? ` <span class="muted">(${teken}${esc(String(v.procent))}%)</span>` : ''}</span>`;
+    },
+  };
 }
 
 function kolomLabel(doorsnede) {
@@ -484,7 +545,7 @@ function leadVerdieping(data) {
 function ecommerceVerdieping(data, valuta) {
   if (data.klanttype !== 'ecommerce' && data.klanttype !== 'beide') return '';
   const stappen = data.stappen ?? [];
-  const producten = data.producten ?? [];
+  const producten = data.producten?.rijen ?? [];
   if (!stappen.length && !producten.length) return '';
 
   return `
@@ -516,17 +577,51 @@ function ecommerceVerdieping(data, valuta) {
         <h3>Producten</h3>
         <p class="muted">
           Itemaantallen, geen sessies en geen orders: &quot;bekeken&quot; telt bekeken
-          artikelen en &quot;gekocht&quot; telt stuks.
+          artikelen en &quot;gekocht&quot; telt stuks. Klik op een kolomkop om te sorteren --
+          op omzet zie je welk artikel het meest opleverde, op koopratio welk artikel
+          bekeken wordt zonder dat het verkoopt.
         </p>
-        ${tabel(
-          [{ label: 'Product' }, { label: 'Bekeken', klasse: 'num' }, { label: 'In winkelwagen', klasse: 'num' },
-            { label: 'Gekocht', klasse: 'num' }, { label: 'Omzet', klasse: 'num' }],
-          producten.slice(0, 20).map((p) => [
-            esc(p.product), fmtGetal(p.bekeken), fmtGetal(p.inWinkelwagen),
-            fmtGetal(p.gekocht), fmtGeld(p.omzet, valuta),
-          ])
-        )}` : ''}
+        ${productTabelHtml(data, valuta)}` : ''}
     </section>`;
+}
+
+/**
+ * De producttabel.
+ *
+ * Omzet staat hier naast het aantal stuks en niet in plaats daarvan: "welk
+ * product leverde het meeste op" en "welk product ging het vaakst over de
+ * toonbank" zijn verschillende vragen, en bij een assortiment met uiteenlopende
+ * prijzen geven ze verschillende antwoorden.
+ *
+ * `koopratio` is nadrukkelijk geen conversieratio: dit deelt itemaantallen door
+ * itemaantallen. Een bezoeker die een artikel drie keer bekijkt telt drie keer.
+ */
+function productTabelHtml(data, valuta) {
+  const bron = data.producten;
+  if (!bron?.rijen?.length) return '';
+  const vergelijk = bron.heeftVergelijking;
+  const label = data.vergelijking?.label ?? 'vorige periode';
+
+  const kolommen = [
+    {
+      label: 'Product', type: 'txt',
+      waarde: (p) => p.product,
+      cel: (p) => `${esc(p.product)}${p.nieuw
+        ? ' <span class="ga4-nieuw" title="Kwam in de vorige periode niet voor">nieuw</span>' : ''}`,
+    },
+    getalKolom('Bekeken', (p) => p.bekeken, fmtGetal),
+    getalKolom('In winkelwagen', (p) => p.inWinkelwagen, fmtGetal),
+    getalKolom('Gekocht', (p) => p.gekocht, fmtGetal),
+    ...(vergelijk ? [veranderKolom(`Gekocht t.o.v. ${label.toLowerCase()}`, (p) => p.gekochtVerandering, (p) => p.gekochtVorig, fmtGetal)] : []),
+    getalKolom('Koopratio', (p) => p.koopratio, fmtProcent),
+    getalKolom('Omzet', (p) => p.omzet, (v) => fmtGeld(v, valuta)),
+    ...(vergelijk ? [veranderKolom(`Omzet t.o.v. ${label.toLowerCase()}`, (p) => p.omzetVerandering, (p) => p.omzetVorig, (v) => fmtGeld(v, valuta))] : []),
+  ];
+
+  return interactieveTabel('ga4-producten-tabel', kolommen, bron.rijen, {
+    csvNaam: 'ga4-producten',
+    leegTekst: 'Geen producten in deze periode.',
+  });
 }
 
 function eventTotalen(data, groep) {

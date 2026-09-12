@@ -111,14 +111,40 @@ const ECOMMERCE = {
   tabellen: {
     kanaal: {
       doorsnede: 'kanaal', groepen: ['aankopen'], totaalSessies: 14779, somSessies: 14779,
-      rijen: [{
-        segment: 'Paid Search', onbekend: false, sessies: 1783, engagement: 82, omzet: 5388.19, aankopen: 80,
-        resultaten: { aankopen: { events: 80, sessies: 80, ratio: 4.49, perEvent: [{ event: 'purchase', aantal: 80 }] } },
-      }],
+      heeftVergelijking: true,
+      rijen: [
+        {
+          segment: 'Paid Search', onbekend: false, sessies: 1783, engagement: 82, omzet: 5388.19, aankopen: 80,
+          resultaten: { aankopen: { events: 80, sessies: 80, ratio: 4.49, perEvent: [{ event: 'purchase', aantal: 80 }],
+            vorig: 60, verandering: {absoluut: 20, procent: 33.3, vanNul: false} } },
+          sessiesVorig: 1500, sessiesVerandering: {absoluut: 283, procent: 18.9, vanNul: false},
+          omzetVorig: 4000, omzetVerandering: {absoluut: 1388.19, procent: 34.7, vanNul: false}, nieuw: false,
+        },
+        {
+          segment: 'Email', onbekend: false, sessies: 220, engagement: 70, omzet: 9000, aankopen: 11,
+          resultaten: { aankopen: { events: 11, sessies: 11, ratio: 5, perEvent: [{ event: 'purchase', aantal: 11 }],
+            vorig: 0, verandering: {absoluut: 11, procent: null, vanNul: true} } },
+          sessiesVorig: 0, sessiesVerandering: {absoluut: 220, procent: null, vanNul: true},
+          omzetVorig: 0, omzetVerandering: {absoluut: 9000, procent: null, vanNul: true}, nieuw: false,
+        },
+      ],
       dekking: null,
     },
   },
-  producten: [{ product: 'Stay In Place Short', bekeken: 963, inWinkelwagen: 55, gekocht: 6, omzet: 148 }],
+  producten: {
+    heeftVergelijking: true,
+    rijen: [
+      { product: 'Stay In Place Short', bekeken: 963, inWinkelwagen: 55, gekocht: 6, omzet: 148,
+        koopratio: 0.62, gekochtVorig: 4, gekochtVerandering: {absoluut: 2, procent: 50, vanNul: false},
+        omzetVorig: 98, omzetVerandering: {absoluut: 50, procent: 51, vanNul: false}, nieuw: false },
+      { product: 'Hold & Go Legging', bekeken: 949, inWinkelwagen: 163, gekocht: 0, omzet: 0,
+        koopratio: 0, gekochtVorig: 0, gekochtVerandering: {absoluut: 0, procent: null, vanNul: false},
+        omzetVorig: 0, omzetVerandering: {absoluut: 0, procent: null, vanNul: false}, nieuw: false },
+      { product: 'Power Bra Sepia', bekeken: 400, inWinkelwagen: 90, gekocht: 30, omzet: 1500,
+        koopratio: 7.5, gekochtVorig: null, gekochtVerandering: null,
+        omzetVorig: null, omzetVerandering: null, nieuw: true },
+    ],
+  },
   stappen: [
     { event: 'view_item', label: 'Product bekeken', gemeten: true, aantal: 40070, sessies: 6835 },
     { event: 'add_to_cart', label: 'In winkelwagen', gemeten: true, aantal: 2974, sessies: 1800 },
@@ -316,6 +342,81 @@ test.describe('GA4-module — het klanttype bepaalt de inhoud', () => {
     });
     await naarWebsite(page);
     await expect(page.locator('.ga4-periode')).toContainText('conversiedefinitie');
+  });
+
+  test('een tabelkolom is sorteerbaar op de waarde, niet op de tekst', async ({ page }) => {
+    // "€ 1.225,65" sorteert als tekst tussen "€ 114" en "€ 130". Op omzet
+    // sorteren moet de grootste bovenaan zetten, niet ergens in het midden.
+    await simpelLogin(page, ACCOUNTS.admin, ECOMMERCE);
+    await naarWebsite(page);
+
+    const tabel = page.locator('[data-ia-table="ga4-producten-tabel"]');
+    await expect(tabel).toBeVisible();
+
+    // Op de aria-label en niet op de zichtbare tekst: de knop bevat naast het
+    // label ook een sorteerpijl, en "Omzet" komt ook voor in "Omzet t.o.v. …".
+    const omzetKop = tabel.getByRole('button', { name: 'Sorteer op Omzet', exact: true });
+    await omzetKop.click();
+    await omzetKop.click(); // tweede klik: aflopend, grootste bovenaan
+    const eerste = await tabel.locator('tbody tr').first().locator('td').first().innerText();
+    expect(eerste).toContain('Power Bra Sepia');
+  });
+
+  test('sorteren op gekocht geeft een andere volgorde dan op omzet', async ({ page }) => {
+    // Welk product het vaakst verkocht is en welk product het meeste opleverde
+    // zijn verschillende vragen; bij uiteenlopende prijzen ook verschillende
+    // antwoorden.
+    await simpelLogin(page, ACCOUNTS.admin, ECOMMERCE);
+    await naarWebsite(page);
+
+    const tabel = page.locator('[data-ia-table="ga4-producten-tabel"]');
+    const gekocht = tabel.getByRole('button', { name: 'Sorteer op Gekocht', exact: true });
+    await gekocht.click();
+    await gekocht.click();
+    const bovenste = await tabel.locator('tbody tr').first().locator('td').first().innerText();
+    expect(bovenste).toContain('Power Bra Sepia');
+
+    const bekeken = tabel.getByRole('button', { name: 'Sorteer op Bekeken', exact: true });
+    await bekeken.click();
+    await bekeken.click();
+    const nu = await tabel.locator('tbody tr').first().locator('td').first().innerText();
+    expect(nu).toContain('Stay In Place Short');
+  });
+
+  test('elke rij toont de verandering tegenover de vorige periode', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.admin, ECOMMERCE);
+    await naarWebsite(page);
+
+    const acquisitie = page.locator('#ga4-acquisitie');
+    await expect(acquisitie).toContainText('t.o.v.');
+    // Paid Search: 1.783 sessies tegenover 1.500.
+    await expect(acquisitie.locator('tbody tr').first()).toContainText('+283');
+  });
+
+  test('een rij die van nul komt krijgt geen percentage', async ({ page }) => {
+    // Van niets naar 220 is geen oneindige groei en geen honderd procent.
+    await simpelLogin(page, ACCOUNTS.admin, ECOMMERCE);
+    await naarWebsite(page);
+
+    const email = page.locator('#ga4-acquisitie tbody tr', { hasText: 'Email' });
+    await expect(email).toContainText('vanaf nul');
+  });
+
+  test('een product dat nieuw is wordt als nieuw gemarkeerd', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.admin, ECOMMERCE);
+    await naarWebsite(page);
+    const rij = page.locator('[data-ia-table="ga4-producten-tabel"] tbody tr', { hasText: 'Power Bra Sepia' });
+    await expect(rij.locator('.ga4-nieuw')).toBeVisible();
+  });
+
+  test('een tabel is doorzoekbaar en exporteerbaar', async ({ page }) => {
+    await simpelLogin(page, ACCOUNTS.admin, ECOMMERCE);
+    await naarWebsite(page);
+
+    const houder = page.locator('#ga4-producten-tabel');
+    await houder.locator('.ia-zoek').fill('legging');
+    await expect(houder.locator('tbody tr:visible')).toHaveCount(1);
+    await expect(houder.locator('.ia-export')).toBeVisible();
   });
 
   test('de pagina werkt op een telefoonscherm zonder horizontale overloop', async ({ page }) => {

@@ -274,24 +274,27 @@ function doorsnedeTabel(rapport, doorsnede, { vorig = null, doel = null, minimum
   const groepen = Object.keys(bron.doelen ?? {});
   const primair = doel ?? (groepen.includes('aankopen') ? 'aankopen' : groepen[0] ?? null);
 
-  const vorigePerSegment = new Map(
-    (vorig?.rapporten?.[doorsnede]?.basis ?? []).map((r) => [r.segment, r])
-  );
+  const vorigeBron = vorig?.rapporten?.[doorsnede] ?? null;
+  const vorigePerSegment = new Map((vorigeBron?.basis ?? []).map((r) => [r.segment, r]));
 
   const rijen = bron.basis
     .filter((r) => (getal(r.sessies) ?? 0) >= minimumSessies)
     .map((r) => {
       const resultaten = {};
       for (const groep of groepen) {
-        const g = bron.doelen[groep];
-        const events = (g.perEvent ?? []).filter((e) => e.segment === r.segment);
-        const uniek = (g.uniek ?? []).find((u) => u.segment === r.segment);
-        const sessiesMetDoel = getal(uniek?.sessiesMetDoel) ?? 0;
+        const nu = resultaatVoor(bron, groep, r.segment, r.sessies);
+        const was = vorigeBron
+          ? resultaatVoor(vorigeBron, groep, r.segment, vorigePerSegment.get(r.segment)?.sessies)
+          : null;
         resultaten[groep] = {
-          events: events.reduce((som, e) => som + (getal(e.aantal) ?? 0), 0),
-          sessies: sessiesMetDoel,
-          ratio: pct(deel(sessiesMetDoel, r.sessies)),
-          perEvent: events.map((e) => ({ event: e.event, aantal: e.aantal })),
+          ...nu,
+          // De verandering hoort bij de rij en niet alleen bij de KPI erboven.
+          // Een kanaal dat halveerde terwijl het totaal gelijk bleef is de
+          // bevinding; in een tabel zonder vergelijking is dat onzichtbaar.
+          vorig: was ? was.sessies : null,
+          verandering: was ? verandering(nu.sessies, was.sessies) : null,
+          ratioVorig: was ? was.ratio : null,
+          ratioVerandering: was ? verandering(nu.ratio, was.ratio) : null,
         };
       }
 
@@ -307,8 +310,10 @@ function doorsnedeTabel(rapport, doorsnede, { vorig = null, doel = null, minimum
         resultaten,
         sessiesVorig: was ? was.sessies : null,
         sessiesVerandering: was ? verandering(r.sessies, was.sessies) : null,
+        omzetVorig: was ? (was.omzet ?? null) : null,
+        omzetVerandering: was && was.omzet != null ? verandering(r.omzet, was.omzet) : null,
         // Een rij zonder vorige waarde is niet gedaald of gestegen; hij is nieuw.
-        nieuw: vorig != null && !was,
+        nieuw: vorigeBron != null && !was,
       };
     });
 
@@ -322,11 +327,62 @@ function doorsnedeTabel(rapport, doorsnede, { vorig = null, doel = null, minimum
     primairDoel: primair,
     groepen,
     rijen,
+    heeftVergelijking: Boolean(vorigeBron),
     // De som van de rijen, om naast het totaal te kunnen leggen. Wijken ze af,
     // dan is er afgekapt of heeft GA4 rijen weggelaten wegens een drempelwaarde.
     somSessies: rijen.reduce((s, r) => s + (getal(r.sessies) ?? 0), 0),
     totaalSessies: rapport.totalen?.sessies ?? null,
   };
+}
+
+/** De aantallen van één doelgroep binnen één segment. */
+function resultaatVoor(bron, groep, segment, sessies) {
+  const g = bron.doelen?.[groep];
+  if (!g) return { events: 0, sessies: 0, ratio: null, perEvent: [] };
+  const events = (g.perEvent ?? []).filter((e) => e.segment === segment);
+  const uniek = (g.uniek ?? []).find((u) => u.segment === segment);
+  const sessiesMetDoel = getal(uniek?.sessiesMetDoel) ?? 0;
+  return {
+    events: events.reduce((som, e) => som + (getal(e.aantal) ?? 0), 0),
+    sessies: sessiesMetDoel,
+    ratio: pct(deel(sessiesMetDoel, sessies)),
+    perEvent: events.map((e) => ({ event: e.event, aantal: e.aantal })),
+  };
+}
+
+/**
+ * De producttabel, met de vorige periode ernaast.
+ *
+ * Itemaantallen blijven itemaantallen: `bekeken` telt bekeken artikelen en
+ * `gekocht` telt stuks, geen orders en geen sessies. De vergelijking verandert
+ * daar niets aan -- hij zegt alleen of het er meer of minder werden.
+ */
+function productTabel(rapport, { vorig = null } = {}) {
+  const producten = rapport?.producten;
+  if (!Array.isArray(producten) || !producten.length) return null;
+
+  const vorigePerProduct = new Map((vorig?.producten ?? []).map((p) => [p.product, p]));
+  const heeftVergelijking = Array.isArray(vorig?.producten) && vorig.producten.length > 0;
+
+  const rijen = producten.map((p) => {
+    const was = vorigePerProduct.get(p.product) ?? null;
+    return {
+      ...p,
+      // Wat een product opleverde is de vraag waar de tabel voor bestaat;
+      // omzet staat daarom naast het aantal stuks en niet in plaats daarvan.
+      omzetVorig: was ? was.omzet : null,
+      omzetVerandering: was ? verandering(p.omzet, was.omzet) : null,
+      gekochtVorig: was ? was.gekocht : null,
+      gekochtVerandering: was ? verandering(p.gekocht, was.gekocht) : null,
+      nieuw: heeftVergelijking && !was,
+      // Hoeveel van de bekeken artikelen ook gekocht werden. Geen
+      // conversieratio: dit deelt itemaantallen door itemaantallen, niet
+      // sessies door sessies.
+      koopratio: pct(deel(p.gekocht, p.bekeken)),
+    };
+  });
+
+  return { rijen, heeftVergelijking };
 }
 
 /**
@@ -458,6 +514,6 @@ function nogInVerwerking({ eind }, vandaag = new Date()) {
 module.exports = {
   VENSTERS, vensterPeriode,
   verandering, doelTotaal, doelUitReeks, kpiGroepen,
-  doorsnedeTabel, dekkingVanTabel,
+  doorsnedeTabel, productTabel, dekkingVanTabel,
   vergelijkingsperiode, dagenIn, nogInVerwerking,
 };

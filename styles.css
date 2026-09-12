@@ -4684,3 +4684,12 @@ h1, h2, .kpi-value {
   color: var(--tekst-zacht, #6B6B7B);
   max-width: 70ch;
 }
+.ga4-nieuw {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aizy-lavendel, #B29BF0) 25%, transparent);
+  color: var(--aizy-paars, #6935CC);
+  font-weight: 600;
+}
+.ga4-vanaf-nul { color: var(--tekst-zacht, #6B6B7B); font-style: italic; }
