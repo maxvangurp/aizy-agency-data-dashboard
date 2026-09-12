@@ -691,7 +691,13 @@ export function bepaalPrioriteit(samenvatting) {
 
   if (client.trackingStatus === 'probleem') {
     punten += 40;
-    redenen.push(`De meting is onvolledig: de datakwaliteit staat op ${client.dataHealth} procent.`);
+    // Met het gevolg erbij. "De datakwaliteit staat op 61 procent" is een feit
+    // zonder betekenis: het zegt de lezer niet wat hij ermee aan moet. Dát de
+    // cijfers eronder onbetrouwbaar zijn is juist de reden dat deze klant
+    // bovenaan staat, en het onderscheidt hem van een klant die het gewoon
+    // slecht doet. Die zin stond alleen in `status.reden`, en die staat niet
+    // overal waar deze reden staat.
+    redenen.push(`De meting is onvolledig: de datakwaliteit staat op ${client.dataHealth} procent, waardoor de cijfers onbetrouwbaar zijn.`);
   }
 
   // Het budgetdoel blijft hier buiten: de budgetafwijking krijgt hieronder al

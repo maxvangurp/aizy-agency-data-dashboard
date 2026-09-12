@@ -150,7 +150,7 @@ function renderNavGroep(groep, { actief, compact, open }) {
 export function renderContextbalk({
   user, filters, kanalen = [], conversieOpties = [], bronnen = [], correcties = [],
   klanten = [], actieveKlantId = null, meldingen = 0, magWisselen = false,
-  omgeving = 'agency', zoekwaarde = '',
+  omgeving = 'agency', zoekwaarde = '', demoklant = null,
 }) {
   return `
     <div class="contextbalk-links">
@@ -180,7 +180,28 @@ export function renderContextbalk({
     </div>
 
     ${filters ? renderFilterpaneel(filters, kanalen, conversieOpties, bronnen, omgeving) : ''}
-    ${correcties.length ? renderCorrecties(correcties) : ''}`;
+    ${correcties.length ? renderCorrecties(correcties) : ''}
+    ${demoklant ? renderDemoklant(demoklant) : ''}`;
+}
+
+/**
+ * De controleklant staat in de totalen, en dat hoort er te staan.
+ *
+ * Hij is per rij gemarkeerd, maar een optelling draagt geen markering: de
+ * uitgaven, de omzet en het aantal klanten op de portefeuille, de kanalen en de
+ * budgetpagina tellen hem gewoon mee. Wie zulke getallen overneemt zonder dit
+ * te weten, rapporteert verzonnen cijfers als echte. Uitzonderen zou het
+ * eerlijker maken, maar dat raakt iedere aggregatie in de repository; tot die
+ * tijd is het benoemen het minste wat moet.
+ */
+function renderDemoklant(naam) {
+  return `<div class="banner banner-info" role="status" id="demoklantMelding">
+    <strong>Eén voorbeeldklant meegeteld</strong>
+    <span>
+      ${esc(naam)} is verzonnen en staat erbij om te controleren of de schermen
+      werken. Zijn cijfers tellen mee in de totalen op deze pagina's.
+    </span>
+  </div>`;
 }
 
 function renderKlantkiezer(klanten, actief) {
@@ -189,7 +210,10 @@ function renderKlantkiezer(klanten, actief) {
     <label class="visueel-verborgen" for="contextSelect">Klantomgeving openen</label>
     <select id="contextSelect">
       <option value="">Agencyomgeving</option>
-      ${klanten.map((c) => `<option value="${esc(c.id)}"${actief === c.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
+      ${/* Een <option> draagt geen badge, dus de markering gaat in de tekst
+           zelf. Zonder dat staat de controleklant hier als gewone naam tussen
+           de echte klanten en is hij er niet van te onderscheiden. */''}
+      ${klanten.map((c) => `<option value="${esc(c.id)}"${actief === c.id ? ' selected' : ''}>${esc(c.name)}${c.demo ? ' (demo)' : ''}</option>`).join('')}
     </select>
   </div>`;
 }
@@ -521,7 +545,14 @@ export function renderPaginakop({
  * muisknopje op klikt hoort hem in een nieuw tabblad te kunnen openen, en wie
  * hem deelt hoort dezelfde tab te krijgen.
  *
- * @param {{key: string, label: string, aantal?: number}[]} tabs
+ * **`nogNiet` markeert een tab zonder databron.** Op de Meta-kanaalpagina leiden
+ * vijf van de acht tabs naar een koppelstatus in plaats van naar cijfers. Ze
+ * staan er bewust -- je hoort te weten wat er komt -- maar zonder markering is
+ * een tabbalk een gok: je klikt drie keer mis voordat je weet welke drie werken,
+ * en daarna klik je nergens meer. De markering zet dat vóór de klik in plaats
+ * van erna. De tab blijft gewoon een link naar dezelfde uitleg.
+ *
+ * @param {{key: string, label: string, aantal?: number, nogNiet?: boolean}[]} tabs
  * @param {string} actief
  * @param {(key: string) => string} hashVoor
  */
@@ -531,12 +562,14 @@ export function renderPaginatabs(tabs, actief, hashVoor) {
   return `<div class="paginatabs" role="tablist" aria-label="Onderdelen van deze pagina">
     ${tabs.map((t) => {
       const isActief = t.key === actief;
-      return `<a class="paginatab${isActief ? ' active' : ''}" role="tab"
+      return `<a class="paginatab${isActief ? ' active' : ''}${t.nogNiet ? ' paginatab-nogniet' : ''}" role="tab"
         href="${esc(hashVoor(t.key))}"
         aria-selected="${isActief ? 'true' : 'false'}"
         ${isActief ? 'aria-current="page"' : ''}
+        ${t.nogNiet ? 'data-tip-text="Dit onderdeel heeft nog geen databron. De tab legt uit wat er ontbreekt."' : ''}
         data-tab="${esc(t.key)}">
         ${esc(t.label)}
+        ${t.nogNiet ? '<span class="tab-nogniet-punt" aria-hidden="true"></span><span class="visueel-verborgen"> (nog geen databron)</span>' : ''}
         ${t.aantal != null ? `<span class="tab-teller">${t.aantal}</span>` : ''}
       </a>`;
     }).join('')}

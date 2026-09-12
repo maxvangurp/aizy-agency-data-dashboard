@@ -31,16 +31,16 @@ import { emptyState } from './states.js';
 export function renderWidgetGrid({ indeling, inhoudVoor, bewerken = false }) {
   const zichtbaar = indeling.volgorde.filter((id) => !indeling.verborgen.includes(id));
 
+  // De knop "Indeling aanpassen" staat in de paginakop (zie `app.js`), waar de
+  // pagina-acties horen. Hier stond dezelfde knop nog een tweede keer, honderd
+  // pixels lager: twee identieke knoppen met dezelfde tekst en dezelfde werking,
+  // op één scherm. Wat hier wél thuishoort zijn de bedieningen die bij de
+  // widgets zelf horen, en die verschijnen pas in de bewerkstand.
   return `
-    <div class="widget-balk">
-      <button type="button" class="btn klein${bewerken ? ' primary' : ''}" id="widgetBewerken"
-        aria-pressed="${bewerken}">
-        ${bewerken ? 'Indeling vastzetten' : 'Indeling aanpassen'}
-      </button>
-      ${bewerken ? `
-        <button type="button" class="btn klein" id="widgetHerstel">Standaardindeling herstellen</button>
-        <span class="muted klein">Sleep aan de greep of gebruik de pijlknoppen. Wijzigingen worden meteen bewaard.</span>` : ''}
-    </div>
+    ${bewerken ? `<div class="widget-balk">
+      <button type="button" class="btn klein" id="widgetHerstel">Standaardindeling herstellen</button>
+      <span class="muted klein">Sleep aan de greep of gebruik de pijlknoppen. Wijzigingen worden meteen bewaard.</span>
+    </div>` : ''}
 
     ${bewerken ? renderVerborgenLijst(indeling) : ''}
 

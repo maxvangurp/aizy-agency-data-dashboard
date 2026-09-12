@@ -24,6 +24,21 @@ import { providerStatus } from '../assistant/assistant-controller.js';
    Campagnes
    --------------------------------------------------------------- */
 
+/**
+ * Waarin een campagne zijn resultaat telt.
+ *
+ * Het bedrijfsmodel van de klant is leidend; ontbreekt dat, dan valt het terug
+ * op het veld dat gevuld is. Een campagne zonder gemeten resultaat krijgt een
+ * neutrale eenheid, want die tekst wordt dan toch niet getoond.
+ */
+function resultaateenheid(c, resultaat) {
+  if (resultaat == null) return { enkelvoud: 'resultaat', meervoud: 'resultaten' };
+  if (c.klantModel === BusinessModel.ECOMMERCE || c.conversies != null) {
+    return { enkelvoud: 'aankoop', meervoud: 'aankopen' };
+  }
+  return { enkelvoud: 'aanvraag', meervoud: 'aanvragen' };
+}
+
 export function renderCampagnes({ details, filters }) {
   if (!details.campagnes.length) {
     return `<section class="card">
@@ -44,11 +59,19 @@ export function renderCampagnes({ details, filters }) {
       ${esc(toonBereik(filters.periode.startDate, filters.periode.endDate))}.
       Gesorteerd op kosten, want dat is waar een besluit over budget begint.
     </p>
+    <p class="muted klein">
+      De kolom Resultaat telt aankopen bij e-commerceklanten en aanvragen bij
+      leadgeneratieklanten. Dat zijn geen vergelijkbare eenheden: een aanvraag van
+      230 euro kan een betere deal zijn dan een aankoop van 18 euro. Iedere rij
+      noemt daarom zijn eigen eenheid, en de kolom is niet bedoeld om klanten
+      langs elkaar te leggen.
+    </p>
     <div class="table-scroll">
       ${tabel(
         ['Campagne', LABELS.klant, 'Type', 'Kosten', 'Aandeel', 'Klikken', 'Resultaat', 'Kosten per resultaat'],
         details.campagnes.slice(0, 50).map((c) => {
           const resultaat = c.conversies ?? c.leads ?? null;
+          const eenheid = resultaateenheid(c, resultaat);
           return [
             esc(c.naam),
             `<a class="link" href="#/agency/clients/${esc(c.klantId)}">${esc(c.klantNaam)}</a>`,
@@ -56,8 +79,12 @@ export function renderCampagnes({ details, filters }) {
             fmt.euro(c.kosten),
             totaleKosten ? fmt.procent((c.kosten / totaleKosten) * 100) : ontbrekendeCel('onvoldoende_data'),
             fmt.getal(c.klikken),
-            resultaat == null ? ontbrekendeCel('niet_gemeten') : fmt.getal(resultaat),
-            resultaat ? fmt.euro2(c.kosten / resultaat) : ontbrekendeCel('onvoldoende_data'),
+            resultaat == null
+              ? ontbrekendeCel('niet_gemeten')
+              : `${fmt.getal(resultaat)} <span class="muted klein">${esc(eenheid.meervoud)}</span>`,
+            resultaat
+              ? `${fmt.euro2(c.kosten / resultaat)} <span class="muted klein">per ${esc(eenheid.enkelvoud)}</span>`
+              : ontbrekendeCel('onvoldoende_data'),
           ];
         })
       )}
@@ -79,6 +106,14 @@ export function renderBudgetten({ overview }) {
   const boven = overview.portefeuille.bovenBudget;
   const onder = overview.portefeuille.onderBudget;
 
+  // Bij een afgeronde periode is er per definitie geen prognose: alle dagen zijn
+  // verstreken. De kolom stond er toch, en vulde zich op iedere rij met
+  // "Onvoldoende data" -- wat leest als een storing terwijl er niets mis is. Bij
+  // negen kolommen duwde hij de tabel bovendien voorbij de kaartrand, zodat de
+  // laatste kolom werd afgesneden. Hij verschijnt nu alleen wanneer er ook echt
+  // iets te voorspellen valt.
+  const metPrognose = s.some((x) => x.budget.prognose != null);
+
   return `
     <div class="kpi-row">
       <article class="card kpi" data-label="Totaal budget">
@@ -99,7 +134,11 @@ export function renderBudgetten({ overview }) {
       <article class="card kpi" data-label="Onder budget">
         <span class="kpi-label">Onder budget</span>
         <span class="kpi-value">${onder.length}</span>
-        <span class="kpi-sub">${onder.length ? 'klanten benutten het budget niet' : 'alle budgetten worden benut'}</span>
+        <!-- "Alle budgetten worden benut" naast een tabel waarin iedereen op
+             84 tot 90 procent staat, leest als een tegenspraak: benut is niet
+             hetzelfde als volledig besteed. De grens zit in de pacingmarge, en
+             die hoort erbij te staan in plaats van in de code. -->
+        <span class="kpi-sub">${onder.length ? 'klanten blijven buiten de marge onder budget' : 'niemand blijft buiten de marge onder budget'}</span>
       </article>
     </div>
 
@@ -108,7 +147,7 @@ export function renderBudgetten({ overview }) {
       <div class="table-scroll">
         ${tabel(
           [LABELS.klant, LABELS.dashboardtype, 'Maandbudget', 'Budget deze periode', 'Uitgaven',
-            'Besteed', 'Status', 'Verwacht eindbedrag', 'Verschil'],
+            'Besteed', 'Status', ...(metPrognose ? ['Verwacht eindbedrag'] : []), 'Verschil'],
           s.map((x) => [
             `<a class="link" href="#/agency/clients/${esc(x.client.id)}">${esc(x.client.name)}</a>`,
             badge(dashboardtypeTerm(x.model).kort, 'muted'),
@@ -119,7 +158,9 @@ export function renderBudgetten({ overview }) {
               ? ontbrekendeCel('onvoldoende_data')
               : `<span class="${x.budget.status === PacingStatus.BOVEN_BUDGET ? 'trend-negatief' : 'trend-positief'}">${fmt.procent(x.budget.besteedPercentage)}</span>`,
             `${badge(budgetstatusTerm(x.budget.status).kort, x.budget.status === PacingStatus.OP_SCHEMA ? 'ok' : 'middel')}`,
-            x.budget.prognose == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro(x.budget.prognose),
+            ...(metPrognose
+              ? [x.budget.prognose == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro(x.budget.prognose)]
+              : []),
             x.budget.verschil == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro(x.budget.verschil),
           ])
         )}
@@ -127,7 +168,9 @@ export function renderBudgetten({ overview }) {
       <p class="muted note">
         Het maandbudget wordt naar rato van de periodelengte omgerekend. Een
         weekfilter vergelijkt de uitgaven van die week dus met een zevende van
-        het maandbudget en niet met het hele bedrag.
+        het maandbudget en niet met het hele bedrag.${metPrognose ? '' : `
+        Deze periode is afgerond, dus er staat geen verwacht eindbedrag bij:
+        daar valt niets meer te voorspellen, alleen te constateren.`}
       </p>
     </section>`;
 }
@@ -156,7 +199,11 @@ export function renderConversies({ overview }) {
   return `
     ${blok('Leadgeneratie', 'Aanvragen en de kwalificatie daarvan. Zonder CRM-koppeling stopt de meting bij de lead; dat is geen nul maar een ontbrekende meting.',
       leadgen,
-      [LABELS.klant, 'Leads', 'Gekwalificeerd', 'Kosten per lead', 'Kosten per gekwalificeerde lead', 'Afspraken', 'Klanten'],
+      // De laatste kolom telt de klanten die uít de leads zijn voortgekomen --
+      // de klanten van onze klant. Hij heette "Klanten", in een tabel waarvan de
+      // eerste kolom ook "Klant" heet en waar iedere rij een klant is.
+      [LABELS.klant, 'Leads', 'Gekwalificeerd', 'Kosten per lead', 'Kosten per gekwalificeerde lead',
+        'Afspraken', 'Nieuwe klanten uit leads'],
       (s) => [
         `<a class="link" href="#/agency/clients/${esc(s.client.id)}">${esc(s.client.name)}</a>`,
         fmt.getal(s.totalen.leads),
@@ -185,6 +232,29 @@ export function renderConversies({ overview }) {
    Inzichten
    --------------------------------------------------------------- */
 
+/**
+ * De klanten waar een inzicht over gaat, elk als eigen link.
+ *
+ * Hier stond één link met de tekst "Klant openen". Twee dingen gingen daar mis.
+ * Een bevinding over meerdere klanten droeg alleen de eerste `clientId`, dus die
+ * link opende willekeurig een van de genoemde namen. En met vijf inzichten onder
+ * elkaar stonden er vijf links die allemaal "Klant openen" heetten -- wie op
+ * linktekst navigeert, met een screenreader of met een linklijst, kreeg vijf keer
+ * hetzelfde te horen.
+ *
+ * De naam staat nu in de link zelf. `clientId` blijft de terugval voor een
+ * inzicht dat nog geen klantenlijst draagt.
+ */
+function klantlinks(inzicht) {
+  const klanten = inzicht.klanten?.length
+    ? inzicht.klanten
+    : (inzicht.clientId ? [{ id: inzicht.clientId, naam: null }] : []);
+  if (!klanten.length) return '';
+
+  return `<p class="inzichtrij-links">${klanten.map((k) => `
+    <a class="link-klein" href="#/agency/clients/${esc(k.id)}">${esc(k.naam ? `${k.naam} openen` : 'Klant openen')}</a>`).join('')}</p>`;
+}
+
 export function renderPortfolioInzichten({ inzichten, filters }) {
   if (!inzichten.length) {
     return emptyState({
@@ -210,7 +280,7 @@ export function renderPortfolioInzichten({ inzichten, filters }) {
           ${badge(i.titel, variant[i.soort] ?? 'muted')}
         </div>
         <p>${esc(i.tekst)}</p>
-        ${i.clientId ? `<a class="link-klein" href="#/agency/clients/${esc(i.clientId)}">Klant openen</a>` : ''}
+        ${klantlinks(i)}
       </li>`).join('')}
     </ul>
   </section>`;
@@ -358,8 +428,10 @@ export function renderIntegraties({ overview }) {
         ${advertentiekanalen.map((k) => koppelStatus({
           bron: k.label,
           status: klantenMet(k.key) ? KanaalStatus.GEKOPPELD : KanaalStatus.NIET_GEKOPPELD,
+          // "7 van je klanten adverteert" -- het onderwerp is meervoud, dus het
+          // werkwoord ook. Alleen bij precies één klant klopt het enkelvoud.
           uitleg: klantenMet(k.key)
-            ? `${klantenMet(k.key)} van je klanten adverteert via ${k.label}.`
+            ? `${klantenMet(k.key)} van je klanten ${klantenMet(k.key) === 1 ? 'adverteert' : 'adverteren'} via ${k.label}.`
             : `Geen enkele klant in deze selectie adverteert via ${k.label}.`,
           actie: { hash: `#/agency/channels/${k.key}`, label: 'Kanaalpagina openen' },
         })).join('')}
@@ -380,7 +452,7 @@ export function renderIntegraties({ overview }) {
             : bronKlanten(k.key) ? KanaalStatus.GEKOPPELD : KanaalStatus.NIET_GEKOPPELD,
           uitleg: k.toekomstig
             ? `De koppeling met ${k.label} is nog niet gebouwd. De cijfers die er nu bij staan zijn demodata en worden als zodanig gemarkeerd.`
-            : `${bronKlanten(k.key)} van je klanten heeft ${k.label} gekoppeld.`,
+            : `${bronKlanten(k.key)} van je klanten ${bronKlanten(k.key) === 1 ? 'heeft' : 'hebben'} ${k.label} gekoppeld.`,
         })).join('')}
       </div>
     </section>

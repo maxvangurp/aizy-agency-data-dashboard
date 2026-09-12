@@ -149,8 +149,21 @@ export function prioriteitenDefinitie({
         verplicht: true,
         vast: true,
         waarde: (s) => s.client.name,
-        cel: (s) => `<button type="button" class="link cel-klant" data-klantpaneel="${esc(s.client.id)}">${esc(s.client.name)}</button>
-          <a class="link-klein" href="#/agency/clients/${esc(s.client.id)}">Openen</a>`,
+        // Twee verschillende handelingen die er identiek uitzagen: de naam opent
+        // een paneel naast de lijst, "Openen" navigeert naar de klantpagina.
+        // Allebei blauw en onderstreept, naast elkaar, zonder enig verschil in
+        // vorm -- dus klikte je op de naam en kreeg je niet wat je verwachtte.
+        // De naam meldt nu dat hij een paneel opent, de link zegt waar hij heen
+        // gaat, en allebei dragen ze de klantnaam in hun toegankelijke naam.
+        // In live modus reist er één voorbeeldklant mee als controle (zie
+        // `clients-bron.js`). Die staat hier tussen echte klanten, met verzonnen
+        // omzet en een verzonnen meetstatus, en moet dus als zodanig te zien
+        // zijn -- zeker in een lijst waaruit mensen cijfers overnemen.
+        cel: (s) => `<button type="button" class="link cel-klant" data-klantpaneel="${esc(s.client.id)}"
+            aria-haspopup="dialog" aria-label="${esc(`${s.client.name}: details in het zijpaneel`)}">${esc(s.client.name)}</button>
+          ${s.client.demo ? badge('Demo', 'muted') : ''}
+          <a class="link-klein cel-klant-pagina" href="#/agency/clients/${esc(s.client.id)}"
+            aria-label="${esc(`${s.client.name}: naar de klantpagina`)}">Klantpagina <span aria-hidden="true">→</span></a>`,
       }),
       kolom('type', LABELS.dashboardtype, {
         waarde: (s) => dashboardtypeTerm(s.model).kort,
@@ -174,8 +187,20 @@ export function prioriteitenDefinitie({
         waarde: (s) => s.status.label,
         groepWaarde: (s) => s.status.label,
         groepeerbaar: true,
-        cel: (s) => `<span ${statusUitlegAttr(s)}>${badge(s.status.label, s.status.variant)}</span>`
-          + `<br><span class="muted klein">${esc(s.status.reden)}</span>`,
+        // Alleen de badge. De reden stond hier als volzin terwijl de kolom
+        // ernaast, "Belangrijkste reden", de onderbouwing al draagt en
+        // `statusUitlegAttr` hem hiernaast in een rijkere vorm in de tooltip
+        // zet. Die derde kopie maakte iedere rij drie regels hoog en de tabel
+        // tweemaal de schermbreedte, waardoor Ernst en alles erachter buiten
+        // beeld viel.
+        //
+        // Let op: die twee zinnen wáren niet identiek. `hoofdreden` komt uit
+        // `prioriteit.redenen`, en daar ontbrak het gevolg ("waardoor de cijfers
+        // onbetrouwbaar zijn") dat alleen in `status.reden` stond. Deze cel
+        // weghalen liet dat gevolg dus nergens meer staan. Het is nu aan de
+        // prioriteitsreden zelf toegevoegd (zie `bepaalPrioriteit`), waar het
+        // hoort -- en niet als derde kopie hier.
+        cel: (s) => `<span ${statusUitlegAttr(s)}>${badge(s.status.label, s.status.variant)}</span>`,
       }),
       kolom('ernst', 'Ernst', {
         waarde: (s) => s.prioriteit.punten,
@@ -384,20 +409,40 @@ export function renderPortefeuille(user, {
  * Een cijfer waar je niet op kunt klikken, dwingt de lezer om zelf te bedenken
  * welke lijst erbij hoort. Iedere kaart hier opent de prioriteitenlijst met
  * precies het filter dat het cijfer verklaart.
+ *
+ * **De definitie staat in een tooltip en niet in de kaart.** Hij stond hier als
+ * vaste alinea onder ieder cijfer. Dat is nuttig op dag één en ruis op dag twee,
+ * en het kostte per kaart ruim honderd pixels -- samen genoeg om "Waar aandacht
+ * nodig is" onder de vouw te duwen. Dat is de omgekeerde wereld: de uitleg van
+ * een KPI stond boven het werk dat eruit volgt. De uitleg is er nog, via
+ * dezelfde `data-tip-text` die de kolomkoppen en de simpele modus al gebruiken:
+ * zichtbaar bij hover, bij toetsenbordfocus en bij een tik, en gekoppeld met
+ * aria-describedby.
+ *
+ * De tip hangt aan de kaart zodra die klikbaar is, en anders aan het label. Een
+ * focusbaar element binnen een link zou een tweede tabstop opleveren voor
+ * dezelfde informatie; `simpel-widgets.js` legt diezelfde regel vast.
  */
 function kpiKaart({ label, waarde, sub, richting = 'neutraal', uitleg = '', href = null, teller = null }) {
+  const tipOpLabel = uitleg && !href
+    ? ` data-tip-text="${esc(uitleg)}" data-tip-title="${esc(label)}" tabindex="0"`
+    : '';
   const binnen = `
-    <span class="kpi-label">${esc(label)}</span>
+    <span class="kpi-label${uitleg ? ' kpi-label-tip' : ''}"${tipOpLabel}>${esc(label)}${uitleg ? ' <span class="kpi-info" aria-hidden="true">i</span>' : ''}</span>
     <span class="kpi-value">${esc(waarde)}</span>
-    <span class="kpi-sub trend-${esc(richting)}">${esc(sub)}</span>
-    ${uitleg ? `<span class="kpi-uitleg">${esc(uitleg)}</span>` : ''}
-    ${href ? '<span class="kpi-ingang" aria-hidden="true">Onderliggende lijst openen →</span>' : ''}`;
+    <span class="kpi-sub trend-${esc(richting)}">${esc(sub)}</span>`;
 
   if (!href) {
     return `<article class="card kpi" data-label="${esc(label)}">${binnen}</article>`;
   }
+  // Een expliciete naam op de link. Zonder deze regel heten alle vijf de kaarten
+  // "Onderliggende lijst openen", en leest een screenreader de hele definitie
+  // mee als linktekst.
+  const tipOpKaart = uitleg ? ` data-tip-text="${esc(uitleg)}" data-tip-title="${esc(label)}"` : '';
   return `<a class="card kpi kpi-klikbaar" data-label="${esc(label)}" href="${esc(href)}"
-    ${teller != null ? `data-teller="${teller}"` : ''}>${binnen}</a>`;
+    aria-label="${esc(`${label}: ${waarde}. ${sub}. Open de onderliggende lijst.`)}"${tipOpKaart}
+    ${teller != null ? `data-teller="${teller}"` : ''}>${binnen}
+    <span class="kpi-ingang" aria-hidden="true">Onderliggende lijst openen →</span></a>`;
 }
 
 function renderOverzicht({ overview, acties, signalen, hashVoor }) {
@@ -408,13 +453,24 @@ function renderOverzicht({ overview, acties, signalen, hashVoor }) {
   const aandacht = overview.portefeuille.opPrioriteit.filter((s) => s.prioriteit.niveau !== 'geen');
   const nieuweSignalen = signalen.filter((s) => s.status === SignaalStatus.NIEUW);
 
+  // Niet elke klant valt in "op koers" of "onder doel": een klant zonder doelen,
+  // zonder meetbaar resultaat of met een kapotte meting krijgt geen oordeel. Die
+  // vielen hier stil weg, en dan telde de subtekst niet op tot het cijfer
+  // erboven -- zeven klanten, drie plus twee eronder. Wie dat opmerkt, gaat aan
+  // de rest van de cijfers twijfelen, en terecht.
+  const zonderOordeel = Math.max(0, overview.aantalKlanten - overview.opKoers - overview.aandachtNodig);
+
   return `
     <div class="kpi-row kpi-row-5">
       ${kpiKaart({
         label: 'Actieve klanten',
         waarde: fmt.getal(overview.aantalKlanten),
-        sub: `${overview.opKoers} op koers, ${overview.aandachtNodig} onder doel`,
-        uitleg: 'Het aantal klanten waartoe dit account toegang heeft.',
+        sub: [
+          `${overview.opKoers} op koers`,
+          `${overview.aandachtNodig} onder doel`,
+          zonderOordeel ? `${zonderOordeel} nog niet te beoordelen` : null,
+        ].filter(Boolean).join(', '),
+        uitleg: 'Het aantal klanten waartoe dit account toegang heeft. Een klant zonder doelen, zonder meetbaar resultaat of met een onbetrouwbare meting krijgt geen oordeel en telt apart.',
         href: hashVoor('prioriteiten'),
       })}
       ${kpiKaart({
@@ -446,11 +502,18 @@ function renderOverzicht({ overview, acties, signalen, hashVoor }) {
       ${kpiKaart({
         label: 'Meetproblemen',
         waarde: fmt.getal(overview.trackingProblemen),
-        sub: overview.onvolledigeDekking
-          ? `${overview.onvolledigeDekking} klanten met onvolledige dekking`
-          : 'alle metingen volledig',
-        richting: overview.trackingProblemen ? 'negatief' : 'positief',
-        uitleg: 'Klanten waarvan de meting onvolledig is, waardoor de cijfers onbetrouwbaar zijn.',
+        // Het cijfer telt trackingproblemen, de subtekst ging over dekking. Twee
+        // verschillende dingen, en bij twee trackingproblemen en nul gaten in de
+        // dekking stond er letterlijk "2 -- alle metingen volledig". Een kaart
+        // die zichzelf tegenspreekt kost meer vertrouwen dan hij aan inzicht
+        // oplevert. De subtekst gaat nu over hetzelfde cijfer, en de dekking
+        // komt er alleen bij als er echt iets aan mankeert.
+        sub: [
+          overview.trackingProblemen ? 'cijfers onbetrouwbaar' : null,
+          overview.onvolledigeDekking ? `${overview.onvolledigeDekking} met onvolledige dekking` : null,
+        ].filter(Boolean).join(' · ') || 'alle metingen volledig',
+        richting: overview.trackingProblemen || overview.onvolledigeDekking ? 'negatief' : 'positief',
+        uitleg: 'Klanten waarvan de meting onbetrouwbaar is. Onvolledige dekking is iets anders: dan mist er data over een deel van de periode.',
         href: `${hashVoor('prioriteiten')}&filter=meetkwaliteit`,
       })}
     </div>

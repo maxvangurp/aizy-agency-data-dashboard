@@ -518,9 +518,16 @@ export function renderLeadgenKlantview(dashboard, verhaal) {
       ${kpi('Investering', fmt.euro(totalen.spend), 'advertentiebudget deze periode')}
       ${kpiMetriek(totalen, 'leads', deltas, { label: 'Leads', vergelijkingLabel: label })}
       ${kpiMetriek(totalen, 'cpl', deltas, { label: 'Kosten per lead', vergelijkingLabel: label })}
-      ${kpi('Leadkwaliteit',
-        totalen.qualifiedLeads == null ? 'Onvoldoende data' : `${fmt.getal(totalen.qualifiedLeads)} gekwalificeerd`,
-        totalen.qualifiedLeads == null ? 'Geen CRM-koppeling' : `van ${fmt.getal(totalen.leads)} leads`,
+      ${/**
+        * De waarde van een KPI-kaart is het getal, niet het getal plus een
+        * woord. "71 gekwalificeerd" brak in het grote cijferlettertype over
+        * twee regels en maakte deze kaart een kop hoger dan de drie ernaast;
+        * het woord hoort bij de toelichting eronder, waar bij alle andere
+        * kaarten de eenheid ook staat.
+        */''}
+      ${kpi('Gekwalificeerde leads',
+        totalen.qualifiedLeads == null ? 'Onvoldoende data' : fmt.getal(totalen.qualifiedLeads),
+        totalen.qualifiedLeads == null ? 'Geen CRM-koppeling' : `van ${fmt.getal(totalen.leads)} leads gekwalificeerd`,
         totalen.qualifiedLeads == null ? 'neutraal' : deltas.qualifiedLeads?.richting ?? 'neutraal')}
     </div>
 

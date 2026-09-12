@@ -461,7 +461,12 @@ export function renderOpgeslagenRapportages(lijst) {
         <h2>Opgeslagen rapportages</h2>
         <a class="btn primary" href="#/agency/reports/new">Nieuwe rapportage</a>
       </div>
-      <p class="empty">Er zijn nog geen rapportages samengesteld. Maak er een met de rapportage-builder.</p>
+      <!-- "Maak er een met de rapportage-builder" verwees naar een naam die
+           nergens op het scherm staat. De knop ernaast is de builder. -->
+      <p class="empty">
+        Je hebt nog geen rapportage samengesteld. Met <strong>Nieuwe rapportage</strong>
+        hierboven kies je een klant, een periode en de onderdelen die erin komen.
+      </p>
     </section>`;
   }
 

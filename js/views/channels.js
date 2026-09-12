@@ -79,8 +79,16 @@ export const KANAAL_TABS = {
 
 export const KANAALPAGINAS = ['alle', 'google_ads', 'meta_ads', 'microsoft_ads', 'linkedin_ads', 'ga4'];
 
+/**
+ * De tabs van een kanaal, met de tabs zonder databron gemarkeerd.
+ *
+ * `bron: 'geen'` betekent dat de tab naar een koppelstatus leidt en niet naar
+ * cijfers. Dat is een eigenschap van de tab en hoort dus mee te reizen naar de
+ * tabbalk, in plaats van dat je het pas ontdekt door erop te klikken.
+ */
 export function kanaalTabs(kanaal) {
-  return KANAAL_TABS[kanaal] ?? KANAAL_TABS.alle;
+  const tabs = KANAAL_TABS[kanaal] ?? KANAAL_TABS.alle;
+  return tabs.map((t) => (t.bron === 'geen' ? { ...t, nogNiet: true } : t));
 }
 
 export function kanaalTitel(kanaal) {
@@ -160,28 +168,104 @@ function renderAlleKanalen(overzicht, tabKey) {
     </section>`;
   }
 
+  // Alleen de kanalen die hier niets opleveren. Dit blok toonde ze allemaal, ook
+  // de gekoppelde -- en herhaalde daarmee per kanaal het klantaantal dat al op de
+  // kaart erboven stond. De kop beloofde al iets anders: "kanalen zonder klanten
+  // in deze selectie". Nu doet hij dat ook, en bij een volledig gekoppelde
+  // selectie verdwijnt het blok in zijn geheel in plaats van vier keer
+  // "Gekoppeld" te melden.
+  const ontbrekend = overzicht.kanalen.filter((k) => !k.aantalKlanten);
+
   return `
     <div class="kanaalkaarten">
       ${kanalen.map((k) => `<a class="card kanaalkaart" href="#/agency/channels/${esc(k.key)}">
         <span class="kanaalkaart-naam">${esc(k.label)}</span>
         <span class="kanaalkaart-waarde">${esc(fmt.euro(k.spend))}</span>
-        <span class="muted klein">${k.aantalKlanten} ${k.aantalKlanten === 1 ? 'klant' : 'klanten'} · ${esc(fmt.getal(k.clicks))} klikken</span>
+        <span class="muted klein">${totaleSpend ? `${esc(fmt.procent((k.spend / totaleSpend) * 100))} van de uitgaven · ` : ''}${k.aantalKlanten} ${k.aantalKlanten === 1 ? 'klant' : 'klanten'}</span>
+        ${kanaalResultaat(k)}
       </a>`).join('')}
     </div>
 
-    <section class="card">
-      <h2>Koppelstatus per kanaal</h2>
-      <p class="muted">Kanalen zonder klanten in deze selectie staan hier met de reden erbij.</p>
+    ${ontbrekend.length ? `<section class="card">
+      <h2>Kanalen zonder cijfers in deze selectie</h2>
+      <p class="muted">Deze kanalen staan in de selectie, maar geen enkele klant adverteert er binnen deze periode.</p>
       <div class="koppelstatus-grid">
-        ${overzicht.kanalen.map((k) => koppelStatus({
+        ${ontbrekend.map((k) => koppelStatus({
           bron: k.label,
-          status: k.aantalKlanten ? KanaalStatus.GEKOPPELD : KanaalStatus.NIET_GEKOPPELD,
-          uitleg: k.aantalKlanten
-            ? `${k.aantalKlanten} van je klanten adverteert via ${k.label} binnen deze periode.`
-            : `Geen enkele klant in deze selectie adverteert via ${k.label} binnen deze periode.`,
+          status: KanaalStatus.NIET_GEKOPPELD,
+          uitleg: `Geen enkele klant in deze selectie adverteert via ${k.label} binnen deze periode.`,
         })).join('')}
       </div>
-    </section>`;
+    </section>` : ''}`;
+}
+
+/**
+ * Wat dit kanaal opleverde, per bedrijfsmodel gescheiden.
+ *
+ * De kaart toonde uitgaven en klikken. Dat zijn twee kostenkanten en geen
+ * resultaat: je kunt er niet aan zien of een kanaal zijn geld waard is, en dat
+ * is de enige vraag die je op een kanaaloverzicht stelt.
+ *
+ * E-commerce en leadgeneratie staan apart en worden nooit samengeteld -- om
+ * dezelfde reden dat de vergelijkingstabel omzet en leads al scheidt. Ontbreekt
+ * een model in dit kanaal, dan staat het er niet; ontbreekt het resultaat zelf,
+ * dan staat er niets in plaats van een nul.
+ */
+function kanaalResultaat(k) {
+  const delen = [];
+
+  if (k.ecommerceKlanten && k.revenue != null && k.ecommerceSpend) {
+    delen.push(`<span><span class="muted">ROAS</span> ${esc(fmt.ratio(k.revenue / k.ecommerceSpend))}</span>`);
+  }
+  if (k.leadgenKlanten && k.leads && k.leadgenSpend != null) {
+    delen.push(`<span><span class="muted">Kosten per lead</span> ${esc(fmt.euro(k.leadgenSpend / k.leads))}</span>`);
+  }
+  if (!delen.length) return '<span class="kanaalkaart-resultaat muted klein">Geen resultaat gemeten</span>';
+
+  return `<span class="kanaalkaart-resultaat klein">${delen.join('<span class="muted"> · </span>')}</span>`;
+}
+
+/**
+ * Wat dit kanaal opleverde, met de noemer erbij.
+ *
+ * Hier stond één kaart "Resultaat": omzet als er e-commerceklanten waren,
+ * anders leads. Twee dingen gingen daar mis. Bij een kanaal met beide modellen
+ * -- Meta heeft er drie van elk -- verdwenen de leads volledig. En de kaart
+ * stond naast "Uitgaven € 31.412 over 6 klanten", dus wie een ROAS wilde deelde
+ * de omzet van drie klanten door de uitgaven van zes. Dat getal ziet er
+ * geloofwaardig uit en is een derde te laag.
+ *
+ * Iedere kaart rekent nu zijn eigen verhouding en noemt zijn eigen noemer, zodat
+ * er niets meer te delen valt wat niet bij elkaar hoort.
+ */
+function resultaatKaarten(k) {
+  const kaart = (label, waarde, sub) => `<article class="card kpi" data-label="${esc(label)}">
+    <span class="kpi-label">${esc(label)}</span>
+    <span class="kpi-value">${esc(waarde)}</span>
+    <span class="kpi-sub">${esc(sub)}</span>
+  </article>`;
+
+  const kaarten = [];
+  const klanten = (n) => `${n} ${n === 1 ? 'klant' : 'klanten'}`;
+
+  if (k.ecommerceKlanten && k.revenue != null && k.ecommerceSpend) {
+    kaarten.push(kaart(
+      'Rendement',
+      fmt.ratio(k.revenue / k.ecommerceSpend),
+      `${fmt.euro(k.revenue)} omzet uit ${fmt.euro(k.ecommerceSpend)} over ${klanten(k.ecommerceKlanten)}`
+    ));
+  }
+  if (k.leadgenKlanten && k.leads && k.leadgenSpend != null) {
+    kaarten.push(kaart(
+      'Kosten per lead',
+      fmt.euro(k.leadgenSpend / k.leads),
+      `${fmt.getal(k.leads)} leads uit ${fmt.euro(k.leadgenSpend)} over ${klanten(k.leadgenKlanten)}`
+    ));
+  }
+  if (!kaarten.length) {
+    kaarten.push(kaart('Resultaat', 'Niet gemeten', 'Geen klant met een meetbaar resultaat op dit kanaal'));
+  }
+  return kaarten.join('');
 }
 
 function renderEenKanaal(overzicht, kanaal) {
@@ -214,11 +298,7 @@ function renderEenKanaal(overzicht, kanaal) {
         <span class="kpi-value">${esc(fmt.getal(k.clicks))}</span>
         <span class="kpi-sub">${k.impressions ? `${((k.clicks / k.impressions) * 100).toFixed(2)} procent doorklikratio` : 'geen vertoningen'}</span>
       </article>
-      <article class="card kpi" data-label="Resultaat">
-        <span class="kpi-label">Resultaat</span>
-        <span class="kpi-value">${k.ecommerceKlanten ? esc(fmt.euro(k.revenue)) : esc(fmt.getal(k.leads))}</span>
-        <span class="kpi-sub">${k.ecommerceKlanten ? `omzet over ${k.ecommerceKlanten} e-commerceklanten` : `leads over ${k.leadgenKlanten} leadgeneratieklanten`}</span>
-      </article>
+      ${resultaatKaarten(k)}
     </div>
 
     <section class="card">

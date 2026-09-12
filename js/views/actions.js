@@ -209,7 +209,12 @@ export function renderActies({
   tab, acties, definitie, gridStaat, gridVerwerkt, gridWeergaven, gridSelectie,
   magBewerken, klanten, medewerkers, formOpen, weekStart,
 }) {
-  const formulier = magBewerken ? renderNieuweActie({ klanten, medewerkers, open: formOpen }) : '';
+  // Het formulier verschijnt pas als er om gevraagd is. Stond het er altijd,
+  // dan was het in gesloten toestand een lege kaart met een kop "Nieuwe actie"
+  // en een knop "Actie aanmaken" -- exact dezelfde knop als die in de
+  // paginakop, honderdtachtig pixels eronder. Twee identieke knoppen op één
+  // scherm laten de lezer zoeken naar het verschil dat er niet is.
+  const formulier = magBewerken && formOpen ? renderNieuweActie({ klanten, medewerkers }) : '';
 
   if (!acties.length && !formOpen) {
     return formulier + emptyState({
@@ -379,16 +384,14 @@ function dagnaam(iso) {
  * kolom waar de actie in terechtkomt. Het formulier schuift open boven de
  * weergave en sluit zichzelf na het opslaan.
  */
-function renderNieuweActie({ klanten, medewerkers, open }) {
+function renderNieuweActie({ klanten, medewerkers }) {
   return `<section class="card nieuwe-actie">
     <div class="kaart-kop">
       <h2>Nieuwe actie</h2>
-      <button type="button" class="btn klein${open ? '' : ' primary'}" id="nieuweActieKnop"
-        aria-expanded="${open}" aria-controls="nieuweActieForm">
-        ${open ? 'Annuleren' : 'Actie aanmaken'}
-      </button>
+      <button type="button" class="btn klein" id="nieuweActieKnop"
+        aria-expanded="true" aria-controls="nieuweActieForm">Annuleren</button>
     </div>
-    <form id="nieuweActieForm"${open ? '' : ' hidden'} class="actie-form">
+    <form id="nieuweActieForm" class="actie-form">
       <div class="veld">
         <label for="actieTitel">Titel</label>
         <input type="text" id="actieTitel" name="titel" required maxlength="140"

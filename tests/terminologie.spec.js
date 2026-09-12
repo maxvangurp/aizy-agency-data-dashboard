@@ -71,16 +71,37 @@ test.describe('Aizy Performance Team', () => {
     expect(html).not.toContain('@aizy.com');
   });
 
-  test('het teamoverzicht toont verantwoordelijkheid en ondersteuning apart', async ({ page }) => {
+  /**
+   * De regel is dat verantwoordelijk zijn voor een klant iets anders is dan
+   * eraan meewerken, en dat een functietitel iets anders is dan een
+   * toegangsniveau. Die regel wordt hier getoetst.
+   *
+   * Eerder gebeurde dat door twee kolomkoppen "Verantwoordelijk voor" en
+   * "Ondersteunt bij" te eisen. Die twee kolommen bevatten volledige
+   * klantnamen, samen zo'n achthonderd pixels, en stonden daardoor bij niemand
+   * in beeld: de tabel had 1838 pixels nodig in een werkgebied van 1096. Een
+   * onderscheid dat buiten het scherm valt maakt de regel niet waar. Het staat
+   * nu in de kolom Toegewezen klanten, en de laatste assertie bewaakt dat het
+   * daar ook echt te zien is.
+   */
+  test('het teamoverzicht houdt verantwoordelijkheid en ondersteuning uit elkaar', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/team');
 
     const kop = page.locator('#pageRoot thead');
-    await expect(kop).toContainText('Verantwoordelijk voor');
-    await expect(kop).toContainText('Ondersteunt bij');
     await expect(kop).toContainText('Functietitel');
     await expect(kop).toContainText('Toegangsniveau');
-    await expect(kop).toContainText('Accountstatus');
+    await expect(kop).toContainText('Toegewezen klanten');
+
+    const lijf = page.locator('#pageRoot tbody');
+    await expect(lijf).toContainText('verantwoordelijk');
+    await expect(lijf).toContainText('ondersteunend');
+
+    const past = await page.evaluate(() => {
+      const el = document.querySelector('#pageRoot .table-scroll');
+      return el ? el.scrollWidth <= el.clientWidth + 1 : false;
+    });
+    expect(past, 'het teamoverzicht hoort binnen het werkgebied te passen').toBe(true);
   });
 
   test('het teamoverzicht bevat geen prestatieranglijst', async ({ page }) => {
