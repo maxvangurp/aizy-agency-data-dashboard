@@ -78,3 +78,43 @@ export function herstelClients() {
   actief = SAMPLE_CLIENTS;
   herkomst = 'sample';
 }
+
+/**
+ * De dagreeksen van de echte klanten.
+ *
+ * Aparte vraag na de klantenlijst, en bewust ná de eerste: zonder klanten valt
+ * er niets te vullen, en met klanten maar zonder reeksen toont het dashboard
+ * "geen data" -- wat waar is en beter dan wachten.
+ *
+ * Een jaar terug. Het dashboard kent perioden tot en met "vorig jaar", en een
+ * reeks die korter is dan de gevraagde periode levert een lege grafiek op
+ * zonder dat iemand ziet waarom. Vijftien klanten maal een jaar maal drie
+ * kanalen is ruim genoeg voor één JSON-antwoord; blijkt dat te groot, dan is
+ * dat te zien aan de laadtijd en niet aan verkeerde cijfers.
+ */
+export async function laadEchteReeksen() {
+  const { zetEchteReeksen, wisEchteReeksen } = await import('./data/echte-reeks.js');
+
+  if (isSampleMode()) {
+    wisEchteReeksen();
+    return { herkomst: 'sample', klanten: 0 };
+  }
+
+  const sinds = new Date();
+  sinds.setUTCFullYear(sinds.getUTCFullYear() - 1);
+  const uitkomst = await safeFetchJson(`/api/reeks?since=${sinds.toISOString().slice(0, 10)}`);
+
+  if (uitkomst.status !== DataStatus.LIVE || !uitkomst.data?.klanten) {
+    // Niets zetten in plaats van half vullen: de voorbeelddataset blijft dan
+    // de bron, en dat is een toestand die het dashboard kent.
+    wisEchteReeksen();
+    return {
+      herkomst: 'sample',
+      klanten: 0,
+      melding: uitkomst.message || 'Geen dagreeksen ontvangen; de voorbeelddata blijft staan.',
+    };
+  }
+
+  zetEchteReeksen(uitkomst.data);
+  return { herkomst: 'live', klanten: Object.keys(uitkomst.data.klanten).length };
+}

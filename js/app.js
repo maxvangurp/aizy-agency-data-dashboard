@@ -79,7 +79,7 @@ import {
   renderPaginatabs, renderDetailpaneel, actieveTab,
 } from './ui/app-shell.js';
 import { renderAssistent } from './ui/assistant.js';
-import { laadEchteClients, clientHerkomst } from './clients-bron.js';
+import { laadEchteClients, clientHerkomst, laadEchteReeksen } from './clients-bron.js';
 import * as assistent from './assistant/assistant-controller.js';
 import { bouwAssistantContext } from './assistant/assistant-context.js';
 import { navigatieVoor, actiefItem, KANAALNAMEN, ANALYSE_TABS } from './ui/navigation.js';
@@ -3270,6 +3270,13 @@ async function init() {
   const klanten = await laadEchteClients();
   if (klanten.melding) console.warn('Klantenlijst:', klanten.melding);
   console.info(`Klantenlijst: ${klanten.aantal} klanten (${clientHerkomst()})`);
+
+  // En hun dagreeksen. Het uitgebreide dashboard rekent alles synchroon door
+  // vanuit `getClientRows`, dus die moeten binnen zijn vóór de eerste render --
+  // anders staat er "geen data" tot iemand toevallig iets aanklikt.
+  const reeksen = await laadEchteReeksen();
+  if (reeksen.melding) console.warn('Dagreeksen:', reeksen.melding);
+  console.info(`Dagreeksen: ${reeksen.klanten} klanten (${reeksen.herkomst})`);
 
   startRouter(render);
   onAuthChange(() => {});

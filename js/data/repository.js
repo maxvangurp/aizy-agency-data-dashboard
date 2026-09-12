@@ -28,7 +28,35 @@ import {
 } from '../sample-data/shared.js';
 import { getEcommerceProfiel, ECOMMERCE_CONVERSIE_CONFIG, ECOMMERCE_CONVERSIE_LABELS } from '../sample-data/ecommerce.js';
 import { getLeadsProfiel, CONVERSIE_LABELS } from '../sample-data/leads.js';
-import { getClientRows, getClientKanalen, getClientModel } from '../sample-data/timeseries.js';
+import {
+  getClientRows as voorbeeldRijen,
+  getClientKanalen as voorbeeldKanalen,
+  getClientModel,
+} from '../sample-data/timeseries.js';
+import {
+  heeftEchteReeks, echteRijen, echteKanalen, echteConversieConfig, echteConversieLabels,
+} from './echte-reeks.js';
+
+/**
+ * De dagrijen van een klant.
+ *
+ * Echte cijfers gaan voor de voorbeelddataset. Dat is niet alleen een
+ * voorkeur maar de hele reden dat deze wissel bestaat: de vijftien
+ * aangesloten klanten staan niet in `CLIENT_CONFIG`, dus tot nu toe kreeg
+ * elke pagina een lege lijst terug en meldde "geen data" -- terwijl er
+ * tienduizenden rijen in Supabase staan.
+ *
+ * De voorbeeldklanten blijven werken: die hebben geen echte reeks, en vallen
+ * dus terug. Zo blijft de demo een demo zonder dat er ergens een schakelaar
+ * om moet.
+ */
+function getClientRows(clientId) {
+  return heeftEchteReeks(clientId) ? echteRijen(clientId) : voorbeeldRijen(clientId);
+}
+
+function getClientKanalen(clientId) {
+  return heeftEchteReeks(clientId) ? echteKanalen(clientId) : voorbeeldKanalen(clientId);
+}
 import { toegankelijkeKlantIds, magKlantZien, can, Permission } from '../auth/permissions.js';
 import { DEMO_GEBRUIKERS, isAgencyGebruiker, vindGebruikerOpId, agencyMedewerkers } from '../auth/domain.js';
 import { metOverrides } from '../auth/demo-auth-provider.js';
@@ -103,6 +131,13 @@ function modelVan(client) {
 }
 
 function conversieConfigVan(client) {
+  // Een echte klant heeft geen leadsprofiel uit de voorbeelddataset; zijn
+  // conversieopzet komt uit wat er werkelijk gemeten wordt.
+  if (heeftEchteReeks(client.id)) {
+    return client.businessModel === BusinessModel.ECOMMERCE
+      ? ECOMMERCE_CONVERSIE_CONFIG
+      : echteConversieConfig(client.id);
+  }
   if (client.businessModel === BusinessModel.LEADGEN) {
     return getLeadsProfiel(client.id)?.conversieConfig ?? null;
   }
@@ -113,7 +148,11 @@ function conversieConfigVan(client) {
 }
 
 function conversieLabelsVan(client) {
-  return client.businessModel === BusinessModel.ECOMMERCE ? ECOMMERCE_CONVERSIE_LABELS : CONVERSIE_LABELS;
+  if (client.businessModel === BusinessModel.ECOMMERCE) return ECOMMERCE_CONVERSIE_LABELS;
+  // De labels van de voorbeelddataset -- contactformulier, adviesaanvraag,
+  // routeaanvraag -- horen bij conversietypen die een echte klant niet heeft.
+  // Ze tonen zou negen soorten suggereren waar er één gemeten wordt.
+  return echteConversieLabels(client.id) ?? CONVERSIE_LABELS;
 }
 
 /** De advertentiekanalen waarvoor deze klant data heeft. */

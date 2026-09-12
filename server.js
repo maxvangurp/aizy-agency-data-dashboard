@@ -907,6 +907,214 @@ app.get('/api/databronnen', async (req, res) => {
  * de module niet ingericht, en dat is iets anders dan ingericht en leeg: in het
  * eerste geval weten we niet eens wat een conversie is voor deze klant.
  */
+/**
+ * De dagreeks van alle klanten, in de vorm die het uitgebreide dashboard leest.
+ *
+ * WAAROM DIT ENDPOINT BESTAAT
+ *
+ * De uitgebreide kant rekent alles door vanuit één functie: `getClientRows`.
+ * Die las tot nu toe uitsluitend uit de voorbeelddataset, en de vijftien echte
+ * klanten staan daar niet in. Elke pagina meldde daardoor "er is binnen deze
+ * selectie helemaal geen data" -- terwijl er 126 GA4-rapporten en tienduizenden
+ * advertentierijen in Supabase staan.
+ *
+ * Dit endpoint levert precies die vorm: één rij per klant, per kanaal, per dag.
+ * Alles wat het dashboard daarna doet -- filteren op periode, op kanaal,
+ * totalen, deltas, doelen, signalen -- werkt dan vanzelf op echte cijfers.
+ *
+ * WAT ER NIET IN ZIT, EN WAAROM DAT ZO BLIJFT
+ *
+ * Het model kent velden die uit een CRM komen: gekwalificeerde leads,
+ * afspraken, offertes, klanten, pijplijnwaarde. Die meet niemand hier. Ze
+ * blijven leeg in plaats van geschat, want een verzonnen pijplijnwaarde ziet er
+ * precies zo uit als een gemeten.
+ *
+ * Advertentiekanalen leveren uitgaven, vertoningen, klikken en conversies; GA4
+ * levert sessies en gebruikers over de hele site. Die laatste komen daarom op
+ * een eigen kanaalrij en worden niet bij een advertentiekanaal opgeteld: dan
+ * zouden sessies van organisch verkeer aan Google Ads worden toegeschreven.
+ */
+app.get('/api/reeks', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+
+  try {
+    const sb = supabase.maakSupabase();
+    const klanten = await sb.lees('clients', {kolommen: 'id,slug,name,business_model'});
+    if (!klanten.length) return res.json({klanten: {}});
+
+    const sinds = geldigeDatum(req.query.since) ?? nieuweDatum(new Date().toISOString().slice(0, 10), -400);
+
+    // Eén vraag voor alle klanten samen: vijftien losse vragen om dezelfde
+    // tabel zijn vijftien round-trips. De rijen worden hier verdeeld.
+    const snapshots = await sb.lees('performance_snapshots', {
+      kolommen: 'client_id,platform,snapshot_date,period_end,granularity,spend,impressions,clicks,conversions_primary,revenue',
+      // De operator hoort hier in de waarde; zie `lees` in supabase.js.
+      filters: {snapshot_date: `gte.${sinds}`, granularity: 'eq.day'},
+      order: 'snapshot_date.asc',
+    });
+
+    const perKlant = new Map(klanten.map((k) => [k.id, {
+      slug: k.slug,
+      businessModel: k.business_model || 'leadgen',
+      perDag: new Map(),
+      kanalen: new Set(),
+    }]));
+
+    for (const r of snapshots) {
+      const klant = perKlant.get(r.client_id);
+      if (!klant) continue;
+      const kanaal = KANAAL_PER_PLATFORM[r.platform];
+      if (!kanaal) continue;
+      klant.kanalen.add(kanaal);
+      hoopOp(klant.perDag, `${r.snapshot_date}|${kanaal}`, {
+        date: r.snapshot_date,
+        channel: kanaal,
+        spend: getal(r.spend),
+        impressions: getal(r.impressions),
+        clicks: getal(r.clicks),
+        conversies: getal(r.conversions_primary),
+        revenue: getal(r.revenue),
+      });
+    }
+
+    // GA4 erbij: sessies en gebruikers over de hele site, op een eigen
+    // kanaalrij. Uit het langste rapport dat er per klant is, zodat een
+    // dashboardperiode van negentig dagen ook gevuld is.
+    await voegGa4Toe(sb, perKlant);
+
+    const uit = {};
+    for (const klant of perKlant.values()) {
+      const rijen = [...klant.perDag.values()].map((r) => vormRij(r, klant.businessModel));
+      if (!rijen.length) continue;
+      // Op de slug en niet op de uuid: `/api/clients/live` levert de slug als
+      // `id`, en het dashboard zoekt hier met datzelfde id. Op de uuid
+      // sleutelen levert een store op die nooit een treffer geeft -- en dan
+      // staat er "geen data" zonder dat er iets stuk is.
+      uit[klant.slug] = {
+        slug: klant.slug,
+        businessModel: klant.businessModel,
+        kanalen: [...klant.kanalen],
+        rijen: rijen.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.channel.localeCompare(b.channel))),
+      };
+    }
+
+    return res.json({
+      klanten: uit,
+      sinds,
+      // Wat er niet in zit hoort zichtbaar te zijn, niet stilzwijgend leeg.
+      nietGemeten: NIET_GEMETEN,
+    });
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
+});
+
+/** Onze platformnamen naar de kanaalsleutels van het dashboard. */
+const KANAAL_PER_PLATFORM = {'google-ads': 'google_ads', 'meta-ads': 'meta_ads'};
+
+/**
+ * Velden die het model kent maar die hier niemand meet.
+ *
+ * Ze blijven leeg. Een geschatte pijplijnwaarde ziet er precies zo uit als een
+ * gemeten, en het verschil is aan het scherm niet te zien.
+ */
+const NIET_GEMETEN = [
+  'qualifiedLeads', 'appointments', 'quotes', 'customers', 'pipelineValue',
+  'formStarts', 'landingPageViews', 'engagement',
+];
+
+function hoopOp(kaart, sleutel, waarden) {
+  const bestaand = kaart.get(sleutel);
+  if (!bestaand) { kaart.set(sleutel, waarden); return; }
+  for (const [veld, waarde] of Object.entries(waarden)) {
+    if (typeof waarde !== 'number') continue;
+    bestaand[veld] = (bestaand[veld] ?? 0) + waarde;
+  }
+}
+
+/**
+ * Eén rij in de vorm die het model verwacht.
+ *
+ * Bij leadgen gaat de conversieteller in `conversies.leads`; het dashboard telt
+ * conversietypen op en heeft er dus een naam voor nodig. Bij e-commerce zijn
+ * `purchases` en `revenue` gewone velden.
+ */
+function vormRij(r, businessModel) {
+  const basis = {
+    date: r.date,
+    channel: r.channel,
+    spend: r.spend,
+    impressions: r.impressions,
+    clicks: r.clicks,
+    sessions: r.sessions ?? null,
+    users: r.users ?? null,
+  };
+  if (businessModel === 'ecommerce') {
+    return {...basis, purchases: r.conversies ?? r.purchases ?? null, revenue: r.revenue};
+  }
+  return {
+    ...basis,
+    revenue: r.revenue,
+    ...(r.conversies == null ? {} : {conversies: {leads: r.conversies}}),
+  };
+}
+
+/** Sessies en gebruikers uit het langste GA4-rapport per klant. */
+async function voegGa4Toe(sb, perKlant) {
+  let rapporten;
+  try {
+    rapporten = await sb.lees('ga4_reports', {
+      kolommen: 'client_id,period_start,period_end,payload',
+      order: 'period_start.asc',
+    });
+  } catch {
+    // Zonder migratie 019 bestaat deze tabel niet. De advertentiecijfers
+    // blijven dan gewoon staan; dat is beter dan het hele endpoint laten vallen.
+    return;
+  }
+
+  const langstePerKlant = new Map();
+  for (const r of rapporten) {
+    const dagen = (r.payload?.dagreeks ?? []).length;
+    const huidig = langstePerKlant.get(r.client_id);
+    if (!huidig || dagen > huidig.dagen) langstePerKlant.set(r.client_id, {dagen, payload: r.payload});
+  }
+
+  for (const [clientId, {payload}] of langstePerKlant) {
+    const klant = perKlant.get(clientId);
+    if (!klant) continue;
+    klant.kanalen.add('ga4');
+    for (const dag of payload?.dagreeks ?? []) {
+      if (!dag.datum) continue;
+      klant.perDag.set(`${dag.datum}|ga4`, {
+        date: dag.datum,
+        channel: 'ga4',
+        sessions: getal(dag.sessies),
+        users: getal(dag.gebruikers),
+        // Geen uitgaven: GA4 kost niets en meet de hele site. Deze rij op nul
+        // zetten zou "geen advertentie-uitgaven" suggereren waar het "niet van
+        // toepassing" is.
+        spend: null, impressions: null, clicks: null,
+      });
+    }
+  }
+}
+
+function geldigeDatum(waarde) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(waarde ?? '')) ? String(waarde) : null;
+}
+
+function getal(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 app.get('/api/ga4', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
   if (ontbreekt.length) {

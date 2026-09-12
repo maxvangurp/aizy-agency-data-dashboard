@@ -21,6 +21,21 @@ import { renderPrioriteit } from './insight-cards.js';
 import { kanaalLabel } from '../filters/channels.js';
 import { LABELS, dashboardtypeTerm, verantwoordelijkheidTerm } from '../terminology.js';
 
+/**
+ * De datakwaliteit als badge, of de melding dat hij niet vastgesteld is.
+ *
+ * Was `Datakwaliteit ${client.dataHealth} procent` zonder controle. Bij de
+ * aangesloten klanten staat dat veld leeg -- niemand heeft het ingevuld -- en
+ * dan stond er letterlijk "Datakwaliteit undefined procent", in de kleur die
+ * bij een slechte score hoort. Een ontbrekende meting is niet hetzelfde als
+ * een slechte, en zeker niet hetzelfde als het woord "undefined".
+ */
+function datakwaliteitBadge(waarde) {
+  const n = Number(waarde);
+  if (!Number.isFinite(n)) return badge('Datakwaliteit niet vastgesteld', 'muted');
+  return badge(`Datakwaliteit ${n} procent`, n >= 80 ? 'ok' : n >= 65 ? 'middel' : 'hoog');
+}
+
 export function renderAgencyClientDetail({ dashboard, verhaal, signalen = [], filterbalk = '', kanaalWaarschuwing = null }) {
   // null betekent: bestaat niet, of geen toegang. Beide leveren hetzelfde
   // antwoord op, zodat het bestaan van een klant niet wordt verklapt.
@@ -54,7 +69,7 @@ export function renderAgencyClientDetail({ dashboard, verhaal, signalen = [], fi
           <p class="eyebrow">${esc(LABELS.datakwaliteit)}</p>
           <div class="intern-rij">
             ${meetstatusBadge(client.trackingStatus)}
-            ${badge(`Datakwaliteit ${client.dataHealth} procent`, client.dataHealth >= 80 ? 'ok' : client.dataHealth >= 65 ? 'middel' : 'hoog')}
+            ${datakwaliteitBadge(client.dataHealth)}
             ${badge(dashboardtypeTerm(dashboard.model).kort, 'muted')}
           </div>
           <p class="muted klein">Maandbudget ${fmt.euro(client.maandbudget)}</p>

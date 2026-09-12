@@ -135,7 +135,21 @@ function maakSupabase({
    * terugkomt dan we vroegen -- want precies duizend rijen betekent bij
    * PostgREST bijna altijd dat er meer is.
    */
-  async function lees(tabel, { kolommen = '*', filters = {}, order = null, limiet = null } = {}) {
+  async function lees(tabel, opties = {}) {
+    // Een onbekende optie is een fout en geen detail. Deze functie negeerde ze
+    // stilzwijgend, en een genegeerde optie is meestal een filter -- dan komt er
+    // méér terug dan gevraagd, zonder dat er iets misgaat. Dat kostte hier een
+    // dagfilter: gevraagd om negentig dagen, gekregen wat er was.
+    const bekend = ['kolommen', 'filters', 'order', 'limiet'];
+    const onbekend = Object.keys(opties).filter((k) => !bekend.includes(k));
+    if (onbekend.length) {
+      throw new TypeError(
+        `lees(${tabel}) kent de optie${onbekend.length === 1 ? '' : 's'} ${onbekend.join(', ')} niet. ` +
+        `Gebruik ${bekend.join(', ')}; een operator hoort in de waarde: { datum: 'gte.2026-01-01' }.`
+      );
+    }
+
+    const { kolommen = '*', filters = {}, order = null, limiet = null } = opties;
     if (limiet != null) return leesPagina(tabel, { kolommen, filters, order, limiet, offset: 0 });
 
     const alles = [];
