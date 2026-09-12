@@ -8,6 +8,22 @@
 
 export const DEMO_WACHTWOORD = 'demo123';
 
+/**
+ * Waarop een navigatie wacht.
+ *
+ * `domcontentloaded` en niet de standaard `load`. Die laatste wacht óók op het
+ * lettertype van Google Fonts en op Chart.js van jsDelivr, en die twee hebben
+ * met inloggen niets te maken. Waar ze traag of onbereikbaar zijn -- een
+ * CI-runner zonder vrije uitgang, een proxy ertussen -- kost elke navigatie de
+ * volle time-out en valt de suite om op iets buiten de applicatie. Gemeten in
+ * zo'n omgeving: ruim twaalf seconden per bron, tweemaal per `login()`.
+ *
+ * Er gaat niets verloren. Hieronder wordt op `#loginForm` gewacht, en elk
+ * scherm dat een grafiek toont wacht zelf op zijn canvas; `js/charts.js`
+ * slaat de grafiek netjes over als Chart.js er niet is.
+ */
+const WACHT_TOT = 'domcontentloaded';
+
 export const ACCOUNTS = {
   // Enrico en Jim zijn in de demo agencybeheerder; de overige teamleden zijn
   // Aizy-medewerker met eigen klanttoewijzingen.
@@ -43,7 +59,7 @@ export const AIZY_TEAM = [
  * en nooit een inlogveld vinden.
  */
 export async function login(page, email, { theme = 'light' } = {}) {
-  await page.goto('/index.html');
+  await page.goto('/index.html', { waitUntil: WACHT_TOT });
   await page.evaluate((t) => {
     localStorage.setItem('aizy.theme', t);
     // Eventuele bestaande sessie opruimen zodat we altijd bij het
@@ -52,7 +68,7 @@ export async function login(page, email, { theme = 'light' } = {}) {
     localStorage.removeItem('aizy.state');
     window.location.hash = '#/login';
   }, theme);
-  await page.reload();
+  await page.reload({ waitUntil: WACHT_TOT });
   // Het inlogscherm toont twee panelen naast elkaar; het volledige systeem is
   // het rechterpaneel (#loginForm). De velden staan op `name`, niet op een
   // gedeeld id, zodat beide formulieren in één document kunnen bestaan.
