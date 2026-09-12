@@ -302,6 +302,36 @@ test('een webshop zonder gemeten aankopen krijgt dat als eerste kaart', () => {
   assert.match(kaarten[0].waarom, /maakt de klant geen leadgeneratieklant/);
 });
 
+test('een handvol aankopen telt ook als meetprobleem, met een eigen tekst', () => {
+  // NAVEE: 282 sessies, 1 aankoop van 499,99 in vier weken. De ratio (0,35%) en
+  // de orderwaarde staan op één gebeurtenis. Alleen op nul toetsen laat dit
+  // geval door, en dan staat er een gemiddelde orderwaarde die niets beschrijft.
+  const d = antwoord({
+    klanttype: 'ecommerce',
+    doelen: {aankopen: ['purchase']},
+    kpis: [groep('context', [kpi('sessies', 282, 300)]),
+      groep('aankopen', [kpi('aankopen', 1, 2), kpi('omzet', 499.99, 800),
+        kpi('orderwaarde', 499.99, 400), kpi('aankoopratio', 0.35, 0.67)])],
+  });
+  const eerste = inzichten(d)[0];
+  assert.equal(eerste.code, 'aankoopmeting_twijfelachtig');
+  assert.match(eerste.titel, /Te weinig aankopen/);
+  assert.match(eerste.waarneming, /1 gemeten aankoop/);
+  // En hij trekt geen conclusie die hij niet kan dragen.
+  assert.match(eerste.onzekerheid, /niet hetzelfde als een kapotte meting/);
+});
+
+test('genoeg aankopen levert geen meetmelding op', () => {
+  const d = antwoord({
+    klanttype: 'ecommerce',
+    doelen: {aankopen: ['purchase']},
+    kpis: [groep('context', [kpi('sessies', 14779, 14000)]),
+      groep('aankopen', [kpi('aankopen', 220, 220), kpi('omzet', 15062, 15000),
+        kpi('orderwaarde', 68, 68), kpi('aankoopratio', 1.49, 1.5)])],
+  });
+  assert.ok(!inzichten(d).some((k) => /aankoopmeting/.test(k.code)));
+});
+
 test('een leadgenklant zonder leaddefinitie krijgt dat als eerste kaart', () => {
   const d = antwoord({
     doelen: {leads: [], contactinteracties: []},

@@ -56,6 +56,14 @@ const DREMPELS = Object.freeze({
   // Hoeveel slechter een apparaat moet presteren voordat we het melden.
   apparaatVerschil: 0.3,
 
+  // Onder dit aantal aankopen noemen we de aankoopmeting niet werkend. Eén
+  // aankoop in vier weken is geen webshop die verkoopt; dat is een testorder of
+  // een meting die stukgaat op sommige afrekenroutes. NAVEE en Eikenmeubels
+  // stonden allebei op 1. Zelfde getal als DREMPELS.aankopenWerkend in
+  // `lib/ga4-doelen.js` van max-marketing-os: één regel, twee plekken die hem
+  // moeten kennen.
+  aankopenWerkend: 5,
+
   // Hoogstens dit aantal kaarten. Meer leest niemand.
   maximum: 5,
 });
@@ -90,7 +98,7 @@ function inzichten(data, {drempels = DREMPELS} = {}) {
     );
   }
   kandidaten.push(apparaatVerschil(data, drempels, leadgen ? 'leads' : 'aankopen'));
-  kandidaten.push(meetprobleem(data));
+  kandidaten.push(meetprobleem(data, drempels));
 
   return kandidaten
     .filter(Boolean)
@@ -425,27 +433,36 @@ function apparaatVerschil(data, d, groepNaam) {
 }
 
 /** Een meting die ontbreekt is zelf het belangrijkste inzicht. */
-function meetprobleem(data) {
+function meetprobleem(data, d = DREMPELS) {
   const ecommerce = data.klanttype === 'ecommerce' || data.klanttype === 'beide';
   if (ecommerce) {
     const aankopen = kpiUit(data, 'aankopen', 'aankopen');
-    if (aankopen && (aankopen.waarde ?? 0) === 0) {
+    const aantal = aankopen?.waarde ?? 0;
+    if (aankopen && aantal < d.aankopenWerkend) {
+      const sessies = kpiUit(data, 'context', 'sessies')?.waarde;
+      const geen = aantal === 0;
       return {
-        code: 'geen_aankoopmeting',
+        code: geen ? 'geen_aankoopmeting' : 'aankoopmeting_twijfelachtig',
         // Bewust de hoogste impact: zolang dit niet klopt, betekent geen van de
         // andere kaarten iets.
         impact: Number.MAX_SAFE_INTEGER,
-        titel: 'Geen aankopen gemeten',
-        waarneming: `Er staan ${getal(data.kpis?.[0]?.kpis?.find((k) => k.sleutel === 'sessies')?.waarde)} `
-          + 'sessies tegenover nul gemeten aankopen in deze periode.',
-        cijfers: {nu: 0, vorig: null, periode: data.periode, vergelijking: null},
+        titel: geen ? 'Geen aankopen gemeten' : 'Te weinig aankopen om op te sturen',
+        waarneming: geen
+          ? `Er staan ${getal(sessies)} sessies tegenover nul gemeten aankopen in deze periode.`
+          : `Er staan ${getal(sessies)} sessies tegenover ${getal(aantal)} gemeten `
+            + `${aantal === 1 ? 'aankoop' : 'aankopen'} in deze periode.`,
+        cijfers: {nu: aantal, vorig: aankopen?.vorige ?? null, periode: data.periode, vergelijking: null},
         waarom: 'Dit maakt de klant geen leadgeneratieklant; het betekent dat de '
-          + 'aankoopmeting ontbreekt of stuk is. Zolang dat zo is zegt elk cijfer over '
-          + 'conversie en omzet hieronder niets.',
-        verklaring: 'Mogelijk vuurt het aankoopevent niet af op elke afrekenroute, of staat '
-          + 'de bedankpagina buiten de meting.',
-        actie: 'Doe een testaankoop en controleer of het aankoopevent binnenkomt.',
-        onzekerheid: null,
+          + 'aankoopmeting ontbreekt of onvolledig is. Zolang dat zo is zeggen de '
+          + 'conversieratio, de omzet en de gemiddelde orderwaarde hieronder niets -- ze '
+          + 'staan op een handvol gebeurtenissen.',
+        verklaring: 'Mogelijk vuurt het aankoopevent niet af op elke afrekenroute, staat de '
+          + 'bedankpagina buiten de meting, of wordt er werkelijk nauwelijks besteld.',
+        actie: 'Doe een testaankoop en controleer of het aankoopevent binnenkomt. Klopt de '
+          + 'meting wel, leg dan naast de administratie hoeveel orders er werkelijk waren.',
+        onzekerheid: geen ? null
+          : 'Weinig aankopen is niet hetzelfde als een kapotte meting. Dit onderscheid valt '
+            + 'hier niet te maken; daarvoor is de werkelijke omzet nodig.',
         naar: {tab: 'instellingen'},
       };
     }
