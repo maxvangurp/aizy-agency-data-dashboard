@@ -8,6 +8,7 @@ const {v4: uuidv4} = require('uuid');
 const {encrypt, decrypt} = require('./utils');
 const supabase = require('./supabase');
 const {googleBlokVan, kiesGranulariteit, binnenBereik, dekkingVan} = require('./ads-contract');
+const {zoekKlant, haalGoogleAdsBron} = require('./ads-query');
 const {
   getGoogleConnection,
   upsertGoogleConnection,
@@ -594,16 +595,23 @@ app.get('/api/clients/live', async (req, res) => {
 });
 
 /**
- * Meta Ads is nog niet gekoppeld.
+ * Meta Ads staat hier bewust op `aanwezig: false`.
  *
- * Het contract kent hier een vorm voor: `aanwezig: false` betekent dat het
- * platform niet actief is voor deze klant, en het dashboard laat de blokken
- * dan weg. Dat is iets anders dan een 404, die als fout in de console landt en
- * eruitziet alsof er iets stuk is. Er is niets stuk -- er is nog geen
- * Meta-adapter in max-marketing-os, dus er is ook niets om te tonen.
+ * Het contract kent daar een vorm voor: het platform is niet actief voor deze
+ * klant, en het dashboard laat de blokken dan weg. Dat is iets anders dan een
+ * 404, die als fout in de console landt en eruitziet alsof er iets stuk is.
  *
- * Zodra die adapter er is, vervangt hij dit antwoord en verandert er aan de
- * dashboardkant niets.
+ * De reden is sinds kort een andere, en dat verschil is belangrijk. Er ís een
+ * Meta-adapter in max-marketing-os, en die haalt cijfers op. Ze staan alleen
+ * niet in `performance_snapshots`, en dat is een keuze en geen achterstand:
+ * `api.blended_kpis()` telt conversies over platformen heen op, terwijl Google
+ * en Meta dezelfde aankoop allebei claimen. Meta daar wegschrijven zou de CPA
+ * op dit dashboard stilletjes te mooi maken.
+ *
+ * Wie dit endpoint wil vullen, moet dus niet de adapter bouwen -- die bestaat --
+ * maar eerst de GA4-noemer in `blended_kpis()` krijgen, zodat optellen klopt.
+ * Tot die tijd is `crosschannel` in max-marketing-os de plek waar het blended
+ * beeld wél goed gerekend wordt.
  */
 app.get('/api/meta/insights', (req, res) => {
   res.json({
@@ -618,32 +626,6 @@ app.get('/api/meta/insights', (req, res) => {
     reden: 'Meta Ads is nog niet gekoppeld aan deze workspace.',
   });
 });
-
-/**
- * Het conversieoordeel over dit account, of null.
- *
- * Een ontbrekende tabel is hier geen fout maar een volgorde: migratie 015 van
- * max-marketing-os maakt hem aan, en tussen het uitrollen van deze code en het
- * draaien van die migratie hoort het endpoint gewoon te blijven werken. Dan
- * alleen zonder voorbehoud, en dat zegt het blok ook (`betrouwbaarheid: null`
- * betekent niet beoordeeld).
- *
- * Andere fouten gaan wél door: een 401 op deze tabel betekent dat de sleutel
- * of de rechten niet kloppen, en dat stilzwijgend als "geen oordeel"
- * behandelen is precies hoe je een ROAS toont die niets betekent.
- */
-async function leesBetrouwbaarheid(sb, clientId) {
-  try {
-    const rijen = await sb.lees('client_kpi_reliability', {
-      filters: {client_id: clientId, platform: 'google-ads'},
-      limiet: 1,
-    });
-    return rijen[0] ?? null;
-  } catch (error) {
-    if (/\(404\)/.test(String(error && error.message))) return null;
-    throw error;
-  }
-}
 
 app.get('/api/google-ads/campaigns', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();
@@ -662,48 +644,32 @@ app.get('/api/google-ads/campaigns', async (req, res) => {
 
   try {
     const sb = supabase.maakSupabase();
-    const klanten = await sb.lees('clients', {kolommen: 'id,slug,name,business_model'});
-    const klant = klanten.find((c) => c.slug === gevraagd || c.id === gevraagd);
+    const {klant, beschikbaar} = await zoekKlant(sb, gevraagd);
     if (!klant) {
-      return res.status(404).json({
-        message: 'Onbekende klant "' + gevraagd + '".',
-        beschikbaar: klanten.map((c) => c.slug).filter(Boolean),
-      });
+      return res.status(404).json({message: 'Onbekende klant "' + gevraagd + '".', beschikbaar});
     }
 
-    // De periode is optioneel. Zonder grenzen krijg je alles wat er is; dat is
-    // bruikbaarder dan een lege grafiek als de filters nog niet gezet zijn.
-    const filters = {client_id: klant.id, platform: 'google-ads'};
-    if (req.query.since) filters.snapshot_date = 'gte.' + req.query.since;
+    // Prestaties, campagnenamen en het conversieoordeel in één keer: ze hangen
+    // alleen van de klant af en niet van elkaar. Zie ads-query.js.
+    const bron = await haalGoogleAdsBron(sb, {klantId: klant.id, since: req.query.since});
 
-    const rijen = await sb.lees('performance_snapshots', {
-      kolommen: 'campaign_id,snapshot_date,period_end,granularity,spend,impressions,clicks,conversions_primary,revenue',
-      filters,
-      order: 'snapshot_date.asc',
-    });
     // De bovengrens ligt op `period_end`, niet op `snapshot_date`: een maandrij
     // die op `since` begint liep anders drie weken buiten het venster door en
     // telde toch helemaal mee. Zie binnenBereik.
-    const inBereik = binnenBereik(rijen, {since: req.query.since, until: req.query.until});
+    const inBereik = binnenBereik(bron.snapshots, {since: req.query.since, until: req.query.until});
 
     // Zie kiesGranulariteit: dag- en weekrijen bestrijken dezelfde periode, dus
     // alles optellen telt alles dubbel.
     const gekozen = kiesGranulariteit(inBereik, {since: req.query.since, until: req.query.until});
     const binnenPeriode = inBereik.filter((r) => r.granularity === gekozen);
 
-    const campagnerijen = await sb.lees('campaigns', {
-      kolommen: 'id,name,channel_type',
-      filters: {client_id: klant.id},
-    });
-    const campagnes = new Map(campagnerijen.map((c) => [c.id, c]));
-
     return res.json({
-      ...googleBlokVan(binnenPeriode, campagnes, {
+      ...googleBlokVan(binnenPeriode, bron.campagnes, {
         businessModel: klant.business_model,
         // Welke KPI's op dit account betekenis hebben. Ontbreekt de rij, dan is
         // de conversieopzet niet beoordeeld -- dat is iets anders dan
         // beoordeeld en goed bevonden, en het blok laat dat verschil zien.
-        betrouwbaarheid: await leesBetrouwbaarheid(sb, klant.id),
+        betrouwbaarheid: bron.betrouwbaarheid,
       }),
       granulariteit: gekozen,
       // Containment laat dagen aan de randen vallen. Zonder dit getal is

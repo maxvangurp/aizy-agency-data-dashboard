@@ -800,16 +800,18 @@ suite tegen een andere Chrome-versie draait; dat is een betere ruil dan niet
 kunnen draaien, maar het hoort geen stille standaard te zijn. Een pad dat niet
 bestaat gooit meteen, en niet pas bij de eerste test.
 
-**Twee externe bronnen.** `index.html` haalt het lettertype bij Google Fonts en
-Chart.js bij jsDelivr, allebei blokkerend in de `<head>`. Op een netwerk waar
-die niet bereikbaar zijn blijft elke navigatie hangen tot de time-out -- gemeten
-op ruim twaalf seconden per bron -- en valt de suite om op iets buiten de
+**Twee externe bronnen.** `index.html` haalt het lettertype bij Google Fonts --
+een stylesheet in de `<head>`, dus renderblokkerend -- en Chart.js bij jsDelivr,
+onderaan de `<body>`. Dat tweede blokkeert het parsen niet meer, maar houdt wel
+`DOMContentLoaded` en daarmee de modulescript op. Op een netwerk waar die twee
+niet bereikbaar zijn blijft elke navigatie hangen tot de time-out -- gemeten op
+ruim twaalf seconden per bron -- en valt de suite om op iets buiten de
 applicatie. `login()` wacht daarom op `domcontentloaded` in plaats van `load`.
-Dat scheelt de helft; het blokkerende script-tag zelf houdt ook
-`domcontentloaded` op. De schermen met een grafiek blijven zonder Chart.js leeg
-(`js/charts.js` slaat de grafiek netjes over), dus die tests vragen om echte
-uitgang. Wie de suite structureel zonder CDN wil draaien, moet Chart.js lokaal
-zetten -- dat is een eigen besluit, want het verandert ook de productiepagina.
+Dat scheelt de helft; de rest zit in die twee bronnen zelf. De schermen met een
+grafiek blijven zonder Chart.js leeg (`js/charts.js` slaat de grafiek netjes
+over), dus die tests vragen om echte uitgang. Wie de suite structureel zonder
+CDN wil draaien, moet Chart.js lokaal zetten -- dat is een eigen besluit, want
+het verandert ook de productiepagina.
 
 De suite dekt authenticatie, autorisatie, data-isolatie, het filtersysteem, de
 agency- en klantomgeving, teambeheer, navigatie, thema's, de API-fallback, het
