@@ -38,6 +38,7 @@ import {
 } from './echte-reeks.js';
 import {
   klantCampagnes, klantVerdeling, nietBeschikbaar, klantDetailGeladen, detailOnderweg,
+  klantEntiteiten, entiteitPeriode,
 } from './echt-klantdetail.js';
 
 /**
@@ -974,16 +975,27 @@ function echtProfiel(client, basis, filters) {
     metaAdsBeschikbaar: meta.length > 0,
     googleAds: {
       campagnes: google,
-      // Niet opgehaald bij Google Ads; zie `ontbreekt`.
-      advertentiegroepen: [], zoekwoorden: [], matchtypes: [], eindUrls: [],
+      advertentiegroepen: klantEntiteiten(client.id, 'advertentiegroepen', 'google_ads'),
+      zoekwoorden: klantEntiteiten(client.id, 'zoekwoorden', 'google_ads'),
+      zoektermen: klantEntiteiten(client.id, 'zoektermen', 'google_ads'),
+      matchtypes: [], eindUrls: [],
       apparaten: klantVerdeling(client.id, 'apparaten', 'google-ads'),
     },
     metaAds: {
       campagnes: meta,
-      advertentiesets: [], advertenties: [], creatives: [], doelgroepen: [],
+      advertentiesets: klantEntiteiten(client.id, 'advertentiesets', 'meta_ads'),
+      advertenties: klantEntiteiten(client.id, 'advertenties', 'meta_ads'),
+      creatives: [],
+      doelgroepen: klantVerdeling(client.id, 'doelgroepen', 'meta-ads'),
       apparaten: klantVerdeling(client.id, 'apparaten', 'meta-ads'),
       plaatsingen: klantVerdeling(client.id, 'plaatsingen', 'meta-ads'),
     },
+    // Welke periode elke lijst beslaat. Zelden exact de gevraagde: deze
+    // cijfers worden per periode opgehaald en het dashboardbereik schuift.
+    entiteitPeriodes: Object.fromEntries(
+      ['advertentiegroepen', 'zoekwoorden', 'zoektermen', 'advertentiesets', 'advertenties']
+        .map((soort) => [soort, entiteitPeriode(client.id, soort)])
+    ),
     verdelingen: {
       apparaten: klantVerdeling(client.id, 'apparaten'),
       regios: klantVerdeling(client.id, 'regios'),

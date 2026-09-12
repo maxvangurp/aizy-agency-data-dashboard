@@ -472,6 +472,91 @@ function campagnesBlok(d, kanaal = 'google_ads') {
   </section>`;
 }
 
+/**
+ * De tabs die de laag onder de campagne tonen.
+ *
+ * `sleutel` is hoe het profiel de lijst noemt, `kolom` de kop boven de eerste
+ * kolom, en `detail` een extra kolom die alleen bij die soort hoort -- een
+ * zoekwoord heeft een matchtype, een advertentie hangt onder een set.
+ */
+const ENTITEIT_TABS = {
+  advertentiegroepen: { sleutel: 'advertentiegroepen', kolom: 'Advertentiegroep', onder: 'Campagne' },
+  zoekwoorden: {
+    sleutel: 'zoekwoorden', kolom: 'Zoekwoord', onder: 'Advertentiegroep',
+    detail: { kop: 'Matchtype', lees: (e) => e.detail?.matchtype ?? null },
+  },
+  zoektermen: { sleutel: 'zoektermen', kolom: 'Zoekterm', onder: 'Advertentiegroep' },
+  advertentiesets: { sleutel: 'advertentiesets', kolom: 'Advertentieset', onder: 'Campagne' },
+  // Een advertentie hangt bij Google onder een advertentiegroep en bij Meta
+  // onder een advertentieset. Hetzelfde veld, een ander woord.
+  advertenties: {
+    sleutel: 'advertenties', kolom: 'Advertentie',
+    onder: (kanaal) => (kanaal === 'meta_ads' ? 'Advertentieset' : 'Advertentiegroep'),
+  },
+};
+
+/**
+ * Eén tabel met de laag onder de campagne.
+ *
+ * De periode staat erboven zodra hij afwijkt van wat er gevraagd is. Deze
+ * cijfers worden per periode opgehaald en het dashboardbereik schuift elke dag
+ * op; ze zijn waar voor hún periode, en wat niet mag gebeuren is dat ze
+ * stilzwijgend doorgaan voor de periode in de kop.
+ */
+function entiteitBlok(d, kanaal, tab) {
+  if (d.profiel?.laden) {
+    return `<section class="card" aria-busy="true"><h2>${esc(tab.label)}</h2>
+      <p class="muted">Cijfers laden…</p></section>`;
+  }
+
+  const vorm = ENTITEIT_TABS[tab.key];
+  const bron = kanaal === 'meta_ads' ? d.profiel?.metaAds : d.profiel?.googleAds;
+  const rijen = bron?.[vorm.sleutel] ?? [];
+
+  if (!rijen.length) {
+    const reden = d.profiel?.ontbreekt?.[tab.key];
+    return `<section class="card">
+      ${koppelStatus({
+        bron: `${kanaalTitel(kanaal)} — ${tab.label}`,
+        status: KanaalStatus.NIET_GEKOPPELD,
+        uitleg: reden
+          ? `${reden} Er wordt hier geen tabel getoond, want een lege tabel leest als "geen resultaat".`
+          : `Er zijn binnen deze periode geen ${tab.label.toLowerCase()} met cijfers. Dat betekent niet `
+            + 'dat het resultaat nul is; er is niets gemeten.',
+      })}
+    </section>`;
+  }
+
+  const periode = d.profiel?.entiteitPeriodes?.[vorm.sleutel];
+  const isEcommerce = d.type === BusinessModel.ECOMMERCE;
+
+  const onder = typeof vorm.onder === 'function' ? vorm.onder(kanaal) : vorm.onder;
+  const kolommen = [
+    vorm.kolom, onder,
+    ...(vorm.detail ? [vorm.detail.kop] : []),
+    'Kosten', 'Klikken', 'Vertoningen', isEcommerce ? 'Aankopen' : 'Aanvragen',
+  ];
+
+  return `<section class="card">
+    <h2>${esc(tab.label)}</h2>
+    ${periode?.afwijkend ? `<p class="campagne-status-uitleg muted">${esc(
+      `Deze lijst beslaat ${toonBereik(periode.start, periode.eind)}, niet de periode hierboven. `
+      + 'Deze cijfers worden per periode opgehaald, en dat bereik schuift niet mee met de filterkeuze.'
+    )}</p>` : ''}
+    <div class="table-scroll">
+      ${tabel(kolommen, rijen.slice(0, 200).map((e) => [
+        esc(e.naam),
+        esc((onder === 'Campagne' ? e.campagne : e.advertentiegroep) ?? '—'),
+        ...(vorm.detail ? [esc(vorm.detail.lees(e) ?? '—')] : []),
+        fmt.euro(e.kosten), fmt.getal(e.klikken), fmt.getal(e.vertoningen), fmt.getal(e.conversies),
+      ]))}
+    </div>
+    ${rijen.length > 200
+      ? `<p class="ga4-dekking muted">${esc(`${rijen.length} rijen; de 200 duurste staan hierboven.`)}</p>`
+      : ''}
+  </section>`;
+}
+
 const CAMPAGNE_STATUS_LABEL = {
   active: 'Actief', paused: 'Gepauzeerd', ended: 'Beëindigd', draft: 'Concept',
 };
@@ -526,9 +611,8 @@ export function renderKlantKanaal({ dashboard, kanaal, tab }) {
     </section>`;
   }
 
-  if (actief.key === 'campagnes' || actief.key === 'zoekwoorden' || actief.key === 'advertentiegroepen') {
-    return campagnesBlok(dashboard, kanaal);
-  }
+  if (actief.key === 'campagnes') return campagnesBlok(dashboard, kanaal);
+  if (ENTITEIT_TABS[actief.key]) return entiteitBlok(dashboard, kanaal, actief);
 
   const isEcommerce = dashboard.type === BusinessModel.ECOMMERCE;
   const isLeadgen = dashboard.type === BusinessModel.LEADGEN;

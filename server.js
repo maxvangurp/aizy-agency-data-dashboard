@@ -1060,7 +1060,7 @@ app.get('/api/klantdetail', async (req, res) => {
       return res.status(400).json({message: 'Parameters `since` en `until` vereisen YYYY-MM-DD, met since <= until.'});
     }
 
-    const [snapshots, campagnerijen, segmenten] = await Promise.all([
+    const [snapshots, campagnerijen, segmenten, entiteiten] = await Promise.all([
       sb.lees('performance_snapshots', {
         kolommen: 'campaign_id,platform,spend,impressions,clicks,conversions_primary,revenue',
         filters: {
@@ -1080,6 +1080,7 @@ app.get('/api/klantdetail', async (req, res) => {
           period_end: `lte.${tot}`,
         },
       }),
+      leesEntiteiten(sb, klant.id),
     ]);
 
     const meta = new Map(campagnerijen.map((c) => [c.id, c]));
@@ -1124,19 +1125,21 @@ app.get('/api/klantdetail', async (req, res) => {
         apparaten: verdeling(segmenten, 'device'),
         regios: verdeling(segmenten, 'region'),
         plaatsingen: verdeling(segmenten, 'placement'),
+        // Wie er bereikt is, niet wie er aangesproken werd: leeftijd en
+        // geslacht zijn wat Meta over de bereikte doelgroep prijsgeeft. De
+        // gedefinieerde doelgroepen staan in de advertentiesets.
+        doelgroepen: [...verdeling(segmenten, 'age'), ...verdeling(segmenten, 'gender')],
       },
+      ...entiteitenUit(entiteiten, {start: sinds, eind: tot}),
       // Uitgeschreven wat hier níet in zit, zodat een lege tabel niet als
       // "geen resultaat" gelezen wordt.
       nietBeschikbaar: {
         landingspaginas: 'Alleen per vast GA4-venster beschikbaar; zie de Website-pagina.',
         sourceMedium: 'Alleen per vast GA4-venster beschikbaar; zie de Website-pagina.',
-        advertentiegroepen: 'Wordt niet opgehaald bij Google Ads.',
-        zoekwoorden: 'Wordt niet opgehaald bij Google Ads.',
-        zoektermen: 'Wordt niet opgehaald bij Google Ads.',
-        advertenties: 'Wordt niet opgehaald.',
-        advertentiesets: 'Wordt niet opgehaald bij Meta.',
-        creatives: 'Wordt niet opgehaald bij Meta.',
-        doelgroepen: 'Wordt niet opgehaald bij Meta.',
+        // Creatives hebben geen eigen cijfers bij Meta: een advertentie draagt
+        // de creatie, en de prestaties horen bij de advertentie. De
+        // advertentietab is dus waar je ze ziet.
+        creatives: 'Meta meet geen prestaties per creatie; die horen bij de advertentie. Zie de tab Advertenties.',
       },
     });
   } catch (error) {
@@ -1177,6 +1180,86 @@ function verdeling(rijen, dimensie) {
 }
 
 const rond = (v) => Math.round((Number(v) || 0) * 100) / 100;
+
+/**
+ * De entiteitrijen van een klant: advertentiegroepen, zoekwoorden, zoektermen,
+ * advertentiesets en advertenties.
+ *
+ * Zonder periodefilter: welke periode er beschikbaar is, bepaalt de
+ * ophaalronde, niet de vraag. Dat filter hoort een niveau hoger -- zie
+ * `entiteitenUit`.
+ */
+async function leesEntiteiten(sb, clientId) {
+  try {
+    return await sb.lees('entity_performance', {
+      kolommen: 'platform,entity_type,external_id,name,campaign_name,ad_group_name,detail,'
+        + 'period_start,period_end,spend,impressions,clicks,conversions_primary,revenue',
+      filters: {client_id: clientId},
+      order: 'period_start.desc',
+    });
+  } catch (error) {
+    // Zonder migratie 021 bestaat deze tabel niet. De rest van het antwoord
+    // blijft dan staan; dat is beter dan het hele endpoint laten vallen.
+    if (/\(404\)/.test(String(error && error.message))) return [];
+    throw error;
+  }
+}
+
+/**
+ * De entiteiten per soort, uit de periode die het best bij de vraag past.
+ *
+ * Deze rijen worden per periode opgehaald en niet per dag -- zoekwoorden en
+ * zoektermen zijn een lange staart, en bij Whoon leverde één maand 31.406
+ * zoekwoordrijen per dag op. Het gevolg is dat de opgeslagen periode zelden
+ * exact gelijk is aan wat het dashboard vraagt: dat bereik schuift elke dag op.
+ *
+ * Bij een exacte treffer geen probleem. Bij afwijking nemen we de meest recente
+ * opgeslagen periode en zeggen erbij welke dat is. De cijfers zijn waar voor
+ * hún periode; wat niet mag gebeuren is dat ze stilzwijgend doorgaan voor de
+ * periode die erboven staat.
+ */
+function entiteitenUit(rijen, gevraagd) {
+  const soorten = {
+    advertentiegroepen: 'ad_group',
+    zoekwoorden: 'keyword',
+    zoektermen: 'search_term',
+    advertentiesets: 'adset',
+    advertenties: 'ad',
+  };
+
+  const uit = {entiteiten: {}, entiteitPeriode: {}};
+  for (const [naam, type] of Object.entries(soorten)) {
+    const vanType = rijen.filter((r) => r.entity_type === type);
+    if (!vanType.length) { uit.entiteiten[naam] = []; continue; }
+
+    const exact = vanType.filter((r) => r.period_start === gevraagd.start && r.period_end === gevraagd.eind);
+    const gekozen = exact.length ? exact : vanType.filter((r) => r.period_start === vanType[0].period_start);
+
+    uit.entiteiten[naam] = gekozen
+      .map((r) => ({
+        platform: r.platform,
+        kanaal: KANAAL_PER_PLATFORM[r.platform] ?? r.platform,
+        naam: r.name,
+        campagne: r.campaign_name ?? null,
+        advertentiegroep: r.ad_group_name ?? null,
+        detail: r.detail ?? {},
+        kosten: rond(r.spend),
+        vertoningen: Number(r.impressions) || 0,
+        klikken: Number(r.clicks) || 0,
+        conversies: rond(r.conversions_primary),
+        conversiewaarde: rond(r.revenue),
+      }))
+      .sort((a, b) => b.kosten - a.kosten);
+
+    uit.entiteitPeriode[naam] = {
+      start: gekozen[0].period_start,
+      eind: gekozen[0].period_end,
+      // Waar is dit anders dan wat er gevraagd werd? Dat hoort op het scherm.
+      afwijkend: exact.length === 0,
+    };
+  }
+  return uit;
+}
 
 /** Onze platformnamen naar de kanaalsleutels van het dashboard. */
 const KANAAL_PER_PLATFORM = {'google-ads': 'google_ads', 'meta-ads': 'meta_ads'};

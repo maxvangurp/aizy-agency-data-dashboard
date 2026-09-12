@@ -103,3 +103,23 @@ export function nietBeschikbaar(clientId, onderdeel) {
 export function klantDetailGeladen(clientId) {
   return huidig?.clientId === clientId;
 }
+
+/** Eén soort entiteiten: advertentiegroepen, zoekwoorden, zoektermen, ... */
+export function klantEntiteiten(clientId, soort, kanaal = null) {
+  if (huidig?.clientId !== clientId) return [];
+  const lijst = huidig.data?.entiteiten?.[soort] ?? [];
+  return kanaal ? lijst.filter((e) => e.kanaal === kanaal) : lijst;
+}
+
+/**
+ * Welke periode deze lijst beslaat.
+ *
+ * Zelden exact de gevraagde: deze cijfers worden per periode opgehaald en het
+ * dashboardbereik schuift elke dag op. `afwijkend` zegt of het verschilt, en
+ * dat hoort op het scherm te staan -- niet omdat de cijfers onwaar zijn, maar
+ * omdat ze over iets anders gaan dan de kop erboven.
+ */
+export function entiteitPeriode(clientId, soort) {
+  if (huidig?.clientId !== clientId) return null;
+  return huidig.data?.entiteitPeriode?.[soort] ?? null;
+}
