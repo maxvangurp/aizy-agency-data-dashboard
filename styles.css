@@ -4488,3 +4488,157 @@ h1, h2, .kpi-value {
   background: var(--waarschuwing-bg);
   color: var(--ink);
 }
+
+/* ===================================================================
+   GA4-module (Website)
+
+   De pagina hangt aan het klanttype: een leadgeneratieklant krijgt andere
+   blokken dan een webshop. De opmaak hieronder maakt daar geen onderscheid
+   in -- wat wel en niet verschijnt is een beslissing van de datalaag, niet
+   van de stylesheet.
+   =================================================================== */
+
+.ga4-demobalk {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--aizy-magenta, #FF47D8);
+  background: color-mix(in srgb, var(--aizy-magenta, #FF47D8) 8%, transparent);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ga4-kop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.ga4-kop-rechts { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.ga4-periode { margin: 4px 0 0; font-size: 14px; }
+.ga4-property { margin: 0; font-size: 13px; }
+
+@media (max-width: 720px) {
+  .ga4-kop-rechts { align-items: flex-start; }
+}
+
+/* --- meldingen over de data zelf ---------------------------------- */
+
+.ga4-meldingen { margin: 0 0 16px; display: grid; gap: 8px; }
+.ga4-melding {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--aizy-lavendel, #B29BF0);
+  background: color-mix(in srgb, var(--aizy-lavendel, #B29BF0) 10%, transparent);
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* --- inzichtkaarten ----------------------------------------------- */
+
+.ga4-inzichten {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.ga4-inzicht {
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--rand, #E8E8EE);
+  background: var(--kaart-achtergrond, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ga4-inzicht h3 { margin: 0; font-size: 16px; line-height: 1.35; }
+.ga4-inzicht-waarneming { margin: 0; font-size: 14px; line-height: 1.55; }
+
+/* Waarneming, verklaring en actie staan als aparte regels onder elkaar. Ze
+   naast elkaar zetten leest als één zin, en dan gaat een mogelijkheid door
+   voor een conclusie. */
+.ga4-inzicht-uitleg { margin: 0; display: grid; gap: 4px 10px; font-size: 13.5px; }
+.ga4-inzicht-uitleg dt {
+  font-weight: 600;
+  color: var(--aizy-paars, #6935CC);
+  margin-top: 6px;
+}
+.ga4-inzicht-uitleg dd { margin: 0; line-height: 1.5; }
+
+.ga4-inzicht-voorbehoud {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--tekst-zacht, #6B6B7B);
+  border-top: 1px dashed var(--rand, #E8E8EE);
+  padding-top: 8px;
+}
+.ga4-inzicht-naar { font-size: 13px; font-weight: 600; align-self: flex-start; }
+
+.ga4-inzichten-leeg { padding: 18px 20px; }
+
+/* --- KPI's -------------------------------------------------------- */
+
+.ga4-kpi-groep { margin-bottom: 20px; }
+.ga4-kpi-kop { margin-bottom: 12px; }
+.ga4-kpi-kop h2 { margin: 0 0 4px; }
+.ga4-kpi-kop p { margin: 0; font-size: 13.5px; }
+
+.ga4-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.ga4-kpi-secundair { opacity: 0.85; }
+.ga4-kpi-voorbehoud { margin: 4px 0 0; font-size: 12px; color: var(--tekst-zacht, #6B6B7B); }
+.ga4-kpi-leeg {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--vlak, #F5F5F7);
+  font-size: 14px;
+}
+
+.ga4-uitleg-knop {
+  border: 1px solid var(--rand, #E8E8EE);
+  background: transparent;
+  color: var(--tekst-zacht, #6B6B7B);
+  border-radius: 50%;
+  width: 16px; height: 16px;
+  font-size: 11px; line-height: 1;
+  cursor: help;
+  padding: 0;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Een stijging is niet vanzelf groen: meer verkeer zonder meer resultaat is
+   geen verbetering. Alleen KPI's die zelf een bedrijfsresultaat zijn krijgen
+   een kleur mee; de rest blijft neutraal. */
+.ga4-delta-omhoog { color: var(--goed, #1B7F4B); }
+.ga4-delta-omlaag { color: var(--slecht, #B3261E); }
+.ga4-delta-neutraal, .ga4-delta-gelijk { color: var(--tekst-zacht, #6B6B7B); }
+
+/* --- tabellen ----------------------------------------------------- */
+
+.ga4-dekking { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; }
+.ga4-onbekend { font-size: 12px; color: var(--tekst-zacht, #6B6B7B); }
+
+.ga4-instellingen { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 12px; }
+.ga4-instellingen dt { font-weight: 600; }
+.ga4-instellingen dd { margin: 0; }
+.ga4-instellingen code {
+  font-size: 12.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--vlak, #F5F5F7);
+}
+
+@media (max-width: 560px) {
+  .ga4-instellingen { grid-template-columns: 1fr; }
+  .ga4-instellingen dt { margin-top: 8px; }
+}
+
+.ga4-leeg { max-width: 62ch; }
+.ga4-leeg h2 { margin-top: 0; }
+
+.ga4-skelet { padding: 32px 0; }

@@ -14,6 +14,8 @@ const {
   zoekKlant, haalGoogleAdsBron, leesBetrouwbaarheid, PLATFORM: PLATFORM_GOOGLE,
 } = require('./ads-query');
 const {signalenVoor, zwaarste} = require('./portfolio-signalen');
+const ga4Contract = require('./ga4-contract');
+const {inzichten: ga4Inzichten} = require('./ga4-inzichten');
 
 /**
  * Onder welke platformnaam max-marketing-os wegschrijft. Deze strings staan aan
@@ -893,6 +895,201 @@ app.get('/api/databronnen', async (req, res) => {
     return res.status(502).json({message: formatError(error)});
   }
 });
+
+/**
+ * De GA4-module van één klant.
+ *
+ * Leest twee dingen uit Supabase en rekent er één beeld van: de instellingen
+ * (klanttype en conversiedefinities) en het opgehaalde rapport. Belt zelf geen
+ * GA4 -- dat doet max-marketing-os, dat de credentials heeft.
+ *
+ * Het klanttype bepaalt de hele inhoud. Staat er geen instellingenrij, dan is
+ * de module niet ingericht, en dat is iets anders dan ingericht en leeg: in het
+ * eerste geval weten we niet eens wat een conversie is voor deze klant.
+ */
+app.get('/api/ga4', async (req, res) => {
+  const ontbreekt = supabase.ontbrekendeSleutels();
+  if (ontbreekt.length) {
+    return res.status(503).json({
+      message: 'Supabase niet geconfigureerd. Ontbrekend in .env: ' + ontbreekt.join(', ') + '.',
+    });
+  }
+
+  const gevraagd = String(req.query.client || '').trim();
+  if (!gevraagd) return res.status(400).json({message: 'Parameter `client` ontbreekt.'});
+
+  try {
+    const sb = supabase.maakSupabase();
+    const {klant, beschikbaar} = await zoekKlant(sb, gevraagd);
+    if (!klant) {
+      return res.status(404).json({message: 'Onbekende klant "' + gevraagd + '".', beschikbaar});
+    }
+
+    const instellingen = await leesGa4Instellingen(sb, klant.id);
+    if (instellingen === 'tabel_ontbreekt') {
+      return res.json({
+        status: 'niet_ingericht',
+        reden: 'migratie',
+        melding: 'De GA4-tabellen staan nog niet in Supabase. Draai migratie 019 uit '
+          + 'max-marketing-os en daarna `node bin/ads.js sync-ga4 alle`.',
+      });
+    }
+    if (!instellingen) {
+      return res.json({
+        status: 'niet_ingericht',
+        reden: 'geen_klanttype',
+        melding: 'Voor deze klant is nog niet vastgesteld of het een leadgeneratie- of '
+          + 'e-commerceklant is. Zonder dat weten we niet welke gebeurtenis een '
+          + 'bedrijfsresultaat is. Draai `node bin/ads.js ga4-doelen ' + klant.slug + '`.',
+      });
+    }
+
+    const periode = periodeUitVraag(req.query);
+    const modus = req.query.vergelijking === 'vorigJaar' ? 'vorigJaar' : 'vorige';
+    const vorigePeriode = ga4Contract.vergelijkingsperiode(periode, modus);
+
+    // Allebei de perioden in één keer: ze hangen alleen van de klant af.
+    const [rapportRij, vorigeRij] = await Promise.all([
+      leesGa4Rapport(sb, klant.id, periode),
+      vorigePeriode ? leesGa4Rapport(sb, klant.id, vorigePeriode) : null,
+    ]);
+
+    if (!rapportRij) {
+      return res.json({
+        status: 'geen_data',
+        klanttype: instellingen.client_type,
+        property: propertyUit(instellingen),
+        periode,
+        melding: 'Er is voor deze periode nog geen GA4-rapport opgehaald. Draai '
+          + '`node bin/ads.js sync-ga4 ' + klant.slug + ' ' + periode.start + ' ' + periode.eind + '`.',
+      });
+    }
+
+    const rapport = rapportRij.payload;
+    const vorig = vorigeRij?.payload ?? null;
+
+    // Een vergelijking tussen twee verschillende definities is geen
+    // vergelijking. Beter geen dan een die stilzwijgend appels en peren telt.
+    const definitieGewijzigd = Boolean(vorigeRij && vorigeRij.fingerprint !== rapportRij.fingerprint);
+    const bruikbaarVorig = definitieGewijzigd ? null : vorig;
+
+    const prioriteit = instellingen.priority ?? null;
+    const doorsnedes = Object.keys(rapport.rapporten ?? {});
+    const tabellen = {};
+    for (const d of doorsnedes) {
+      const tabel = ga4Contract.doorsnedeTabel(rapport, d, {vorig: bruikbaarVorig});
+      tabellen[d] = {
+        ...tabel,
+        dekking: ga4Contract.dekkingVanTabel(tabel, rapport.meldingen ?? []),
+      };
+    }
+
+    const antwoord = {
+      status: 'ok',
+      klant: {slug: klant.slug, naam: klant.name || klant.slug},
+      klanttype: instellingen.client_type,
+      prioriteit,
+      property: propertyUit(instellingen),
+      doelen: rapport.doelen ?? {},
+      periode,
+      vergelijking: vorigePeriode
+        ? {
+            ...vorigePeriode,
+            beschikbaar: Boolean(bruikbaarVorig),
+            // Uitgeschreven waarom hij ontbreekt: "geen vergelijking" zonder
+            // reden laat iemand denken dat de data er niet is.
+            reden: bruikbaarVorig ? null
+              : definitieGewijzigd
+                ? 'De conversiedefinitie is tussen deze twee perioden gewijzigd; de cijfers zijn niet vergelijkbaar.'
+                : 'Voor die periode is nog geen rapport opgehaald.',
+          }
+        : null,
+      kpis: ga4Contract.kpiGroepen(rapport, bruikbaarVorig, {prioriteit}),
+      tabellen,
+      dagreeks: rapport.dagreeks ?? [],
+      doelReeksen: rapport.doelReeksen ?? {},
+      producten: rapport.producten ?? null,
+      stappen: rapport.stappen ?? null,
+      gebeurtenissen: rapport.gebeurtenissen ?? [],
+      meldingen: rapport.meldingen ?? [],
+      // De laatste geslaagde synchronisatie, en of de laatste dag nog kan
+      // schuiven. GA4 verwerkt tot ongeveer 48 uur na.
+      synchronisatie: {
+        opgehaaldOp: rapportRij.fetched_at ?? null,
+        nogInVerwerking: ga4Contract.nogInVerwerking(periode),
+      },
+    };
+
+    // De inzichten leunen op het volledige antwoord -- KPI's, tabellen en
+    // producten -- dus die komen er als laatste bij. Hoogstens vijf, en geen
+    // als de cijfers ze niet dragen: wie altijd vijf kaarten toont leert
+    // iedereen ze te negeren.
+    return res.json({...antwoord, inzichten: ga4Inzichten(antwoord)});
+  } catch (error) {
+    return res.status(502).json({message: formatError(error)});
+  }
+});
+
+/**
+ * De instellingenrij, of een reden waarom hij er niet is.
+ *
+ * Een ontbrekende tabel is geen fout maar een volgorde: migratie 019 maakt hem
+ * aan, en tussen het uitrollen van deze code en het draaien van die migratie
+ * hoort het endpoint een bruikbaar antwoord te geven. Andere fouten gaan wél
+ * door -- een 401 betekent dat de rechten niet kloppen, en dat als "niet
+ * ingericht" tonen verbergt een echt probleem.
+ */
+async function leesGa4Instellingen(sb, clientId) {
+  try {
+    const rijen = await sb.lees('client_ga4_settings', {filters: {client_id: clientId}, limiet: 1});
+    return rijen[0] ?? null;
+  } catch (error) {
+    if (/\(404\)/.test(String(error && error.message))) return 'tabel_ontbreekt';
+    throw error;
+  }
+}
+
+async function leesGa4Rapport(sb, clientId, periode) {
+  try {
+    const rijen = await sb.lees('ga4_reports', {
+      filters: {client_id: clientId, period_start: periode.start, period_end: periode.eind},
+      limiet: 1,
+    });
+    return rijen[0] ?? null;
+  } catch (error) {
+    if (/\(404\)/.test(String(error && error.message))) return null;
+    throw error;
+  }
+}
+
+function propertyUit(rij) {
+  return {
+    id: rij.property_id ?? null,
+    naam: rij.property_name ?? null,
+    // Tijdzone en valuta horen bij elke weergave: "de laatste 28 dagen" betekent
+    // iets anders per tijdzone, en een omzet zonder valuta is een getal zonder
+    // eenheid.
+    tijdzone: rij.time_zone ?? null,
+    valuta: rij.currency_code ?? null,
+    vastgesteldOp: rij.determined_at ?? null,
+    bron: rij.determined_from ?? null,
+  };
+}
+
+/**
+ * De gevraagde periode, met de laatste 28 volledige dagen als standaard.
+ *
+ * Vandaag valt er bewust buiten: een dag die nog loopt is altijd lager dan hij
+ * wordt, en dan daalt elke trend op de laatste dag.
+ */
+function periodeUitVraag(query) {
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  if (iso.test(query.since ?? '') && iso.test(query.until ?? '') && query.since <= query.until) {
+    return {start: query.since, eind: query.until};
+  }
+  const eind = nieuweDatum(new Date().toISOString().slice(0, 10), -1);
+  return {start: nieuweDatum(eind, -27), eind};
+}
 
 app.get('/api/segments', async (req, res) => {
   const ontbreekt = supabase.ontbrekendeSleutels();

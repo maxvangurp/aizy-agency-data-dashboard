@@ -10,6 +10,7 @@
 
 import { fetchResource, DataStatus } from '../data-provider.js';
 import { metaInsightsSample, googleCampagnesSample } from '../sample-data/ads-sample.js';
+import { ga4Sample } from '../sample-data/ga4-sample.js';
 import { berekenDelta } from './metrics.js';
 
 function periodeQuery(filters) {
@@ -30,7 +31,7 @@ export async function haalAdsPlatforms(dashboard, filters) {
   const q = periodeQuery(filters);
   const clientId = encodeURIComponent(dashboard.client.id);
 
-  const [meta, google, segmenten, databronnen, portefeuille] = await Promise.all([
+  const [meta, google, segmenten, databronnen, portefeuille, ga4] = await Promise.all([
     fetchResource(`/api/meta/insights?client=${clientId}&${q}`, () => metaInsightsSample(dashboard)),
     fetchResource(`/api/google-ads/campaigns?client=${clientId}&${q}`, () => googleCampagnesSample(dashboard)),
     // Doorsnedes hebben geen voorbeeldvariant: die staan al in `dashboard.profiel`.
@@ -42,6 +43,10 @@ export async function haalAdsPlatforms(dashboard, filters) {
     // De hele portefeuille, los van de gekozen klant. Dat is precies het punt:
     // de vraag "waar begin ik" gaat over alle klanten tegelijk.
     fetchResource(`/api/portfolio?${q}`, () => null),
+    // De GA4-module. De voorbeeldvariant volgt het klanttype van de demoklant en
+    // draagt `demodata: true`, zodat de pagina hem als demo labelt. Een
+    // generieke variant zou juist verbergen waar deze module om draait.
+    fetchResource(`/api/ga4?client=${clientId}&${q}`, () => ga4Sample(dashboard)),
   ]);
 
   return {
@@ -50,8 +55,41 @@ export async function haalAdsPlatforms(dashboard, filters) {
     segmenten: segmenten.data ?? null,
     databronnen: databronnen.data ?? null,
     portefeuille: portefeuille.data ?? null,
-    status: { meta: meta.status, google: google.status },
+    // Geen antwoord is zelf een toestand, geen reden om te blijven laden. Welke
+    // toestand het is hangt ervan af waarom er niets kwam: in demomodus is er
+    // bewust geen GA4-voorbeeld -- welke KPI's hier horen hangt af van het
+    // klanttype, en dat verzinnen is precies de fout die deze module voorkomt.
+    ga4: {
+      data: ga4.data ?? ga4Toestand(ga4.status),
+      status: ga4.status,
+    },
+    status: { meta: meta.status, google: google.status, ga4: ga4.status },
     demodata: meta.status === DataStatus.SAMPLE || google.status === DataStatus.SAMPLE,
+  };
+}
+
+/** Wat de GA4-pagina moet tonen als er geen antwoord kwam. */
+function ga4Toestand(status) {
+  if (status === DataStatus.SAMPLE) {
+    return {
+      status: 'niet_ingericht',
+      reden: 'demodata',
+      melding: 'Dit dashboard draait op voorbeelddata. De GA4-module heeft daar bewust geen '
+        + 'voorbeeldvariant van: welke cijfers hier horen hangt af van het klanttype, en die '
+        + 'verzinnen zou tonen wat een klant zou kunnen meten in plaats van wat hij meet.',
+    };
+  }
+  if (status === DataStatus.ERROR) {
+    return {
+      status: 'fout',
+      message: 'De websitecijfers konden niet opgehaald worden. Eerder opgehaalde cijfers '
+        + 'staan er niet, dus er wordt niets getoond in plaats van iets verouderds zonder label.',
+    };
+  }
+  return {
+    status: 'niet_ingericht',
+    reden: 'geen_verbinding',
+    melding: 'Er is nog geen GA4-koppeling voor deze klant ingericht.',
   };
 }
 

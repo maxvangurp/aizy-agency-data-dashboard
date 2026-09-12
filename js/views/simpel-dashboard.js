@@ -13,6 +13,7 @@
  * CSV, filter-chips) worden client-side afgehandeld via delegatie in app.js.
  */
 
+import { renderGa4View } from './ga4-website.js';
 import { fmt, esc, tabel, figure, trechter, getalKolom, badge } from './components.js';
 import { renderInzichten } from './insight-cards.js';
 import { inzichtCategorieTerm } from '../terminology.js';
@@ -67,6 +68,7 @@ const SIMPEL_NAV = [
   { naam: 'simpel-meta', pad: '#/pulse/meta-ads', label: 'Meta Ads' },
   { naam: 'simpel-campagnes', pad: '#/pulse/campagnes', label: 'Campagnes' },
   { naam: 'simpel-conversies', pad: '#/pulse/conversies', label: 'Conversies' },
+  { naam: 'simpel-website', pad: '#/pulse/website', label: 'Website' },
   { naam: 'simpel-segmenten', pad: '#/pulse/segmenten', label: 'Segmenten' },
   { naam: 'simpel-trends', pad: '#/pulse/trends', label: 'Trends' },
   { naam: 'simpel-optimalisatie', pad: '#/pulse/optimalisaties', label: 'Optimalisaties' },
@@ -105,6 +107,12 @@ function zichtbareNav(platforms) {
   const leeg = new Set([
     ...(platforms.google?.aanwezig ? [] : ['simpel-google']),
     ...(platforms.meta?.aanwezig ? [] : ['simpel-meta']),
+    // De Website-pagina staat er altijd. Hij hangt aan GA4 en niet aan de
+    // advertentieplatforms -- een klant kan wel een site meten en niet
+    // adverteren -- en elke toestand die hij kan hebben legt hij zelf uit:
+    // nog niet ingericht, geen cijfers voor deze periode, of een fout. Hem
+    // weghalen bij "nog niet ingericht" verbergt precies de plek waar staat
+    // hoe je hem inricht.
   ]);
   return SIMPEL_NAV.filter((n) => !leeg.has(n.naam));
 }
@@ -210,6 +218,9 @@ export function renderSimpelInhoud({ dashboard, platforms, view = 'simpel-overzi
   // pagina staat daarom vóór de lege-data-terugval en leunt niet op platforms.
   if (view === 'simpel-portefeuille') return renderPortefeuilleView(platforms?.portefeuille);
   if (view === 'simpel-databronnen') return renderDatabronnenView(dashboard, platforms);
+  // Vóór de terugval hieronder: GA4 meet de website en staat los van de vraag of
+  // er advertentiecijfers zijn. Een klant die niet adverteert heeft wél een site.
+  if (view === 'simpel-website') return renderGa4View(platforms?.ga4?.data ?? null);
   if (!platforms || (!platforms.meta?.aanwezig && !platforms.google?.aanwezig)) {
     return renderSimpelLeeg('Geen advertentiedata',
       'Er zijn voor deze klant en periode geen Meta- of Google Ads-cijfers.');

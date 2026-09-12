@@ -90,7 +90,7 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
     // welke pagina erbij kwam of wegviel; deze lijst wel.
     await expect(page.locator('.simpel-nav-item')).toHaveText([
       'Alle klanten', 'Totaal overzicht', 'Google Ads', 'Meta Ads', 'Campagnes',
-      'Conversies', 'Segmenten', 'Trends', 'Optimalisaties', 'Databronnen',
+      'Conversies', 'Website', 'Segmenten', 'Trends', 'Optimalisaties', 'Databronnen',
     ]);
     // Geen volledige systeem-sidebar in de simpele modus.
     await expect(page.locator('.app-grid .sidebar')).toHaveCount(0);
@@ -115,6 +115,7 @@ test.describe('Twee flows — simpele modus (datadashboard)', () => {
       { label: 'Meta Ads', hash: '/pulse/meta-ads', kop: 'Meta Ads' },
       { label: 'Campagnes', hash: '/pulse/campagnes', kop: 'Campagnes' },
       { label: 'Conversies', hash: '/pulse/conversies', kop: 'Conversies' },
+      { label: 'Website', hash: '/pulse/website', kop: 'Website' },
       { label: 'Segmenten', hash: '/pulse/segmenten', kop: 'Segmenten' },
       { label: 'Trends', hash: '/pulse/trends', kop: 'Trends' },
       { label: 'Optimalisaties', hash: '/pulse/optimalisaties', kop: 'Optimalisaties' },
@@ -169,7 +170,7 @@ test.describe('Twee flows — uitgebreide modus en guard', () => {
 
   test('alle #/pulse/* datapagina\'s blijven bereikbaar in de simpele modus', async ({ page }) => {
     await simpelLogin(page, ACCOUNTS.admin);
-    for (const hash of ['#/pulse/google-ads', '#/pulse/meta-ads', '#/pulse/campagnes', '#/pulse/conversies', '#/pulse/segmenten', '#/pulse/trends']) {
+    for (const hash of ['#/pulse/google-ads', '#/pulse/meta-ads', '#/pulse/campagnes', '#/pulse/conversies', '#/pulse/website', '#/pulse/segmenten', '#/pulse/trends']) {
       await page.evaluate((h) => { window.location.hash = h; }, hash);
       await page.waitForTimeout(400);
       expect(page.url()).toContain(hash.slice(1));
