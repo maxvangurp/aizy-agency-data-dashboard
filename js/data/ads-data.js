@@ -9,6 +9,7 @@
  */
 
 import { fetchResource, DataStatus } from '../data-provider.js';
+import { parseQuery } from '../router.js';
 import { metaInsightsSample, googleCampagnesSample } from '../sample-data/ads-sample.js';
 import { ga4Sample } from '../sample-data/ga4-sample.js';
 import { berekenDelta } from './metrics.js';
@@ -46,7 +47,7 @@ export async function haalAdsPlatforms(dashboard, filters) {
     // De GA4-module. De voorbeeldvariant volgt het klanttype van de demoklant en
     // draagt `demodata: true`, zodat de pagina hem als demo labelt. Een
     // generieke variant zou juist verbergen waar deze module om draait.
-    fetchResource(`/api/ga4?client=${clientId}&${q}`, () => ga4Sample(dashboard)),
+    fetchResource(`/api/ga4?client=${clientId}&${ga4Query()}`, () => ga4Sample(dashboard)),
   ]);
 
   return {
@@ -66,6 +67,27 @@ export async function haalAdsPlatforms(dashboard, filters) {
     status: { meta: meta.status, google: google.status, ga4: ga4.status },
     demodata: meta.status === DataStatus.SAMPLE || google.status === DataStatus.SAMPLE,
   };
+}
+
+/**
+ * De periodevraag van de GA4-module.
+ *
+ * Bewust niet het periodefilter van de advertentiepagina's. Dat kent
+ * "Afgelopen 30 dagen" inclusief vandaag, terwijl GA4-rapporten per exacte
+ * periode bewaard worden en op volledige dagen gaan. Eén dag verschil betekent
+ * "nog geen cijfers voor deze periode" terwijl ze er wel zijn.
+ *
+ * Het venster staat in de hash (`#/pulse/website?venster=7`), zodat een keuze
+ * deelbaar is en een herlading hem overleeft.
+ */
+function ga4Query() {
+  const params = new URLSearchParams(parseQuery());
+  const venster = Number(params.get('venster'));
+  const vergelijking = params.get('ga4vergelijk');
+  const uit = new URLSearchParams();
+  uit.set('venster', [7, 28, 90].includes(venster) ? String(venster) : '28');
+  if (vergelijking === 'vorigJaar') uit.set('vergelijking', 'vorigJaar');
+  return uit.toString();
 }
 
 /** Wat de GA4-pagina moet tonen als er geen antwoord kwam. */

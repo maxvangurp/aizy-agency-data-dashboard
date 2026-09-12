@@ -357,6 +357,43 @@ function dekkingVanTabel(tabel, meldingen = []) {
 /* --------------------------------------------------------------- perioden -- */
 
 /**
+ * De vensters die de module aanbiedt, in volledige dagen.
+ *
+ * Deze drie en niet "de laatste maand" of "deze week": een venster moet aan
+ * twee kanten hetzelfde betekenen. De pagina vraagt erom, de ophaalronde vult
+ * het, en die twee moeten op dezelfde datums uitkomen -- anders staat er "nog
+ * geen cijfers voor deze periode" terwijl ze er wel zijn, alleen een dag
+ * verschoven.
+ */
+const VENSTERS = Object.freeze([7, 28, 90]);
+
+/**
+ * De laatste `dagen` volledige dagen, tot en met gisteren.
+ *
+ * Vandaag valt er bewust buiten. Een dag die nog loopt is altijd lager dan hij
+ * wordt, en dan daalt elke trend op de laatste dag -- niet omdat er iets
+ * gebeurde, maar omdat de dag nog niet om is.
+ *
+ * Dezelfde regel staat in `bin/ads.js` van max-marketing-os. Dat is bewuste
+ * herhaling over twee repo's heen: wijkt er een af, dan vindt de pagina het
+ * rapport niet dat de ophaalronde net heeft weggeschreven. Beide kanten hebben
+ * er een test op die de datums vastlegt.
+ */
+function vensterPeriode(dagen, vandaag = new Date()) {
+  const n = Number(dagen);
+  if (!Number.isInteger(n) || n < 1) return null;
+  const eind = new Date(vandaag);
+  eind.setUTCDate(eind.getUTCDate() - 1);
+  const start = new Date(eind);
+  start.setUTCDate(start.getUTCDate() - (n - 1));
+  return {
+    start: start.toISOString().slice(0, 10),
+    eind: eind.toISOString().slice(0, 10),
+    dagen: n,
+  };
+}
+
+/**
  * De vergelijkingsperiode bij een gevraagde periode.
  *
  * `vorige`  -- de even lange periode ervoor, aansluitend.
@@ -419,6 +456,7 @@ function nogInVerwerking({ eind }, vandaag = new Date()) {
 }
 
 module.exports = {
+  VENSTERS, vensterPeriode,
   verandering, doelTotaal, doelUitReeks, kpiGroepen,
   doorsnedeTabel, dekkingVanTabel,
   vergelijkingsperiode, dagenIn, nogInVerwerking,

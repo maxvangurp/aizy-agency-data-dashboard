@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  VENSTERS, vensterPeriode,
   verandering, doelTotaal, doelUitReeks, kpiGroepen,
   doorsnedeTabel, dekkingVanTabel,
   vergelijkingsperiode, dagenIn, nogInVerwerking,
@@ -213,6 +214,42 @@ test('een kloppende tabel krijgt geen uitleg', () => {
 });
 
 /* --------------------------------------------------------------- perioden -- */
+
+test('een venster is N volledige dagen tot en met gisteren', () => {
+  // Vandaag valt erbuiten: een dag die nog loopt is altijd lager dan hij wordt,
+  // en dan daalt elke trend op de laatste dag zonder dat er iets gebeurde.
+  const vandaag = new Date('2026-09-12T09:00:00Z');
+  assert.deepEqual(vensterPeriode(28, vandaag), {start: '2026-08-15', eind: '2026-09-11', dagen: 28});
+  assert.deepEqual(vensterPeriode(7, vandaag), {start: '2026-09-05', eind: '2026-09-11', dagen: 7});
+  assert.deepEqual(vensterPeriode(90, vandaag), {start: '2026-06-14', eind: '2026-09-11', dagen: 90});
+});
+
+test('het venster telt inclusief, zodat 7 dagen ook echt 7 dagen is', () => {
+  const v = vensterPeriode(7, new Date('2026-09-12T09:00:00Z'));
+  assert.equal(dagenIn(v), 7);
+});
+
+test('een onzinnig venster levert niets in plaats van een rare periode', () => {
+  assert.equal(vensterPeriode(0), null);
+  assert.equal(vensterPeriode(-5), null);
+  assert.equal(vensterPeriode('veel'), null);
+});
+
+test('de aangeboden vensters staan vast', () => {
+  // Deze drie en niet "vorige maand": een venster moet aan beide kanten -- de
+  // pagina die erom vraagt en de ophaalronde die hem vult -- op dezelfde datums
+  // uitkomen. Anders staat er "nog geen cijfers" terwijl ze er wel zijn.
+  assert.deepEqual(VENSTERS, [7, 28, 90]);
+});
+
+test('de vergelijking van een venster sluit erop aan', () => {
+  const vandaag = new Date('2026-09-12T09:00:00Z');
+  const v = vensterPeriode(28, vandaag);
+  const vorig = vergelijkingsperiode(v);
+  assert.deepEqual([vorig.start, vorig.eind], ['2026-07-18', '2026-08-14']);
+  assert.equal(dagenIn(vorig), 28);
+});
+
 
 test('de vorige periode sluit aan en is even lang', () => {
   const v = vergelijkingsperiode({start: '2026-08-15', eind: '2026-09-11'});

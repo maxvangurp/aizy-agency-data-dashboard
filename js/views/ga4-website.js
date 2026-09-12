@@ -94,14 +94,25 @@ function nietIngericht(data) {
 }
 
 function geenData(data) {
+  const anders = (data.beschikbaar ?? []).slice(0, 6);
   return `
     <header class="pagina-kop">
       <h1>Website</h1>
       ${data.property ? propertyRegel(data.property) : ''}
+      ${vensterKeuze(data)}
     </header>
     <section class="card ga4-leeg">
       <h2>Nog geen cijfers voor deze periode</h2>
       <p>${esc(data.melding ?? '')}</p>
+      ${anders.length ? `
+        <p class="muted">Voor deze klant staan wel klaar:</p>
+        <ul class="ga4-beschikbaar">
+          ${anders.map((p) => `<li>${esc(fmtDatum(p.start))} t/m ${esc(fmtDatum(p.eind))}</li>`).join('')}
+        </ul>
+        <p class="muted">
+          Staat de gevraagde periode daar niet bij, dan is dat geen storing maar een
+          ophaalronde die nog moet draaien.
+        </p>` : ''}
     </section>`;
 }
 
@@ -137,12 +148,54 @@ function kop(data) {
               : `<span class="muted">· geen vergelijking: ${esc(v.reden ?? '')}</span>`
             : ''}
         </p>
+        ${vensterKeuze(data)}
       </div>
       <div class="ga4-kop-rechts">
         ${badge(TYPELABEL[data.klanttype] ?? data.klanttype, 'info')}
         ${propertyRegel(data.property)}
       </div>
     </header>`;
+}
+
+/**
+ * De vensterkeuze van deze module.
+ *
+ * Eigen knoppen en niet het periodefilter bovenin. Dat filter kent perioden
+ * inclusief vandaag, en een halve dag maakt elke trend op de laatste dag lager
+ * dan hij wordt. Bovendien wordt een GA4-rapport per exacte periode opgehaald:
+ * wijkt de vraag één dag af van wat er staat, dan is er niets te tonen.
+ *
+ * De keuze staat in de hash, zodat hij deelbaar is en een herlading overleeft.
+ */
+const VENSTERS = [
+  { dagen: 7, label: '7 dagen' },
+  { dagen: 28, label: '28 dagen' },
+  { dagen: 90, label: '90 dagen' },
+];
+
+function vensterKeuze(data) {
+  const actief = data.venster ?? 28;
+  const vergelijk = data.vergelijking?.mode === 'vorigJaar' ? 'vorigJaar' : 'vorige';
+  const link = (v, verg) => {
+    const q = new URLSearchParams({ venster: String(v) });
+    if (verg === 'vorigJaar') q.set('ga4vergelijk', 'vorigJaar');
+    return `#/pulse/website?${q}`;
+  };
+
+  return `
+    <div class="ga4-venster" role="group" aria-label="Periode en vergelijking">
+      <span class="ga4-venster-label">Volledige dagen:</span>
+      ${VENSTERS.map((v) => `
+        <a class="ga4-venster-knop${v.dagen === actief ? ' actief' : ''}"
+           href="${link(v.dagen, vergelijk)}"
+           ${v.dagen === actief ? 'aria-current="true"' : ''}
+           data-venster="${v.dagen}">${esc(v.label)}</a>`).join('')}
+      <span class="ga4-venster-label">Vergelijk met:</span>
+      <a class="ga4-venster-knop${vergelijk === 'vorige' ? ' actief' : ''}"
+         href="${link(actief, 'vorige')}" data-vergelijk="vorige">Vorige periode</a>
+      <a class="ga4-venster-knop${vergelijk === 'vorigJaar' ? ' actief' : ''}"
+         href="${link(actief, 'vorigJaar')}" data-vergelijk="vorigJaar">Vorig jaar</a>
+    </div>`;
 }
 
 function propertyRegel(property) {

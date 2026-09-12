@@ -955,11 +955,17 @@ app.get('/api/ga4', async (req, res) => {
     ]);
 
     if (!rapportRij) {
+      // Welke perioden er wél zijn. Zonder dat is "geen cijfers" niet te
+      // onderscheiden van "de module werkt niet", en gaat iemand zoeken naar
+      // een storing die een datumverschil is.
+      const beschikbaar = await beschikbarePerioden(sb, klant.id);
       return res.json({
         status: 'geen_data',
         klanttype: instellingen.client_type,
         property: propertyUit(instellingen),
         periode,
+        venster: vensterUit(req.query),
+        beschikbaar,
         melding: 'Er is voor deze periode nog geen GA4-rapport opgehaald. Draai '
           + '`node bin/ads.js sync-ga4 ' + klant.slug + ' ' + periode.start + ' ' + periode.eind + '`.',
       });
@@ -992,9 +998,11 @@ app.get('/api/ga4', async (req, res) => {
       property: propertyUit(instellingen),
       doelen: rapport.doelen ?? {},
       periode,
+      venster: vensterUit(req.query),
       vergelijking: vorigePeriode
         ? {
             ...vorigePeriode,
+            mode: modus,
             beschikbaar: Boolean(bruikbaarVorig),
             // Uitgeschreven waarom hij ontbreekt: "geen vergelijking" zonder
             // reden laat iemand denken dat de data er niet is.
@@ -1062,6 +1070,29 @@ async function leesGa4Rapport(sb, clientId, periode) {
   }
 }
 
+/** Welk venster er gevraagd is, of null bij een eigen periode. */
+function vensterUit(query) {
+  const gevraagd = Number(query.venster);
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  if (iso.test(query.since ?? '') && iso.test(query.until ?? '')) return null;
+  return ga4Contract.VENSTERS.includes(gevraagd) ? gevraagd : 28;
+}
+
+/** De perioden waarvoor wél een rapport klaarstaat, nieuwste eerst. */
+async function beschikbarePerioden(sb, clientId) {
+  try {
+    const rijen = await sb.lees('ga4_reports', {
+      kolommen: 'period_start,period_end',
+      filters: {client_id: clientId},
+      order: 'period_start.desc',
+      limiet: 12,
+    });
+    return rijen.map((r) => ({start: r.period_start, eind: r.period_end}));
+  } catch {
+    return [];
+  }
+}
+
 function propertyUit(rij) {
   return {
     id: rij.property_id ?? null,
@@ -1077,18 +1108,28 @@ function propertyUit(rij) {
 }
 
 /**
- * De gevraagde periode, met de laatste 28 volledige dagen als standaard.
+ * De gevraagde periode.
  *
- * Vandaag valt er bewust buiten: een dag die nog loopt is altijd lager dan hij
- * wordt, en dan daalt elke trend op de laatste dag.
+ * De GA4-module heeft een eigen vensterkeuze en volgt niet het periodefilter
+ * van de advertentiepagina's. Dat is geen eigenzinnigheid maar noodzaak: dat
+ * filter kent "Afgelopen 30 dagen" inclusief vandaag, en een rapport wordt per
+ * exacte periode bewaard. Vroeg de pagina om 14 augustus t/m 12 september
+ * terwijl de ophaalronde 15 augustus t/m 11 september had weggeschreven, dan
+ * stond er "nog geen cijfers" terwijl ze er wel waren -- een dag verschoven.
+ *
+ * `venster` (7, 28 of 90) komt daarom aan beide kanten op dezelfde datums uit.
+ * Losse `since`/`until` blijven mogelijk voor een eigen periode; dan is het aan
+ * de vrager om die ook te laten ophalen.
  */
 function periodeUitVraag(query) {
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   if (iso.test(query.since ?? '') && iso.test(query.until ?? '') && query.since <= query.until) {
     return {start: query.since, eind: query.until};
   }
-  const eind = nieuweDatum(new Date().toISOString().slice(0, 10), -1);
-  return {start: nieuweDatum(eind, -27), eind};
+  const gevraagd = Number(query.venster);
+  const dagen = ga4Contract.VENSTERS.includes(gevraagd) ? gevraagd : 28;
+  const venster = ga4Contract.vensterPeriode(dagen);
+  return {start: venster.start, eind: venster.eind};
 }
 
 app.get('/api/segments', async (req, res) => {

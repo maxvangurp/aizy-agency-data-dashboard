@@ -4642,3 +4642,37 @@ h1, h2, .kpi-value {
 .ga4-leeg h2 { margin-top: 0; }
 
 .ga4-skelet { padding: 32px 0; }
+
+/* De vensterkeuze van de GA4-module. Eigen knoppen, want deze module rekent op
+   volledige dagen en het periodefilter bovenin doet dat niet. */
+.ga4-venster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 10px;
+}
+.ga4-venster-label {
+  font-size: 12px;
+  color: var(--tekst-zacht, #6B6B7B);
+  margin-left: 6px;
+}
+.ga4-venster-label:first-child { margin-left: 0; }
+.ga4-venster-knop {
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--rand, #E8E8EE);
+  text-decoration: none;
+  color: inherit;
+  line-height: 1.4;
+}
+.ga4-venster-knop:hover { border-color: var(--aizy-paars, #6935CC); }
+.ga4-venster-knop.actief {
+  background: var(--aizy-paars, #6935CC);
+  border-color: var(--aizy-paars, #6935CC);
+  color: #fff;
+  font-weight: 600;
+}
+.ga4-beschikbaar { margin: 4px 0 12px 18px; font-size: 14px; }
+.ga4-beschikbaar li { margin: 2px 0; }
