@@ -171,7 +171,7 @@ function som(waarden) {
 
 /** Alleen kosten en gebeurtenissen zijn over klanten heen optelbaar. */
 function optelbaar(metric) {
-  return ['spend', 'impressions', 'clicks', 'sessions', 'users', 'leads', 'qualifiedLeads',
+  return ['spend', 'impressions', 'clicks', 'sessions', 'users', 'leads',
     'revenue', 'purchases', 'conversies', 'reach'].includes(metric);
 }
 
@@ -184,7 +184,7 @@ function kanaalVeld(metric) {
 function campagneVeld(metric) {
   const map = {
     spend: 'kosten', clicks: 'klikken', impressions: 'vertoningen',
-    leads: 'leads', qualifiedLeads: 'gekwalificeerdeLeads',
+    leads: 'leads',
     purchases: 'conversies', conversies: 'conversies', revenue: 'conversiewaarde',
   };
   return map[metric] ?? null;
@@ -192,8 +192,8 @@ function campagneVeld(metric) {
 
 function eersteAnalyseTab(metric) {
   const map = {
-    spend: 'kosten', cpl: 'kosten', cpql: 'kosten', cpa: 'rendement',
-    leads: 'leads', qualifiedLeads: 'kwaliteit', revenue: 'omzet', roas: 'rendement',
+    spend: 'kosten', cpl: 'kosten', cpa: 'rendement',
+    leads: 'leads', revenue: 'omzet', roas: 'rendement',
     purchases: 'transacties', conversies: 'leads',
   };
   return map[metric] ?? 'campagnes';

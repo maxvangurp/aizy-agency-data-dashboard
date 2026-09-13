@@ -536,8 +536,8 @@ function leadVerdieping(data) {
         ${tabel([{ label: 'Gebeurtenis' }, { label: 'Aantal', klasse: 'num' }],
           perContact.map((e) => [esc(e.event), fmtGetal(e.aantal)]))}` : ''}
       <p class="ga4-dekking muted">
-        Over leadkwaliteit, verkoopkansen of gesloten deals staat hier niets: dat vraagt een
-        CRM-koppeling, en die is er niet.
+        Dit is wat er op de website gebeurt. Wat er daarna met een aanvraag gebeurt, wordt
+        buiten de advertentieplatforms om afgehandeld en is hier niet te zien.
       </p>
     </section>`;
 }

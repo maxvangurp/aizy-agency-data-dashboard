@@ -153,10 +153,10 @@ test.describe('Kwaliteit van inzichten', () => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients/havenkwartier');
 
-    await expect(page.locator('#inzichten')).toContainText('Klantconversies zijn niet meetbaar');
     const tekst = await page.locator('#inzichten').innerText();
     expect(tekst).not.toMatch(/0 klanten geworden/);
     expect(tekst).not.toMatch(/0 gekwalificeerde leads gemeten/);
+    expect(tekst).not.toMatch(/0 gemeten/);
   });
 });
 
@@ -165,13 +165,13 @@ test.describe('Kwaliteit van inzichten', () => {
    --------------------------------------------------------------- */
 
 test.describe('Inzichten per dashboardtype', () => {
-  test('leadgeneratie beoordeelt kwaliteit en funnel, niet alleen volume', async ({ page }) => {
+  test('leadgeneratie beoordeelt kosten en funnel, niet alleen volume', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients/vitaalpunt');
 
     const tekst = await page.locator('#pageRoot').innerText();
     expect(tekst).toContain('Kosten per lead');
-    expect(tekst).toContain('Gekwalificeerde leads');
+    expect(tekst).toContain('Conversieratio');
     await expect(page.locator('.leadfunnel')).toBeVisible();
     // De doorklikratio wordt nooit als funnelknelpunt aangewezen.
     await expect(page.locator('.leadfunnel .banner-warning')).not.toContainText('stap Klikken');
@@ -208,7 +208,6 @@ test.describe('Inzichten per dashboardtype', () => {
 
     const tekst = await page.locator('#pageRoot').innerText();
     expect(tekst).not.toContain('Kosten per lead');
-    expect(tekst).not.toContain('Kosten per gekwalificeerde lead');
 
     // Wel de maten die bij awareness horen.
     await expect(page.locator('.kpi[data-label="Gemiddelde frequentie"]')).toBeVisible();
@@ -290,7 +289,7 @@ test.describe('Prioritering in de agencyomgeving', () => {
     await page.waitForTimeout(200);
     const paneel = page.locator('.grid-paneel').filter({ hasText: 'Opgeslagen weergaven' });
     await expect(paneel).toContainText('Meetprobleem');
-    await expect(paneel).toContainText('Zonder CRM-koppeling');
+    await expect(paneel).toContainText('Onvolledige meting');
   });
 
   test('een medewerker krijgt een persoonlijk overzicht met een werkvolgorde', async ({ page }) => {
@@ -438,13 +437,27 @@ test.describe('Microcopy en lege staten', () => {
 
   test('lege staten onderscheiden nul, ontbrekend en niet gekoppeld', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
-    await ga(page, '#/agency/clients/havenkwartier');
 
-    const tekst = await page.locator('#pageRoot').innerText();
-    expect(tekst).toContain('Onvoldoende data');
-    expect(tekst).toContain('Geen CRM-koppeling');
-    // Geen kaal streepje als verzamelbak.
-    expect(tekst).not.toMatch(/^\s*[–-]\s*$/m);
+    // Elk ontbrekend cijfer draagt zijn eigen reden. Een bron die niets
+    // meet is iets anders dan te weinig volume om iets te zeggen, en allebei
+    // iets anders dan nul.
+    const perRoute = [
+      // Awareness: bereik levert niet elk kanaal.
+      ['#/agency/clients/noordlicht', ['Niet gemeten']],
+      // Eén dag en één kanaal: te weinig om te vergelijken of te berekenen.
+      ['#/agency/clients/vitaalpunt?period=custom&from=2026-07-22&to=2026-07-22&channels=microsoft_ads',
+        ['Onvoldoende data', 'Niet vergelijkbaar']],
+    ];
+
+    for (const [route, redenen] of perRoute) {
+      await ga(page, route, { wacht: 900 });
+      const tekst = await page.locator('#pageRoot').innerText();
+      for (const reden of redenen) {
+        expect(tekst, `${route} noemt "${reden}" niet`).toContain(reden);
+      }
+      // Geen kaal streepje als verzamelbak.
+      expect(tekst).not.toMatch(/^\s*[–-]\s*$/m);
+    }
   });
 
   test('een selectie zonder gegevens legt uit wat er aan de hand is', async ({ page }) => {

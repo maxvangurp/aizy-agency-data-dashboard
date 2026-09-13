@@ -324,8 +324,8 @@ zelf al registers.
    van wat het account in deze applicatie mag.
 4. Interne waarden zoals `agency_admin` komen nooit op het scherm. Een test
    bewaakt dat op alle agencyroutes.
-5. Een afkorting staat nooit alleen. `CPQL` krijgt altijd
-   "Kosten per gekwalificeerde lead" mee, in het label of in de uitleg.
+5. Een afkorting staat nooit alleen. `CPL` krijgt altijd
+   "Kosten per lead" mee, in het label of in de uitleg.
 
 ### Terminologiewijzigingen
 
@@ -338,7 +338,7 @@ zelf al registers.
 | Accountmanager, Marketeer | Verantwoordelijke medewerker, Ondersteunende medewerker | Rol bij de klant, niet de functietitel. |
 | Rol | Toegangsniveau | Voorkomt verwarring met de functietitel. |
 | Spend | Advertentie-uitgaven | Nederlands, en zonder vakjargon. |
-| ROAS, CPL, CPQL alleen | Volledige naam met afkorting ernaast | Een afkorting alleen is voor de helft van de lezers leeg. |
+| ROAS, CPL, CPA alleen | Volledige naam met afkorting ernaast | Een afkorting alleen is voor de helft van de lezers leeg. |
 | Rapportage | Rapportages | Sluit aan op de navigatie en het meervoud van de inhoud. |
 | Bedrijfsmodel | Dashboardtype | Beschrijft wat de gebruiker ziet, niet hoe het model heet. |
 
@@ -408,12 +408,12 @@ Leadgeneratie
 Verplicht:
 - volume
 - efficiëntie
-- kwaliteit
 - funnel
 - kanaalbijdrage
 
 Verboden:
-- klantconversies als 0 tonen wanneer CRM-data ontbreekt
+- een klik als bevestigde aanvraag tellen
+- een niet gemeten uitkomst als 0 tonen
 - de doorklikratio als funnelknelpunt aanwijzen
 - een oorzaak als feit presenteren zonder ondersteunende data
 ```
@@ -583,7 +583,7 @@ Er is onderscheid tussen twee dingen die vaak door elkaar lopen:
 
 - **advertentiekanaal** — Google Ads, Meta Ads, Microsoft Ads, LinkedIn Ads.
   Iedere dagrij hoort bij precies één kanaal, dus hierop kun je filteren.
-- **meetbron** — Google Analytics 4, CRM, Google Business Profile. Die staan
+- **meetbron** — Google Analytics 4, Google Business Profile. Die staan
   naast alle kanalen. Erop filteren zou de meetlat uit de meting halen, dus ze
   zijn geen filterwaarde. Ze worden met een status getoond: `Gekoppeld`,
   `Niet gekoppeld`, `Toekomstige koppeling` of `Onvoldoende data`.
@@ -734,7 +734,7 @@ Azure API Management of Azure Functions
     ↓
 Server-side autorisatie en tenantfiltering
     ↓
-Google Ads, GA4, Meta, CRM en overige databronnen
+Google Ads, GA4, Meta en overige databronnen
 ```
 
 ### Wat er moet worden gebouwd
@@ -872,7 +872,7 @@ schermen zichtbaar zijn.
 | Model | Primaire KPI's |
 |---|---|
 | E-commerce | omzet, transacties, ROAS, CPA, gemiddelde orderwaarde, conversieratio, winkelwagen-, checkout- en aankoopratio |
-| Leadgeneratie | leads, gekwalificeerde leads, CPL, CPQL, afspraken, offertes, klanten, lead-naar-klant, pipelinewaarde |
+| Leadgeneratie | leads, CPL, conversieratio, klikken, CTR, advertentie-uitgaven |
 | Awareness | impressies, klikken, CTR, CPM |
 
 Het model staat in `js/sample-data/shared.js` per klant onder `businessModel`.
@@ -882,7 +882,7 @@ Alle KPI's worden per geselecteerde periode en kanaalselectie berekend uit de
 dagreeksen. De demodata is zo gekalibreerd dat de standaardperiode van dertig
 dagen exact de kerncijfers uit de vorige fase oplevert, en de voorafgaande
 dertig dagen exact de toen vastgelegde vorige periode. Afgeleide waarden als
-CPL, CPQL, ROAS en CPA zijn daardoor berekend in plaats van ingetypt.
+CPL, ROAS en CPA zijn daardoor berekend in plaats van ingetypt.
 
 ### Een klant toevoegen
 
@@ -935,8 +935,11 @@ conversie- en gebruikerspagina niet ziet.
 Een ontbrekende meting is iets anders dan een resultaat van nul. Waar een bron
 niet gekoppeld is, toont het dashboard `Onvoldoende data` met de reden. Zulke
 stappen worden uitgesloten van de knelpuntberekening en niet als nul in
-grafieken getekend. Havenkwartier Makelaars is de demoklant zonder
-CRM-koppeling en dekt dit geval af.
+grafieken getekend.
+
+De leadfunnel stopt bij de aanvraag. Wat er daarna met een aanvraag gebeurt,
+meet geen enkel gekoppeld platform; dat staat als vaste meetbeperking op de
+pagina in plaats van als een stap die op nul uitkomt.
 
 ## Grafieken
 

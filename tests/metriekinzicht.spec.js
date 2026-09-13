@@ -40,7 +40,7 @@ test.describe('Metriekcatalogus', () => {
     await login(page, ACCOUNTS.admin);
     const info = await page.evaluate(async () => {
       const mod = await import('/js/data/metrics-catalog.js');
-      return ['cpa', 'roas', 'cpl', 'cpql'].map((k) => {
+      return ['cpa', 'roas', 'cpl', 'conversieratio'].map((k) => {
         const c = mod.metriekCatalogus(k);
         return { k, formule: c.formule, bronnen: c.bronnen.length, drill: c.drilldowns.length };
       });

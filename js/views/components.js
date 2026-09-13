@@ -86,8 +86,8 @@ export function deltaTekst(delta, vergelijkingLabel = 'de vorige periode') {
  * KPI-kaart.
  *
  * De kaart benoemt altijd de volledige naam. Een afkorting staat er als
- * ondersteunende tekst bij, nooit in plaats van de naam: "CPQL" zonder "Kosten
- * per gekwalificeerde lead" is voor de helft van de lezers betekenisloos.
+ * ondersteunende tekst bij, nooit in plaats van de naam: "CPL" zonder "Kosten
+ * per lead" is voor de helft van de lezers betekenisloos.
  *
  * De verandering wordt niet alleen met kleur weergegeven. Er staat een richting
  * in woorden, het percentage en waarmee vergeleken wordt.
@@ -205,7 +205,7 @@ export function deltaCel(delta) {
  * Tabel uit kolomnamen en rijen. Cellen mogen HTML bevatten.
  *
  * Een kolom is een string of een object met een label en een uitleg. Die uitleg
- * komt in de titel van de kop terecht, zodat een afkorting als CPQL ook in een
+ * komt in de titel van de kop terecht, zodat een afkorting als CPL ook in een
  * tabel te begrijpen is zonder de legenda erbij te zoeken.
  *
  * @param {(string|{label: string, uitleg?: string})[]} kolommen

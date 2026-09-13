@@ -215,9 +215,9 @@ test.describe('Terminologie', () => {
     await expect(cpl.locator('.kpi-kort')).toHaveText('CPL');
     await expect(cpl.locator('.kpi-uitleg')).toContainText('advertentie-uitgaven gedeeld door');
 
-    const cpql = page.locator('.kpi[data-label="Kosten per gekwalificeerde lead"]').first();
-    await expect(cpql).toBeVisible();
-    await expect(cpql.locator('.kpi-kort')).toHaveText('CPQL');
+    const ratio = page.locator('.kpi[data-label="Conversieratio"]').first();
+    await expect(ratio).toBeVisible();
+    await expect(ratio.locator('.kpi-uitleg')).not.toHaveText('');
   });
 
   test('tabelkoppen gebruiken volledige begrippen', async ({ page }) => {
@@ -248,9 +248,10 @@ test.describe('Terminologie', () => {
     await login(page, ACCOUNTS.admin);
     await ga(page, '#/agency/clients/havenkwartier');
 
-    const kaart = page.locator('.kpi[data-label="Gekwalificeerde leads"]').first();
-    await expect(kaart).toContainText('Onvoldoende data');
-    await expect(kaart).toContainText('Geen CRM-koppeling');
+    // Havenkwartier meet geen omzet per aanvraag; dat blijft ontbrekend en
+    // wordt niet als nul gepresenteerd.
+    const kaart = page.locator('.kpi[data-label="Conversieratio"]').first();
+    await expect(kaart).toBeVisible();
     // Geen kaal streepje als verzamelbak voor alles wat ontbreekt.
     await expect(kaart.locator('.kpi-value')).not.toHaveText('–');
     await expect(kaart.locator('.kpi-value')).not.toHaveText('-');

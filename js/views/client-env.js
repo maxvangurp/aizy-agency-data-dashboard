@@ -153,8 +153,8 @@ export function renderClientChannels({ dashboard, filterbalk = '' }) {
     ? ['Kanaal', metriekKolom('spend'), metriekKolom('sessions'), metriekKolom('purchases'),
       metriekKolom('revenue'), metriekKolom('roas'), metriekKolom('cpa')]
     : model === 'leadgen'
-      ? ['Kanaal', metriekKolom('spend'), metriekKolom('clicks'), metriekKolom('leads'),
-        metriekKolom('cpl'), metriekKolom('qualifiedLeads'), metriekKolom('cpql')]
+      ? ['Kanaal', metriekKolom('spend'), metriekKolom('impressions'), metriekKolom('clicks'),
+        metriekKolom('ctr'), metriekKolom('leads'), metriekKolom('cpl')]
       : ['Kanaal', metriekKolom('spend'), metriekKolom('impressions'), metriekKolom('reach'),
         metriekKolom('frequentie'), metriekKolom('cpm')];
 
@@ -170,10 +170,10 @@ export function renderClientChannels({ dashboard, filterbalk = '' }) {
       fmt.euro(k.revenue), k.roas == null ? ontbrekendeCel('onvoldoende_data') : fmt.ratio(k.roas),
       k.cpa == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro2(k.cpa)]
     : model === 'leadgen'
-      ? [kanaalCel(k), fmt.euro(k.spend), fmt.getal(k.clicks), fmt.getal(k.leads),
-        k.cpl == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro2(k.cpl),
-        k.qualifiedLeads == null ? ontbrekendeCel('niet_gekoppeld') : fmt.getal(k.qualifiedLeads),
-        k.cpql == null ? ontbrekendeCel('niet_gekoppeld') : fmt.euro2(k.cpql)]
+      ? [kanaalCel(k), fmt.euro(k.spend), fmt.getal(k.impressions), fmt.getal(k.clicks),
+        k.ctr == null ? ontbrekendeCel('onvoldoende_data') : fmt.procent(k.ctr),
+        fmt.getal(k.leads),
+        k.cpl == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro2(k.cpl)]
       : [kanaalCel(k), fmt.euro(k.spend), fmt.getal(k.impressions),
         k.reach == null ? ontbrekendeCel('niet_gemeten') : fmt.getal(k.reach),
         k.frequentie == null ? ontbrekendeCel('onvoldoende_data') : fmt.ratio(k.frequentie),

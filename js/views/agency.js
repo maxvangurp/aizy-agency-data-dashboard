@@ -242,8 +242,8 @@ export function renderAgencySettings(user) {
       <h2>Databronnen</h2>
       <p class="muted">
         Deze demo gebruikt vaste demodata met dagelijkse reeksen. Koppelingen met
-        Google Ads, Meta Ads, Microsoft Ads, LinkedIn Ads, Google Analytics 4 en
-        CRM worden ingericht zodra de Azure-backend beschikbaar is.
+        Google Ads, Meta Ads, Microsoft Ads, LinkedIn Ads en Google Analytics 4
+        worden ingericht zodra de Azure-backend beschikbaar is.
       </p>
       <a class="link" href="#/agency/integrations">Naar het overzicht van integraties</a>
     </section>`;

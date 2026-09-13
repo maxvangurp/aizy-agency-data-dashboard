@@ -168,7 +168,7 @@ function renderFunnelSectie(dashboard) {
   return `<section class="rapport-sectie">
     <h2>Van bereik tot resultaat</h2>
     ${figure('rap-chart-funnel', 'Doorstroom per stap',
-      'Het percentage dat doorstroomt naar de volgende stap.', tabelHtml, 'Advertentiekanalen, analytics en CRM', 300)}
+      'Het percentage dat doorstroomt naar de volgende stap.', tabelHtml, 'Advertentiekanalen en Google Analytics 4', 300)}
   </section>`;
 }
 

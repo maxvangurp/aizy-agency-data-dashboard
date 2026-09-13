@@ -41,7 +41,7 @@ export const BUSINESS_MODEL_LABELS = {
  */
 export const PRIMARY_KPIS = {
   [BusinessModel.ECOMMERCE]: ['revenue', 'purchases', 'roas', 'cpa', 'aov', 'conversieratio'],
-  [BusinessModel.LEADGEN]: ['leads', 'qualifiedLeads', 'cpl', 'cpql', 'appointments', 'pipelineValue'],
+  [BusinessModel.LEADGEN]: ['leads', 'cpl', 'conversieratio', 'clicks', 'ctr', 'spend'],
   [BusinessModel.AWARENESS]: ['impressions', 'clicks', 'cpm', 'ctr'],
 };
 
@@ -68,7 +68,6 @@ export const SAMPLE_CLIENTS = [
     scenario: 'boven-doelstelling',
     bronnen: {
       ga4: KanaalStatus.GEKOPPELD,
-      crm: KanaalStatus.NIET_GEKOPPELD,
       google_business_profile: KanaalStatus.TOEKOMSTIG,
     },
     doelen: [
@@ -94,7 +93,6 @@ export const SAMPLE_CLIENTS = [
     scenario: 'dalende-roas',
     bronnen: {
       ga4: KanaalStatus.GEKOPPELD,
-      crm: KanaalStatus.NIET_GEKOPPELD,
       google_business_profile: KanaalStatus.TOEKOMSTIG,
     },
     doelen: [
@@ -120,7 +118,6 @@ export const SAMPLE_CLIENTS = [
     scenario: 'schaalruimte',
     bronnen: {
       ga4: KanaalStatus.GEKOPPELD,
-      crm: KanaalStatus.NIET_GEKOPPELD,
       google_business_profile: KanaalStatus.TOEKOMSTIG,
     },
     doelen: [
@@ -146,17 +143,11 @@ export const SAMPLE_CLIENTS = [
     scenario: 'stijgende-cpa',
     bronnen: {
       ga4: KanaalStatus.GEKOPPELD,
-      crm: KanaalStatus.GEKOPPELD,
       google_business_profile: KanaalStatus.TOEKOMSTIG,
     },
     doelen: [
       { kpi: 'leads', periode: 'maand', target: 130 },
-      { kpi: 'gekwalificeerdeLeads', periode: 'maand', target: 85 },
-      { kpi: 'afspraken', periode: 'maand', target: 40 },
-      { kpi: 'offertes', periode: 'maand', target: 35 },
-      { kpi: 'klanten', periode: 'maand', target: 24 },
       { kpi: 'cpl', periode: 'maand', target: 90 },
-      { kpi: 'cpql', periode: 'maand', target: 140 },
       { kpi: 'websitegebruikers', periode: 'maand', target: 3500 },
       { kpi: 'telefoongesprekken', periode: 'maand', target: 90 },
       { kpi: 'emailacties', periode: 'maand', target: 45 },
@@ -178,17 +169,11 @@ export const SAMPLE_CLIENTS = [
     scenario: 'boven-doelstelling',
     bronnen: {
       ga4: KanaalStatus.GEKOPPELD,
-      crm: KanaalStatus.GEKOPPELD,
       google_business_profile: KanaalStatus.TOEKOMSTIG,
     },
     doelen: [
       { kpi: 'leads', periode: 'maand', target: 75 },
-      { kpi: 'gekwalificeerdeLeads', periode: 'maand', target: 48 },
-      { kpi: 'afspraken', periode: 'maand', target: 34 },
-      { kpi: 'offertes', periode: 'maand', target: 34 },
-      { kpi: 'klanten', periode: 'maand', target: 10 },
       { kpi: 'cpl', periode: 'maand', target: 250 },
-      { kpi: 'cpql', periode: 'maand', target: 400 },
       { kpi: 'websitegebruikers', periode: 'maand', target: 6500 },
       { kpi: 'telefoongesprekken', periode: 'maand', target: 30 },
       { kpi: 'emailacties', periode: 'maand', target: 60 },
@@ -210,19 +195,11 @@ export const SAMPLE_CLIENTS = [
     scenario: 'trackingprobleem',
     bronnen: {
       ga4: KanaalStatus.GEKOPPELD,
-      // Zonder CRM-koppeling stopt de funnel bij de lead. Dat is geen nul,
-      // dat is een ontbrekende meting.
-      crm: KanaalStatus.NIET_GEKOPPELD,
       google_business_profile: KanaalStatus.TOEKOMSTIG,
     },
     doelen: [
       { kpi: 'leads', periode: 'maand', target: 260 },
-      { kpi: 'gekwalificeerdeLeads', periode: 'maand', target: 150 },
-      { kpi: 'afspraken', periode: 'maand', target: 40 },
-      { kpi: 'offertes', periode: 'maand', target: 30 },
-      { kpi: 'klanten', periode: 'maand', target: 18 },
       { kpi: 'cpl', periode: 'maand', target: 38 },
-      { kpi: 'cpql', periode: 'maand', target: 70 },
       { kpi: 'websitegebruikers', periode: 'maand', target: 8500 },
       { kpi: 'telefoongesprekken', periode: 'maand', target: 250 },
       { kpi: 'emailacties', periode: 'maand', target: 50 },
@@ -244,7 +221,6 @@ export const SAMPLE_CLIENTS = [
     scenario: 'over-budget',
     bronnen: {
       ga4: KanaalStatus.ONVOLDOENDE_DATA,
-      crm: KanaalStatus.NIET_GEKOPPELD,
       google_business_profile: KanaalStatus.TOEKOMSTIG,
     },
     doelen: [
@@ -258,8 +234,7 @@ export const SAMPLE_CLIENTS = [
  * Een verhouding als de CPL schaalt niet: die geldt per lead, niet per dag.
  */
 export const CUMULATIEVE_DOELEN = new Set([
-  'omzet', 'aankopen', 'maandbudget', 'leads', 'gekwalificeerdeLeads',
-  'afspraken', 'offertes', 'klanten', 'websitegebruikers',
+  'omzet', 'aankopen', 'maandbudget', 'leads', 'websitegebruikers',
   'telefoongesprekken', 'emailacties', 'bereik', 'impressies',
 ]);
 
@@ -270,12 +245,7 @@ export const DOEL_METRIEK = {
   aankopen: 'purchases',
   maandbudget: 'spend',
   leads: 'leads',
-  gekwalificeerdeLeads: 'qualifiedLeads',
-  afspraken: 'appointments',
-  offertes: 'quotes',
-  klanten: 'customers',
   cpl: 'cpl',
-  cpql: 'cpql',
   websitegebruikers: 'users',
 };
 
@@ -347,10 +317,10 @@ export const SAMPLE_ALERTS = [
     id: 'alert-7',
     ernst: 'hoog',
     klantId: 'havenkwartier',
-    kanaal: 'crm',
-    probleem: 'Gekwalificeerde leads en klanten zijn niet meetbaar',
-    oorzaak: 'Er is geen CRM-koppeling, waardoor de funnel stopt bij de lead',
-    aanbeveling: 'Richt de CRM-koppeling in of vraag een maandelijkse export van opdrachten',
+    kanaal: 'ga4',
+    probleem: 'Telefoonaanvragen tellen niet mee als conversie',
+    oorzaak: 'De klik op het telefoonnummer wordt gemeten maar staat niet als sleutelgebeurtenis ingesteld',
+    aanbeveling: 'Zet de gebeurtenis als sleutelgebeurtenis en importeer hem in Google Ads',
     startdatum: '2026-06-01',
   },
   {
@@ -358,7 +328,7 @@ export const SAMPLE_ALERTS = [
     ernst: 'middel',
     klantId: 'meridiaan',
     kanaal: 'google_ads',
-    probleem: 'Het brede zoekwoord adviesbureau levert nauwelijks gekwalificeerde leads',
+    probleem: 'Het brede zoekwoord adviesbureau levert nauwelijks aanvragen',
     oorzaak: 'Brede matchtype trekt zoekopdrachten buiten de doelgroep aan',
     aanbeveling: 'Pauzeer het brede zoekwoord en verplaats het budget naar exacte varianten',
     startdatum: '2026-07-09',

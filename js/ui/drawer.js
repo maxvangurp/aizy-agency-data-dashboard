@@ -117,8 +117,8 @@ function resultaatRijen(s) {
   if (s.client.businessModel === BusinessModel.LEADGEN) {
     return [
       { label: 'Leads', waarde: esc(fmt.getal(t.leads)) },
-      { label: 'Gekwalificeerd', waarde: t.qualifiedLeads == null ? ontbrekendeCel('niet_gekoppeld') : esc(fmt.getal(t.qualifiedLeads)) },
       { label: 'Kosten per lead', waarde: t.cpl == null ? ontbrekendeCel('onvoldoende_data') : esc(fmt.euro2(t.cpl)) },
+      { label: 'Klikken', waarde: esc(fmt.getal(t.clicks)) },
       { label: 'Advertentie-uitgaven', waarde: esc(fmt.euro(t.spend)) },
     ];
   }

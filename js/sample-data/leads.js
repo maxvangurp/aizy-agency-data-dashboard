@@ -103,22 +103,22 @@ const vitaalpunt = {
 
   googleAds: {
     campagnes: [
-      { naam: 'Search | Regio | Fysiotherapie', type: 'Search', kosten: 4020, klikken: 728, vertoningen: 26400, leads: 41, gekwalificeerdeLeads: 29 },
-      { naam: 'Search | Regio | Klachten', type: 'Search', kosten: 1990, klikken: 382, vertoningen: 15200, leads: 19, gekwalificeerdeLeads: 12 },
-      { naam: 'Performance Max | Regio', type: 'Performance Max', kosten: 1320, klikken: 202, vertoningen: 10300, leads: 9, gekwalificeerdeLeads: 4 },
+      { naam: 'Search | Regio | Fysiotherapie', type: 'Search', kosten: 4020, klikken: 728, vertoningen: 26400, leads: 41 },
+      { naam: 'Search | Regio | Klachten', type: 'Search', kosten: 1990, klikken: 382, vertoningen: 15200, leads: 19 },
+      { naam: 'Performance Max | Regio', type: 'Performance Max', kosten: 1320, klikken: 202, vertoningen: 10300, leads: 9 },
     ],
     advertentiegroepen: [
-      { groep: 'Fysiotherapie | Algemeen', campagne: 'Search | Regio | Fysiotherapie', kosten: 2400, klikken: 440, leads: 26, gekwalificeerdeLeads: 19 },
-      { groep: 'Fysiotherapie | Spoed', campagne: 'Search | Regio | Fysiotherapie', kosten: 1620, klikken: 288, leads: 15, gekwalificeerdeLeads: 10 },
-      { groep: 'Klachten | Rug', campagne: 'Search | Regio | Klachten', kosten: 1200, klikken: 237, leads: 12, gekwalificeerdeLeads: 8 },
-      { groep: 'Klachten | Knie', campagne: 'Search | Regio | Klachten', kosten: 790, klikken: 145, leads: 7, gekwalificeerdeLeads: 4 },
+      { groep: 'Fysiotherapie | Algemeen', campagne: 'Search | Regio | Fysiotherapie', kosten: 2400, klikken: 440, leads: 26 },
+      { groep: 'Fysiotherapie | Spoed', campagne: 'Search | Regio | Fysiotherapie', kosten: 1620, klikken: 288, leads: 15 },
+      { groep: 'Klachten | Rug', campagne: 'Search | Regio | Klachten', kosten: 1200, klikken: 237, leads: 12 },
+      { groep: 'Klachten | Knie', campagne: 'Search | Regio | Klachten', kosten: 790, klikken: 145, leads: 7 },
     ],
     zoekwoorden: [
-      { zoekwoord: 'fysiotherapeut in de buurt', matchtype: 'Phrase', vertoningen: 8760, klikken: 300, kosten: 1478, leads: 18, gekwalificeerdeLeads: 14 },
-      { zoekwoord: 'fysiotherapie spoed', matchtype: 'Exact', vertoningen: 2970, klikken: 175, kosten: 910, leads: 12, gekwalificeerdeLeads: 9 },
-      { zoekwoord: 'rugklachten behandeling', matchtype: 'Phrase', vertoningen: 7650, klikken: 211, kosten: 1158, leads: 9, gekwalificeerdeLeads: 6 },
-      { zoekwoord: 'fysiotherapie kosten', matchtype: 'Phrase', vertoningen: 6050, klikken: 165, kosten: 828, leads: 6, gekwalificeerdeLeads: 2 },
-      { zoekwoord: 'fysio', matchtype: 'Breed', vertoningen: 17530, klikken: 254, kosten: 1758, leads: 5, gekwalificeerdeLeads: 1 },
+      { zoekwoord: 'fysiotherapeut in de buurt', matchtype: 'Phrase', vertoningen: 8760, klikken: 300, kosten: 1478, leads: 18 },
+      { zoekwoord: 'fysiotherapie spoed', matchtype: 'Exact', vertoningen: 2970, klikken: 175, kosten: 910, leads: 12 },
+      { zoekwoord: 'rugklachten behandeling', matchtype: 'Phrase', vertoningen: 7650, klikken: 211, kosten: 1158, leads: 9 },
+      { zoekwoord: 'fysiotherapie kosten', matchtype: 'Phrase', vertoningen: 6050, klikken: 165, kosten: 828, leads: 6 },
+      { zoekwoord: 'fysio', matchtype: 'Breed', vertoningen: 17530, klikken: 254, kosten: 1758, leads: 5 },
     ],
   },
 
@@ -132,7 +132,7 @@ const vitaalpunt = {
 
   werk: {
     gedaan: [
-      'Zoekwoorden met een hoge kosten per gekwalificeerde lead gepauzeerd',
+      'Zoekwoorden met een hoge kosten per aanvraag gepauzeerd',
       'Aparte advertentiegroep ingericht voor spoedaanvragen',
       'Formulier op de afspraakpagina ingekort van 9 naar 5 velden',
     ],
@@ -200,23 +200,23 @@ const meridiaan = {
 
   googleAds: {
     campagnes: [
-      { naam: 'Search | NL | Bedrijfsadvies', type: 'Search', kosten: 5220, klikken: 1084, vertoningen: 38500, leads: 23, gekwalificeerdeLeads: 16 },
-      { naam: 'Search | NL | Procesoptimalisatie', type: 'Search', kosten: 3210, klikken: 715, vertoningen: 25200, leads: 15, gekwalificeerdeLeads: 10 },
-      { naam: 'Demand Gen | NL | Whitepaper', type: 'Demand Gen', kosten: 1930, klikken: 490, vertoningen: 21400, leads: 7, gekwalificeerdeLeads: 4 },
-      { naam: 'Search | NL | Merk', type: 'Search', kosten: 1290, klikken: 232, vertoningen: 8900, leads: 4, gekwalificeerdeLeads: 2 },
+      { naam: 'Search | NL | Bedrijfsadvies', type: 'Search', kosten: 5220, klikken: 1084, vertoningen: 38500, leads: 23 },
+      { naam: 'Search | NL | Procesoptimalisatie', type: 'Search', kosten: 3210, klikken: 715, vertoningen: 25200, leads: 15 },
+      { naam: 'Demand Gen | NL | Whitepaper', type: 'Demand Gen', kosten: 1930, klikken: 490, vertoningen: 21400, leads: 7 },
+      { naam: 'Search | NL | Merk', type: 'Search', kosten: 1290, klikken: 232, vertoningen: 8900, leads: 4 },
     ],
     advertentiegroepen: [
-      { groep: 'Bedrijfsadvies | MKB', campagne: 'Search | NL | Bedrijfsadvies', kosten: 2990, klikken: 622, leads: 14, gekwalificeerdeLeads: 10 },
-      { groep: 'Bedrijfsadvies | Corporate', campagne: 'Search | NL | Bedrijfsadvies', kosten: 2230, klikken: 462, leads: 9, gekwalificeerdeLeads: 6 },
-      { groep: 'Procesoptimalisatie | Lean', campagne: 'Search | NL | Procesoptimalisatie', kosten: 1970, klikken: 437, leads: 9, gekwalificeerdeLeads: 6 },
-      { groep: 'Procesoptimalisatie | Digitaal', campagne: 'Search | NL | Procesoptimalisatie', kosten: 1240, klikken: 278, leads: 6, gekwalificeerdeLeads: 4 },
+      { groep: 'Bedrijfsadvies | MKB', campagne: 'Search | NL | Bedrijfsadvies', kosten: 2990, klikken: 622, leads: 14 },
+      { groep: 'Bedrijfsadvies | Corporate', campagne: 'Search | NL | Bedrijfsadvies', kosten: 2230, klikken: 462, leads: 9 },
+      { groep: 'Procesoptimalisatie | Lean', campagne: 'Search | NL | Procesoptimalisatie', kosten: 1970, klikken: 437, leads: 9 },
+      { groep: 'Procesoptimalisatie | Digitaal', campagne: 'Search | NL | Procesoptimalisatie', kosten: 1240, klikken: 278, leads: 6 },
     ],
     zoekwoorden: [
-      { zoekwoord: 'bedrijfsadvies mkb', matchtype: 'Phrase', vertoningen: 16350, klikken: 451, kosten: 2060, leads: 11, gekwalificeerdeLeads: 8 },
-      { zoekwoord: 'procesoptimalisatie adviesbureau', matchtype: 'Exact', vertoningen: 8180, klikken: 321, kosten: 1392, leads: 8, gekwalificeerdeLeads: 7 },
-      { zoekwoord: 'organisatieadvies bureau', matchtype: 'Phrase', vertoningen: 12270, klikken: 358, kosten: 1721, leads: 7, gekwalificeerdeLeads: 5 },
-      { zoekwoord: 'lean consultant', matchtype: 'Exact', vertoningen: 6460, klikken: 253, kosten: 1176, leads: 6, gekwalificeerdeLeads: 4 },
-      { zoekwoord: 'adviesbureau', matchtype: 'Breed', vertoningen: 28100, klikken: 536, kosten: 3141, leads: 5, gekwalificeerdeLeads: 1 },
+      { zoekwoord: 'bedrijfsadvies mkb', matchtype: 'Phrase', vertoningen: 16350, klikken: 451, kosten: 2060, leads: 11 },
+      { zoekwoord: 'procesoptimalisatie adviesbureau', matchtype: 'Exact', vertoningen: 8180, klikken: 321, kosten: 1392, leads: 8 },
+      { zoekwoord: 'organisatieadvies bureau', matchtype: 'Phrase', vertoningen: 12270, klikken: 358, kosten: 1721, leads: 7 },
+      { zoekwoord: 'lean consultant', matchtype: 'Exact', vertoningen: 6460, klikken: 253, kosten: 1176, leads: 6 },
+      { zoekwoord: 'adviesbureau', matchtype: 'Breed', vertoningen: 28100, klikken: 536, kosten: 3141, leads: 5 },
     ],
   },
 
@@ -232,7 +232,7 @@ const meridiaan = {
     gedaan: [
       'Doelgroepen in LinkedIn Ads aangescherpt op functietitel en bedrijfsgrootte',
       'Aparte landingspagina gebouwd voor demoaanvragen',
-      'Kwalificatievragen toegevoegd aan het offerteformulier',
+      'Extra toelichtingsvraag toegevoegd aan het offerteformulier',
     ],
     volgende: [
       'Het brede zoekwoord adviesbureau pauzeren en het budget verplaatsen naar exact',
@@ -249,7 +249,7 @@ const meridiaan = {
 
 /* ---------------------------------------------------------------
    Klant 3: Havenkwartier Makelaars
-   Scenario: sterke lokale zichtbaarheid, geen meetbare CRM-koppeling
+   Scenario: sterke lokale zichtbaarheid, telefonie nog niet gemeten
    --------------------------------------------------------------- */
 
 const havenkwartier = {
@@ -297,22 +297,22 @@ const havenkwartier = {
 
   googleAds: {
     campagnes: [
-      { naam: 'Search | Regio | Woning verkopen', type: 'Search', kosten: 2436, klikken: 1177, vertoningen: 46300, leads: 72, gekwalificeerdeLeads: null },
-      { naam: 'Search | Regio | Makelaar', type: 'Search', kosten: 1647, klikken: 903, vertoningen: 37600, leads: 52, gekwalificeerdeLeads: null },
-      { naam: 'Performance Max | Regio | Aanbod', type: 'Performance Max', kosten: 1369, klikken: 802, vertoningen: 36200, leads: 40, gekwalificeerdeLeads: null },
+      { naam: 'Search | Regio | Woning verkopen', type: 'Search', kosten: 2436, klikken: 1177, vertoningen: 46300, leads: 72 },
+      { naam: 'Search | Regio | Makelaar', type: 'Search', kosten: 1647, klikken: 903, vertoningen: 37600, leads: 52 },
+      { naam: 'Performance Max | Regio | Aanbod', type: 'Performance Max', kosten: 1369, klikken: 802, vertoningen: 36200, leads: 40 },
     ],
     advertentiegroepen: [
-      { groep: 'Woning verkopen | Waardebepaling', campagne: 'Search | Regio | Woning verkopen', kosten: 1438, klikken: 706, leads: 44, gekwalificeerdeLeads: null },
-      { groep: 'Woning verkopen | Algemeen', campagne: 'Search | Regio | Woning verkopen', kosten: 998, klikken: 471, leads: 28, gekwalificeerdeLeads: null },
-      { groep: 'Makelaar | Lokaal', campagne: 'Search | Regio | Makelaar', kosten: 1067, klikken: 585, leads: 35, gekwalificeerdeLeads: null },
-      { groep: 'Makelaar | Kosten', campagne: 'Search | Regio | Makelaar', kosten: 580, klikken: 318, leads: 17, gekwalificeerdeLeads: null },
+      { groep: 'Woning verkopen | Waardebepaling', campagne: 'Search | Regio | Woning verkopen', kosten: 1438, klikken: 706, leads: 44 },
+      { groep: 'Woning verkopen | Algemeen', campagne: 'Search | Regio | Woning verkopen', kosten: 998, klikken: 471, leads: 28 },
+      { groep: 'Makelaar | Lokaal', campagne: 'Search | Regio | Makelaar', kosten: 1067, klikken: 585, leads: 35 },
+      { groep: 'Makelaar | Kosten', campagne: 'Search | Regio | Makelaar', kosten: 580, klikken: 318, leads: 17 },
     ],
     zoekwoorden: [
-      { zoekwoord: 'gratis waardebepaling woning', matchtype: 'Exact', vertoningen: 15620, klikken: 706, kosten: 1281, leads: 44, gekwalificeerdeLeads: null },
-      { zoekwoord: 'makelaar in de buurt', matchtype: 'Phrase', vertoningen: 23430, klikken: 585, kosten: 1068, leads: 35, gekwalificeerdeLeads: null },
-      { zoekwoord: 'huis verkopen makelaar', matchtype: 'Phrase', vertoningen: 19140, klikken: 471, kosten: 998, leads: 28, gekwalificeerdeLeads: null },
-      { zoekwoord: 'makelaar kosten', matchtype: 'Phrase', vertoningen: 13310, klikken: 318, kosten: 580, leads: 17, gekwalificeerdeLeads: null },
-      { zoekwoord: 'woningaanbod', matchtype: 'Breed', vertoningen: 37620, klikken: 802, kosten: 1370, leads: 40, gekwalificeerdeLeads: null },
+      { zoekwoord: 'gratis waardebepaling woning', matchtype: 'Exact', vertoningen: 15620, klikken: 706, kosten: 1281, leads: 44 },
+      { zoekwoord: 'makelaar in de buurt', matchtype: 'Phrase', vertoningen: 23430, klikken: 585, kosten: 1068, leads: 35 },
+      { zoekwoord: 'huis verkopen makelaar', matchtype: 'Phrase', vertoningen: 19140, klikken: 471, kosten: 998, leads: 28 },
+      { zoekwoord: 'makelaar kosten', matchtype: 'Phrase', vertoningen: 13310, klikken: 318, kosten: 580, leads: 17 },
+      { zoekwoord: 'woningaanbod', matchtype: 'Breed', vertoningen: 37620, klikken: 802, kosten: 1370, leads: 40 },
     ],
   },
 
@@ -331,14 +331,14 @@ const havenkwartier = {
       'Advertentieteksten aangescherpt op de lokale regio',
     ],
     volgende: [
-      'De CRM-koppeling inrichten zodat leadkwaliteit meetbaar wordt',
+      'Belregistratie koppelen aan de campagnes zodat telefonische aanvragen meetellen',
       'Onderzoeken waarom een deel van de gestarte formulieren niet wordt afgerond',
-      'Belregistratie koppelen aan de campagnes',
+      'De bedanktpagina als sleutelgebeurtenis instellen in GA4',
     ],
     vanKlant: [
-      'Toegang tot het CRM of een maandelijkse export van opdrachten',
-      'Terugkoppeling welke aanvragen tot een opdracht hebben geleid',
       'Akkoord op het plaatsen van een meetscript op de bedanktpagina',
+      'Het vaste telefoonnummer op de website mogen vervangen door een meetnummer',
+      'Beheerrechten op de GA4-property',
     ],
   },
 };

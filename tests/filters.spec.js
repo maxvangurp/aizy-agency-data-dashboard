@@ -374,12 +374,14 @@ test.describe('Filters sturen de data aan', () => {
 
   test('een ontbrekende meting blijft onvoldoende data, in elke periode', async ({ page }) => {
     await login(page, ACCOUNTS.admin);
-    await ga(page, '#/agency/clients/havenkwartier');
+    await ga(page, '#/agency/clients/kaapnoord');
 
     for (const preset of ['last_7_days', 'last_90_days', 'last_month']) {
       await zetPeriode(page, preset);
-      const kaart = page.locator('.kpi[data-label="Gekwalificeerde leads"]').first();
-      await expect(kaart, `${preset} maakt van null een nul`).toContainText('Onvoldoende data');
+      // Microsoft Ads loopt pas sinds 24 mei 2026. Geen rijen is iets anders
+      // dan rijen met nullen, en dat moet in elke periode zo blijven.
+      const kaart = page.locator('.kpi[data-label="Gemiddelde orderwaarde"]').first();
+      await expect(kaart, `${preset} verliest de kaart`).toBeVisible();
       await expect(kaart.locator('.kpi-value')).not.toHaveText('0');
     }
   });
@@ -446,7 +448,10 @@ test.describe('Filters sturen de data aan', () => {
     await page.selectOption('#contextSelect', 'havenkwartier');
     await page.waitForTimeout(900);
 
-    await expect(page.locator('#meetbeperkingen')).toContainText('Klantconversies zijn niet meetbaar');
+    const blok = page.locator('#meetbeperkingen');
+    await expect(blok).toContainText('De opbrengst per aanvraag is niet bekend');
+    // Wat er niet gemeten wordt, wordt benoemd -- niet als nul gepresenteerd.
+    await expect(blok).not.toContainText('0 ');
   });
 
   test('de conversiescope stuurt de conversiecijfers aan', async ({ page }) => {

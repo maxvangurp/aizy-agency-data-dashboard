@@ -286,13 +286,9 @@ export function prioriteitenDefinitie({
           { waarde: 'probleem', label: 'Meting onvolledig' },
           { waarde: 'controle-aanbevolen', label: 'Meting controleren' },
           { waarde: 'gezond', label: 'Meting volledig' },
-          { waarde: 'geen-crm', label: 'Zonder CRM-koppeling' },
           { waarde: 'gedeeltelijk', label: 'Onvolledige dekking' },
         ],
         test: (s, waarde) => {
-          if (waarde === 'geen-crm') {
-            return s.client.businessModel === BusinessModel.LEADGEN && s.totalen.qualifiedLeads == null;
-          }
           if (waarde === 'gedeeltelijk') return s.dekking.status === DekkingStatus.GEDEELTELIJK;
           return s.client.trackingStatus === waarde;
         },
@@ -325,7 +321,6 @@ export function prioriteitenDefinitie({
       { id: 'hoge-prioriteit', naam: 'Hoge prioriteit', staat: { filters: { urgentie: 'direct' } } },
       { id: 'boven-budget', naam: 'Boven budget', staat: { filters: { budgetstatus: PacingStatus.BOVEN_BUDGET } } },
       { id: 'meetprobleem', naam: 'Meetprobleem', staat: { filters: { meetkwaliteit: 'probleem' } } },
-      { id: 'zonder-crm', naam: 'Zonder CRM-koppeling', staat: { filters: { meetkwaliteit: 'geen-crm' } } },
       { id: 'onvolledige-meting', naam: 'Onvolledige meting', staat: { filters: { meetkwaliteit: 'gedeeltelijk' } } },
       { id: 'google-ads', naam: 'Google Ads', staat: { filters: { kanaal: 'google_ads' } } },
       {
@@ -663,11 +658,10 @@ function renderResultaten(overview, resultaatTab, hashVoor) {
           uitleg: 'Kosten per lead, gemiddeld over de leadgeneratieklanten. Niet vergelijkbaar met een ROAS.',
         })}
         ${kpiKaart({
-          label: 'Zonder CRM-koppeling',
-          waarde: fmt.getal(overview.leadgen.zonderKwalificatie),
-          sub: overview.leadgen.zonderKwalificatie ? 'leadkwaliteit niet meetbaar' : 'alle klanten gekoppeld',
-          richting: overview.leadgen.zonderKwalificatie ? 'negatief' : 'positief',
-          href: `${hashVoor('prioriteiten')}&filter=meetkwaliteit`,
+          label: 'Leadgeneratieklanten',
+          waarde: fmt.getal(overview.leadgen.aantal),
+          sub: 'klanten met aanvragen als hoofddoel',
+          href: hashVoor('prioriteiten'),
         })}
       </div>`,
     ecommerce: () => `

@@ -2,14 +2,16 @@
  * Leadgeneratiedashboard.
  *
  * Waar het e-commercedashboard draait om omzet en ROAS, draait dit om
- * leadvolume tegenover leadkwaliteit. Veel leads zeggen weinig als er niets uit
- * voortkomt, dus staan het aantal gekwalificeerde leads en de kosten daarvan
- * overal naast het ruwe volume.
+ * leadvolume tegenover de kosten per lead. Het grootste kanaal is zelden het
+ * goedkoopste, dus staat de prijs van een aanvraag overal naast het volume.
  *
  * Deze module rekent niets uit. Alles komt uit het viewmodel dat de repository
  * bouwt op basis van de filtercontext; hier wordt alleen bepaald hoe dat op het
- * scherm komt. Ontbrekende data wordt expliciet als ontbrekend getoond: bij een
- * klant zonder CRM-koppeling is de kwalificatie niet nul maar onbekend.
+ * scherm komt. Ontbrekende data wordt expliciet als ontbrekend getoond.
+ *
+ * Wat er ná de aanvraag gebeurt -- of die tot een gesprek of opdracht leidt --
+ * wordt hier niet gemeten. Dat gebeurt buiten de advertentieplatforms om, en
+ * het dashboard doet er daarom geen uitspraak over.
  */
 
 import { lineChart, barChart, funnelChart } from '../charts.js';
@@ -27,12 +29,7 @@ const nf = new Intl.NumberFormat('nl-NL');
 /** Labels en opmaak per doel-KPI. */
 const DOEL_META = {
   leads: { label: 'Totaal aantal leads', format: fmt.getal },
-  gekwalificeerdeLeads: { label: 'Gekwalificeerde leads', format: fmt.getal },
-  afspraken: { label: 'Afspraken', format: fmt.getal },
-  offertes: { label: 'Offertes', format: fmt.getal },
-  klanten: { label: 'Klanten', format: fmt.getal },
   cpl: { label: 'Kosten per lead', format: fmt.euro2 },
-  cpql: { label: 'Kosten per gekwalificeerde lead', format: fmt.euro2 },
   websitegebruikers: { label: 'Websitegebruikers', format: fmt.getal },
   telefoongesprekken: { label: 'Telefoongesprekken', format: fmt.getal },
   emailacties: { label: 'E-mailacties', format: fmt.getal },
@@ -104,14 +101,10 @@ function renderKerncijfers(dashboard) {
   return `<div class="kpi-row">
     ${m('leads', { label: 'Totaal aantal leads', primair: true })}
     ${m('spend', { label: 'Spend' })}
-    ${m('qualifiedLeads', { label: 'Gekwalificeerde leads', leegSub: 'Geen CRM-koppeling' })}
     ${m('cpl', { label: 'Kosten per lead' })}
-    ${m('cpql', { label: 'Kosten per gekwalificeerde lead', leegSub: 'Geen CRM-koppeling' })}
-    ${m('appointments', { label: 'Afspraken' })}
-    ${m('quotes', { label: 'Offertes', leegSub: 'Niet gemeten' })}
-    ${m('customers', { label: 'Klanten', leegSub: 'Geen CRM-koppeling' })}
-    ${m('leadNaarKlant', { label: 'Lead naar klant', leegSub: 'Geen CRM-koppeling' })}
-    ${m('pipelineValue', { label: 'Pipelinewaarde', leegSub: 'Geen CRM-koppeling' })}
+    ${m('conversieratio', { label: 'Conversieratio' })}
+    ${m('clicks', { label: 'Klikken' })}
+    ${m('sessions', { label: 'Sessies' })}
   </div>`;
 }
 
@@ -135,7 +128,7 @@ function renderDoelen(dashboard) {
     <p class="muted note">
       Maanddoelen worden naar rato van de geselecteerde periode omgerekend.
       Verhoudingen zoals de kosten per lead schalen niet mee.
-      Bron: advertentiekanalen, Google Analytics 4 en CRM.
+      Bron: advertentiekanalen en Google Analytics 4.
     </p>
   </section>`;
 }
@@ -177,7 +170,7 @@ function renderFunnel(dashboard) {
       // dan onzichtbaar, dus toont de grafiek het doorstroompercentage.
       'Percentage dat doorstroomt naar de volgende stap. De absolute aantallen staan in de tabelweergave.',
       tabelHtml,
-      'Advertentiekanalen, Google Analytics 4 en CRM',
+      'Advertentiekanalen en Google Analytics 4',
       ChartHoogte.funnel
     )}
     <div class="banner banner-warning" role="note">
@@ -195,24 +188,22 @@ function renderOntwikkeling(dashboard) {
   const { punten, stap } = dashboard.reeks;
 
   const tabelHtml = tabel(
-    ['Datum', 'Uitgaven', 'Leads', 'Gekwalificeerd', 'Kosten per lead'],
+    ['Datum', 'Uitgaven', 'Leads', 'Klikken', 'Kosten per lead'],
     punten.map((p) => [
       esc(punteLabel(p)),
       p.spend == null ? '<span class="muted">Geen data</span>' : fmt.euro(p.spend),
       p.leads == null ? '<span class="muted">Geen data</span>' : fmt.getal(p.leads),
-      p.qualifiedLeads == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(p.qualifiedLeads),
+      p.clicks == null ? '<span class="muted">Geen data</span>' : fmt.getal(p.clicks),
       p.spend != null && p.leads ? fmt.euro2(p.spend / p.leads) : '<span class="muted">Niet te berekenen</span>',
     ])
   );
 
   return figure(
     'chart-lead-cpl',
-    'Kosten per lead en per gekwalificeerde lead',
-    dashboard.totalen.qualifiedLeads == null
-      ? `Alleen de kosten per lead zijn beschikbaar, er is geen CRM-koppeling. Weergave per ${stap}.`
-      : `Het verschil tussen beide lijnen laat zien hoeveel leads afvallen bij kwalificatie. Weergave per ${stap}.`,
+    'Kosten per lead',
+    `Weergave per ${stap}.`,
     tabelHtml,
-    'Advertentiekanalen en CRM'
+    'Advertentiekanalen'
   );
 }
 
@@ -283,7 +274,7 @@ function verschilCel(c) {
 function renderKanalen(dashboard) {
   const g = getalKolom;
   const tabelHtml = tabel(
-    ['Kanaal', g('Uitgaven'), g('Impressies'), g('Klikken'), g('CTR'), g('Leads'), g('CPL'), g('Gekwalificeerd'), g('CPQL')],
+    ['Kanaal', g('Uitgaven'), g('Impressies'), g('Klikken'), g('CTR'), g('Leads'), g('CPL')],
     dashboard.kanaalRijen.map((k) => [
       esc(k.label),
       fmt.euro(k.spend),
@@ -292,8 +283,6 @@ function renderKanalen(dashboard) {
       fmt.procent(k.ctr),
       fmt.getal(k.leads),
       k.cpl == null ? '<span class="muted">Niet te berekenen</span>' : fmt.euro2(k.cpl),
-      k.qualifiedLeads == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(k.qualifiedLeads),
-      k.cpql == null ? '<span class="muted">Onvoldoende data</span>' : fmt.euro2(k.cpql),
     ])
   );
 
@@ -321,10 +310,8 @@ function renderGoogleAds(dashboard) {
     </section>`;
   }
 
-  const heeftKwalificatie = ads.campagnes.some((c) => c.gekwalificeerdeLeads != null);
-
   const campagneTabel = tabel(
-    ['Campagne', 'Type', 'Kosten', 'Klikken', 'CTR', 'CPC', 'Leads', 'CPA', 'Conv.ratio', 'Gekwalificeerd', 'CPQL'],
+    ['Campagne', 'Type', 'Kosten', 'Klikken', 'CTR', 'CPC', 'Leads', 'CPA', 'Conv.ratio'],
     ads.campagnes.map((c) => [
       esc(c.naam),
       `<span class="tag">${esc(c.type)}</span>`,
@@ -335,13 +322,11 @@ function renderGoogleAds(dashboard) {
       fmt.getal(c.leads),
       fmt.euro2(c.cpa),
       fmt.procent(c.conversieratio),
-      c.gekwalificeerdeLeads == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(c.gekwalificeerdeLeads),
-      c.cpql == null ? '<span class="muted">Onvoldoende data</span>' : kwaliteitCel(c.cpql),
     ])
   );
 
   const groepTabel = tabel(
-    ['Advertentiegroep', 'Campagne', 'Kosten', 'Klikken', 'Leads', 'CPA', 'Gekwalificeerd'],
+    ['Advertentiegroep', 'Campagne', 'Kosten', 'Klikken', 'Leads', 'CPA'],
     ads.advertentiegroepen.map((g) => [
       esc(g.groep),
       `<span class="muted">${esc(g.campagne)}</span>`,
@@ -349,12 +334,11 @@ function renderGoogleAds(dashboard) {
       fmt.getal(g.klikken),
       fmt.getal(g.leads),
       fmt.euro2(g.cpa),
-      g.gekwalificeerdeLeads == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(g.gekwalificeerdeLeads),
     ])
   );
 
   const zoekwoordTabel = tabel(
-    ['Zoekwoord', 'Matchtype', 'Vertoningen', 'Klikken', 'CTR', 'CPC', 'Kosten', 'Leads', 'CPA', 'Gekwalificeerd', 'CPQL'],
+    ['Zoekwoord', 'Matchtype', 'Vertoningen', 'Klikken', 'CTR', 'CPC', 'Kosten', 'Leads', 'CPA'],
     ads.zoekwoorden.map((z) => [
       esc(z.zoekwoord),
       `<span class="tag">${esc(z.matchtype)}</span>`,
@@ -365,8 +349,6 @@ function renderGoogleAds(dashboard) {
       fmt.euro(z.kosten),
       fmt.getal(z.leads),
       fmt.euro2(z.cpa),
-      z.gekwalificeerdeLeads == null ? '<span class="muted">Onvoldoende data</span>' : fmt.getal(z.gekwalificeerdeLeads),
-      z.cpql == null ? '<span class="muted">Onvoldoende data</span>' : kwaliteitCel(z.cpql),
     ])
   );
 
@@ -374,9 +356,8 @@ function renderGoogleAds(dashboard) {
     <section class="card">
       <h2>Google Ads campagnes</h2>
       <p class="muted">
-        ${heeftKwalificatie
-          ? 'Veel leads is niet hetzelfde als goede leads. De kolommen gekwalificeerd en CPQL laten zien wat er werkelijk overblijft.'
-          : 'Zonder CRM-koppeling is alleen het leadvolume zichtbaar, niet de kwaliteit.'}
+        Wat een campagne kost tegenover wat hij oplevert. De kosten per aanvraag zeggen
+        meer dan het aantal: het grootste kanaal is zelden het goedkoopste.
       </p>
       <div class="table-scroll">${campagneTabel}</div>
       <h3 style="margin-top:20px">Advertentiegroepen</h3>
@@ -384,20 +365,9 @@ function renderGoogleAds(dashboard) {
       <h3 style="margin-top:20px">Zoekwoorden</h3>
       <div class="table-scroll">${zoekwoordTabel}</div>
       <p class="muted note">
-        Bron: Google Ads. Gekwalificeerde leads komen uit het CRM. De verdeling over campagnes,
-        advertentiegroepen en zoekwoorden is in deze demo een vaste verhouding die met de
-        geselecteerde periode meeschaalt.
+        Bron: Google Ads.
       </p>
     </section>`;
-}
-
-/**
- * Kleurt de kosten per gekwalificeerde lead. Een hoge CPQL bij een lage CPA
- * betekent veel goedkope leads die niets opleveren.
- */
-function kwaliteitCel(cpql) {
-  const klasse = cpql <= 250 ? 'positief' : cpql <= 500 ? 'neutraal' : 'negatief';
-  return `<span class="trend-${klasse}">${fmt.euro2(cpql)}</span>`;
 }
 
 /* ---------------------------------------------------------------
@@ -508,8 +478,7 @@ export function renderLeadgenKlantview(dashboard, verhaal) {
         : `<ul class="verhaal-lijst">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`}
     </section>`;
 
-  const kernDoelen = dashboard.doelen.filter((d) =>
-    ['leads', 'gekwalificeerdeLeads', 'afspraken', 'cpl'].includes(d.kpi));
+  const kernDoelen = dashboard.doelen.filter((d) => ['leads', 'cpl', 'maandbudget'].includes(d.kpi));
 
   return `
     ${renderMeldingen(dashboard)}
@@ -518,10 +487,7 @@ export function renderLeadgenKlantview(dashboard, verhaal) {
       ${kpi('Investering', fmt.euro(totalen.spend), 'advertentiebudget deze periode')}
       ${kpiMetriek(totalen, 'leads', deltas, { label: 'Leads', vergelijkingLabel: label })}
       ${kpiMetriek(totalen, 'cpl', deltas, { label: 'Kosten per lead', vergelijkingLabel: label })}
-      ${kpi('Leadkwaliteit',
-        totalen.qualifiedLeads == null ? 'Onvoldoende data' : `${fmt.getal(totalen.qualifiedLeads)} gekwalificeerd`,
-        totalen.qualifiedLeads == null ? 'Geen CRM-koppeling' : `van ${fmt.getal(totalen.leads)} leads`,
-        totalen.qualifiedLeads == null ? 'neutraal' : deltas.qualifiedLeads?.richting ?? 'neutraal')}
+      ${kpiMetriek(totalen, 'sessions', deltas, { label: 'Sessies', vergelijkingLabel: label })}
     </div>
 
     ${dashRij(
@@ -548,7 +514,7 @@ export function renderLeadgenKlantview(dashboard, verhaal) {
             r.doorstroom == null ? '<span class="muted">n.v.t.</span>' : fmt.procent(r.doorstroom),
           ])
         ),
-        'Advertentiekanalen, Google Analytics 4 en CRM',
+        'Advertentiekanalen en Google Analytics 4',
         320
       ) },
       { span: 6, html: figure(
@@ -626,19 +592,12 @@ export function drawLeadgenCharts(dashboard, { klantview = false } = {}) {
   });
 
   const punten = dashboard.reeks.punten;
-  const series = [{
-    label: 'Kosten per lead',
-    data: punten.map((p) => (p.spend != null && p.leads ? p.spend / p.leads : null)),
-  }];
-  if (dashboard.totalen.qualifiedLeads != null) {
-    series.push({
-      label: 'Kosten per gekwalificeerde lead',
-      data: punten.map((p) => (p.spend != null && p.qualifiedLeads ? p.spend / p.qualifiedLeads : null)),
-    });
-  }
   lineChart('chart-lead-cpl', {
     labels: punten.map(punteLabel),
-    series,
+    series: [{
+      label: 'Kosten per lead',
+      data: punten.map((p) => (p.spend != null && p.leads ? p.spend / p.leads : null)),
+    }],
     valueFormatter: (v) => cf0.format(v),
   });
 

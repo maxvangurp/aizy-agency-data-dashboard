@@ -65,7 +65,6 @@ function bouwSamenvatting(user, pageType, { filters, clientId, clientName }) {
         spend: t.spend ?? t.kosten ?? null,
         leads: t.leads ?? null,
         cpl: t.cpl ?? (t.leads ? Math.round(((t.spend ?? t.kosten ?? 0) / t.leads) * 100) / 100 : null),
-        qualifiedLeads: t.qualifiedLeads ?? t.gekwalificeerdeLeads ?? null,
         openSignalen: s.openSignalen ?? null,
       };
     }

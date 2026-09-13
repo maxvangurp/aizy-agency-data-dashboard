@@ -7,10 +7,10 @@
  *   advertentiekanaal  een bron van uitgaven, vertoningen en klikken. Hierop
  *                      kan worden gefilterd, want iedere rij in de dataset
  *                      hoort bij precies één kanaal.
- *   meetbron           een bron die het resultaat meet, zoals Google Analytics 4
- *                      of het CRM. Die staat naast alle kanalen en is dus geen
- *                      filterwaarde. Zou je erop filteren, dan zou je de
- *                      meetlat zelf uit de meting halen.
+ *   meetbron           een bron die het resultaat meet, zoals Google Analytics 4.
+ *                      Die staat naast alle kanalen en is dus geen filterwaarde.
+ *                      Zou je erop filteren, dan zou je de meetlat zelf uit de
+ *                      meting halen.
  *
  * Een bron die nog niet gekoppeld is, of waarvoor te weinig data bestaat, wordt
  * met een status getoond en niet als actieve databron gepresenteerd.
@@ -54,7 +54,6 @@ export const KANALEN = [
   { key: 'microsoft_ads', label: 'Microsoft Ads', soort: KanaalSoort.ADVERTENTIE, selecteerbaar: true },
   { key: 'linkedin_ads', label: 'LinkedIn Ads', soort: KanaalSoort.ADVERTENTIE, selecteerbaar: true },
   { key: 'ga4', label: 'Google Analytics 4', soort: KanaalSoort.MEETBRON, selecteerbaar: false },
-  { key: 'crm', label: 'CRM', soort: KanaalSoort.MEETBRON, selecteerbaar: false },
   {
     key: 'google_business_profile',
     label: 'Google Business Profile',

@@ -2668,7 +2668,7 @@ body[data-shell='app'] { overflow-x: hidden; }
    TEKST-FLOW — nette regelafbrekingen.
 
    Koppen en korte labels worden gebalanceerd, zodat er geen los woord
-   op een laatste regel blijft hangen ("… gekwalificeerde / lead").
+   op een laatste regel blijft hangen ("… kosten per / lead").
    Lopende tekst krijgt "pretty": de browser voorkomt een weeskindwoord
    onderaan een alinea. Puur cosmetisch — geen functionele impact, en
    browsers die deze waarden niet kennen negeren ze zonder gevolg.

@@ -20,7 +20,6 @@ const METRIEK_TERMEN = [
   [/\broas\b|rendement op advertentie/, 'roas'],
   [/\bcpa\b|kosten per transactie/, 'cpa'],
   [/\bcpl\b|kosten per lead/, 'cpl'],
-  [/\bcpql\b|gekwalificeerde lead/, 'qualifiedLeads'],
   [/\bctr\b|doorklikratio/, 'ctr'],
   [/\bcpc\b|kosten per klik/, 'cpc'],
   [/\bcpm\b/, 'cpm'],
@@ -78,7 +77,7 @@ function herkenIntent(tekst, context) {
     if (/welke optimalisatie|optimalisatie.*(oppak|eerst)|wat pak ik/.test(tekst)) return 'prioritering';
     if (/welke campagne|welk apparaat|welke regio|welke (dag|weekdag)/.test(tekst)) return 'entiteit';
   }
-  if (/wat betekent|leg .* uit|hoe wordt .* berekend|wat is (cpa|cpl|roas|ctr|cpc|aov|een gekwalificeerde|budget pacing|betrouwbaarheid)/.test(tekst)) return 'metriek';
+  if (/wat betekent|leg .* uit|hoe wordt .* berekend|wat is (cpa|cpl|roas|ctr|cpc|aov|budget pacing|betrouwbaarheid)/.test(tekst)) return 'metriek';
   if (/waar (zie|vind|kan|staan|zit)|hoe kom ik|hoe ga ik naar|hoe open ik/.test(tekst)) return 'navigatie';
   // Databronnen koppelen is een pulse-concept: alleen in de simpele modus als
   // navigatie behandelen, zodat vrije-vorm koppelvragen in agency/client niet op

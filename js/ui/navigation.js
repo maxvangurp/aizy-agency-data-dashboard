@@ -195,7 +195,6 @@ export const ANALYSE_TABS = {
     { key: 'leads', label: 'Leads' },
     { key: 'funnel', label: 'Funnel' },
     { key: 'kosten', label: 'Kosten per lead' },
-    { key: 'kwaliteit', label: 'Leadkwaliteit' },
     { key: 'campagnes', label: 'Campagnes' },
     { key: 'zoektermen', label: 'Zoektermen' },
   ],

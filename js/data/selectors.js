@@ -106,8 +106,7 @@ export function conversiesInScope(conversieTotalenPerType, config, scope) {
 const LEADGEN_VELDEN = [
   'spend', 'impressions', 'clicks', 'sessions', 'users', 'newUsers',
   'engagedSessions', 'sessionSeconds', 'landingPageViews', 'engagement',
-  'formStarts', 'qualifiedLeads', 'appointments', 'quotes', 'customers',
-  'pipelineValue', 'revenue',
+  'formStarts', 'revenue',
 ];
 
 const ECOMMERCE_VELDEN = [
@@ -407,7 +406,6 @@ function verrijkVerdelingsrij(rij) {
     ctr: veiligPercentage(rij.klikken, rij.vertoningen),
     cpc: veiligDelen(rij.kosten, rij.klikken),
     cpa: veiligDelen(rij.kosten, uitkomst),
-    cpql: veiligDelen(rij.kosten, rij.gekwalificeerdeLeads),
     roas: veiligDelen(rij.conversiewaarde, rij.kosten),
     conversieratio: veiligPercentage(uitkomst, rij.klikken),
   };
@@ -468,7 +466,7 @@ export function bepaalDekking(rijen, periode, verwachteKanalen) {
 }
 
 /** Zet de dekking om in leesbare meldingen. Lege lijst betekent: niets aan de hand. */
-export function dekkingMeldingen(dekking, { crmGekoppeld = true } = {}) {
+export function dekkingMeldingen(dekking) {
   const meldingen = [];
 
   if (dekking.status === DekkingStatus.GEEN_DATA) {
@@ -503,13 +501,6 @@ export function dekkingMeldingen(dekking, { crmGekoppeld = true } = {}) {
       tekst: `De meest recente dagen kunnen nog onvolledig zijn. Alle bronnen zijn compleet tot en met ${dekking.volledigTot}.`,
     });
   }
-  if (!crmGekoppeld) {
-    meldingen.push({
-      soort: 'niet-gekoppeld',
-      tekst: 'Er is geen CRM-koppeling, waardoor leadkwaliteit en klanten niet meetbaar zijn.',
-    });
-  }
-
   return meldingen;
 }
 
@@ -524,9 +515,6 @@ export const LEAD_FUNNEL_STAPPEN = [
   { key: 'engagement', label: 'Engagement', bron: 'Google Analytics 4' },
   { key: 'formStarts', label: 'Formulier gestart', bron: 'Google Analytics 4' },
   { key: 'leads', label: 'Lead', bron: 'Google Analytics 4' },
-  { key: 'qualifiedLeads', label: 'Gekwalificeerde lead', bron: 'CRM' },
-  { key: 'appointments', label: 'Afspraak of offerte', bron: 'CRM' },
-  { key: 'customers', label: 'Klant', bron: 'CRM' },
 ];
 
 export const ECOMMERCE_FUNNEL_STAPPEN = [
@@ -817,12 +805,6 @@ export function bouwPeriodeVerhaal({
   }
 
   /* Meetbeperkingen */
-  if (model === 'leadgen' && totalen.qualifiedLeads == null) {
-    meetbeperkingen.push('Gekwalificeerde leads zijn niet meetbaar');
-  }
-  if (model === 'leadgen' && totalen.customers == null) {
-    meetbeperkingen.push('Klantconversies zijn niet meetbaar');
-  }
   for (const melding of dekking ? dekkingMeldingen(dekking) : []) {
     if (melding.soort !== 'voorlopig') meetbeperkingen.push(melding.tekst);
   }

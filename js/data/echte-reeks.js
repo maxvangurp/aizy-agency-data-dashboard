@@ -14,10 +14,10 @@
  *
  * WAT HIER NIET GEBEURT
  *
- * Er wordt niets bijgeschat. Het model kent velden die uit een CRM komen --
- * gekwalificeerde leads, afspraken, offertes, klanten, pijplijnwaarde -- en
- * die blijven leeg. Een geschatte pijplijnwaarde ziet er op het scherm precies
- * zo uit als een gemeten, en dat verschil is nergens meer terug te vinden.
+ * Er wordt niets bijgeschat. Het model kent velden die geen enkel gekoppeld
+ * platform levert -- formulierstarts, landingspaginaweergaven, engagement -- en
+ * die blijven leeg. Een geschat getal ziet er op het scherm precies zo uit als
+ * een gemeten, en dat verschil is nergens meer terug te vinden.
  *
  * WAAROM EEN MODULESTORE EN GEEN LOCALSTORAGE
  *

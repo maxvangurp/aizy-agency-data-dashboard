@@ -251,10 +251,10 @@ const SEED = [
   },
   {
     id: 'act-seed-5',
-    titel: 'CRM-koppeling inrichten of maandelijkse export afspreken',
-    omschrijving: 'Zonder CRM stopt de funnel bij de lead. Gekwalificeerde leads en klanten zijn daardoor niet meetbaar.',
+    titel: 'Telefoonaanvragen als sleutelgebeurtenis instellen in GA4',
+    omschrijving: 'De klik op het telefoonnummer wordt wel gemeten maar telt niet mee als conversie. Daardoor lijkt het aantal aanvragen lager dan het is.',
     klantId: 'havenkwartier',
-    kanaal: 'crm',
+    kanaal: 'ga4',
     verantwoordelijkeId: 'u-berry',
     status: ActieStatus.WACHT_OP_KLANT,
     prioriteit: ActiePrioriteit.HOOG,
@@ -269,7 +269,7 @@ const SEED = [
       {
         id: 'opm-seed-1',
         auteurId: 'u-berry',
-        tekst: 'Export van juni ontvangen, koppeling zelf staat nog open bij de klant.',
+        tekst: 'Beheerrechten op GA4 aangevraagd bij de klant, bevestiging staat nog open.',
         op: `${D(-6)}T13:20:00.000Z`,
       },
     ],
@@ -307,7 +307,7 @@ const SEED = [
   {
     id: 'act-seed-8',
     titel: 'Breed zoekwoord adviesbureau pauzeren',
-    omschrijving: 'Brede matchtype trekt zoekopdrachten buiten de doelgroep aan en levert nauwelijks gekwalificeerde leads.',
+    omschrijving: 'Brede matchtype trekt zoekopdrachten buiten de doelgroep aan en levert nauwelijks aanvragen.',
     klantId: 'meridiaan',
     kanaal: 'google_ads',
     verantwoordelijkeId: 'u-jip',

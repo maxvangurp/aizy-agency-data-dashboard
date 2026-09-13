@@ -92,7 +92,7 @@ const CATALOGUS = {
 
   leads: {
     formule: 'De som van de conversies die als primaire lead zijn ingesteld.',
-    interpretatie: 'Het volume aan aanvragen. Beoordeel het samen met de kwalificatieratio, want niet elke lead is bruikbaar.',
+    interpretatie: 'Het volume aan aanvragen. Wat een aanvraag waard blijkt, meet dit dashboard niet -- dat gebeurt buiten de advertentieplatforms.',
     beperking: 'Welke conversies als lead tellen, is per klant ingesteld.',
     bronnen: ['Google Ads', 'Meta Ads', 'Google Analytics 4'],
     eenheid: 'leads',
@@ -101,46 +101,11 @@ const CATALOGUS = {
   cpl: {
     formule: 'Advertentie-uitgaven gedeeld door het aantal leads.',
     interpretatie: 'Een lagere prijs per lead is gunstiger, mits de leadkwaliteit gelijk blijft.',
-    beperking: 'Zegt niets over hoeveel leads uiteindelijk klant worden.',
+    beperking: 'Zegt niets over hoeveel aanvragen uiteindelijk tot omzet leiden; dat wordt hier niet gemeten.',
     bronnen: ['Google Ads', 'Meta Ads'],
     decimalen: 2, eenheid: 'euro',
     drilldowns: ['channel', 'campaign'],
   },
-  qualifiedLeads: {
-    formule: 'Het aantal leads dat na beoordeling in het CRM als serieuze aanvraag geldt.',
-    interpretatie: 'De brug tussen marketing en sales. Zonder deze meting is de leadkwaliteit onbekend.',
-    beperking: 'Vereist een CRM-koppeling; zonder die koppeling blijft de waarde ontbrekend.',
-    bronnen: ['CRM'],
-    eenheid: 'leads',
-    drilldowns: ['channel', 'campaign'],
-  },
-  cpql: {
-    formule: 'Advertentie-uitgaven gedeeld door het aantal gekwalificeerde leads.',
-    interpretatie: 'Wat een bruikbare aanvraag werkelijk kost. Dit is een eerlijker efficiëntiemaat dan de kosten per lead.',
-    beperking: 'Vereist een CRM-koppeling.',
-    bronnen: ['CRM', 'Google Ads'],
-    decimalen: 2, eenheid: 'euro',
-    drilldowns: ['channel', 'campaign'],
-  },
-  appointments: {
-    formule: 'Het aantal afspraken of offertes dat uit de aanvragen is voortgekomen.',
-    interpretatie: 'Een stap dichter bij omzet dan een gekwalificeerde lead.',
-    bronnen: ['CRM'],
-    eenheid: 'afspraken',
-  },
-  customers: {
-    formule: 'Het aantal aanvragen dat volgens het CRM klant is geworden.',
-    interpretatie: 'Het eindpunt van de leadfunnel en de basis voor de werkelijke acquisitiekosten.',
-    bronnen: ['CRM'],
-    eenheid: 'klanten',
-  },
-  pipelineValue: {
-    formule: 'De verwachte waarde van de openstaande aanvragen volgens het CRM.',
-    interpretatie: 'Een vooruitblik op mogelijke omzet, geen gerealiseerde omzet.',
-    bronnen: ['CRM'],
-    eenheid: 'euro',
-  },
-
   revenue: {
     formule: 'De som van de conversiewaarde van alle transacties in de periode.',
     interpretatie: 'Het bedrijfsresultaat waar e-commerce op stuurt. Beoordeel het samen met de uitgaven via de ROAS.',

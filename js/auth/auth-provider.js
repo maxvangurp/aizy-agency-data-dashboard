@@ -16,7 +16,7 @@
  * │              of Azure Static Web Apps Authentication             │
  * │            → Azure API Management of Azure Functions             │
  * │            → server-side autorisatie en tenantfiltering          │
- * │            → Google Ads, GA4, Meta, CRM                          │
+ * │            → Google Ads, GA4, Meta                               │
  * └─────────────────────────────────────────────────────────────────┘
  *
  * Wat een Azure-implementatie moet doen wordt beschreven bij elke methode.

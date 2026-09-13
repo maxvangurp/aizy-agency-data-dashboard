@@ -25,8 +25,8 @@
  *   3. Een functietitel is geen toegangsniveau. Wat iemand bij Aizy doet staat
  *      los van wat het account in deze applicatie mag.
  *   4. Interne waarden zoals `agency_admin` komen nooit op het scherm.
- *   5. Een afkorting staat nooit alleen. CPQL krijgt altijd "Kosten per
- *      gekwalificeerde lead" mee, in het label of in de uitleg.
+ *   5. Een afkorting staat nooit alleen. CPL krijgt altijd "Kosten per lead"
+ *      mee, in het label of in de uitleg.
  */
 
 export const Publiek = {

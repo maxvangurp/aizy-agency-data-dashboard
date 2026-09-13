@@ -912,7 +912,7 @@ function samenvattingOver(campagnes) {
  *
  * Hier komen die twee samen, met dezelfde selector die de rest van het
  * dashboard gebruikt. Wat de platforms weten gaat voor; de stappen die alleen
- * GA4 of het CRM kan leveren blijven onbekend, en onbekend is geen nul.
+ * GA4 kan leveren blijven onbekend, en onbekend is geen nul.
  */
 function bouwSimpelFunnel(dashboard, platforms) {
   const live = combineerTotalen(platforms);
@@ -1016,7 +1016,7 @@ function renderConversiesView(dashboard, platforms, vergelijking) {
   // Alleen stappen die we werkelijk meten.
   //
   // `bouwFunnel` geeft elke stap terug, ook die waarvan het volume onbekend is
-  // (GA4 en CRM zijn nog niet gekoppeld). Die als nul tekenen levert een
+  // (GA4 is nog niet gekoppeld). Die als nul tekenen levert een
   // trechter op met negen lege balken, en dat ziet eruit alsof er iets stuk is
   // in plaats van dat er iets ontbreekt. Nul is bovendien een meting: "nul
   // formulieren gestart" is iets anders dan "we weten het niet".

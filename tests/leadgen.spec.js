@@ -46,10 +46,8 @@ test.describe('Leadgeneratie klantdashboard', () => {
     const kpis = page.locator('.kpi-row').first();
 
     await expect(kpis).toContainText('Totaal aantal leads');
-    await expect(kpis).toContainText('Gekwalificeerde leads');
     await expect(kpis).toContainText('Kosten per lead');
-    await expect(kpis).toContainText('Kosten per gekwalificeerde lead');
-    await expect(kpis).toContainText('Pipelinewaarde');
+    await expect(kpis).toContainText('Conversieratio');
 
     // ROAS en gemiddelde orderwaarde horen bij e-commerce.
     await expect(kpis).not.toContainText('ROAS');
@@ -69,7 +67,6 @@ test.describe('Leadgeneratie klantdashboard', () => {
     const doelen = page.locator('.goal-list').first();
 
     await expect(doelen).toContainText('Totaal aantal leads');
-    await expect(doelen).toContainText('Gekwalificeerde leads');
     await expect(doelen).toContainText('Kosten per lead');
     await expect(doelen).toContainText('Websitegebruikers');
     await expect(doelen).toContainText('Telefoongesprekken');
@@ -91,19 +88,24 @@ test.describe('Leadgeneratie klantdashboard', () => {
     await expect(cplRij.locator('.trend-positief')).toBeVisible();
   });
 
-  test('de leadfunnel toont alle negen stappen met bron en knelpunt', async ({ page }) => {
+  test('de leadfunnel toont alle zes stappen met bron en knelpunt', async ({ page }) => {
     await openKlant(page, 'vitaalpunt');
     await page.locator('.leadfunnel summary').click();
     const tabel = page.locator('.leadfunnel table');
 
     for (const stap of [
       'Impressies', 'Klikken', 'Landingspagina bekeken', 'Engagement',
-      'Formulier gestart', 'Lead', 'Gekwalificeerde lead', 'Afspraak of offerte', 'Klant',
+      'Formulier gestart', 'Lead',
     ]) {
       await expect(tabel).toContainText(stap);
     }
     await expect(tabel).toContainText('Google Ads');
-    await expect(tabel).toContainText('CRM');
+    await expect(tabel).toContainText('Google Analytics 4');
+
+    // De funnel stopt bij de lead. Wat er daarna met een aanvraag gebeurt,
+    // meet geen enkel gekoppeld platform en hoort hier dus niet te staan.
+    await expect(tabel).not.toContainText('Gekwalificeerde lead');
+    await expect(tabel).not.toContainText('Afspraak of offerte');
 
     const knelpunt = page.locator('.leadfunnel .banner-warning');
     await expect(knelpunt).toContainText('Knelpunt');
@@ -149,15 +151,14 @@ test.describe('Leadgeneratie klantdashboard', () => {
     await expect(sectie).toContainText('Landen');
   });
 
-  test('Google Ads onderscheidt leadvolume van leadkwaliteit', async ({ page }) => {
+  test('Google Ads splitst campagnes uit naar groep en zoekwoord', async ({ page }) => {
     await openKlant(page, 'meridiaan');
     const sectie = page.locator('.card').filter({ has: page.getByRole('heading', { name: 'Google Ads campagnes' }) });
 
     await expect(sectie).toContainText('Advertentiegroepen');
     await expect(sectie).toContainText('Zoekwoorden');
-    await expect(sectie).toContainText('Gekwalificeerd');
-    await expect(sectie).toContainText('CPQL');
     await expect(sectie).toContainText('Matchtype');
+    await expect(sectie).toContainText('CPA');
   });
 
   test('Google Business Profile is gemarkeerd als toekomstige koppeling', async ({ page }) => {
@@ -173,32 +174,24 @@ test.describe('Leadgeneratie klantdashboard', () => {
 });
 
 test.describe('Leadgeneratie onvoldoende data', () => {
-  test('ontbrekende CRM-data wordt als onbekend getoond, niet als nul', async ({ page }) => {
+  test('een niet gemeten funnelstap blijft onbekend in plaats van nul', async ({ page }) => {
+    await openKlant(page, 'havenkwartier');
+    await page.locator('.leadfunnel summary').click();
+
+    // Deze klant meet geen omzet per aanvraag. Een 0 zou beweren dat er niets
+    // is, terwijl het simpelweg niet gemeten wordt.
+    const tabel = page.locator('.leadfunnel table');
+    await expect(tabel).toContainText('Lead');
+    await expect(tabel).not.toContainText('Gekwalificeerde lead');
+  });
+
+  test('de KPI-rij verzint geen waarden waar de meting ontbreekt', async ({ page }) => {
     await openKlant(page, 'havenkwartier');
     const kpis = page.locator('.kpi-row').first();
 
-    // Deze klant heeft geen CRM-koppeling. Een 0 zou beweren dat er niets is,
-    // terwijl het simpelweg niet gemeten wordt.
-    await expect(kpis).toContainText('Onvoldoende data');
-    await expect(kpis).toContainText('Geen CRM-koppeling');
-
-    const leadNaarKlant = page.locator('.kpi').filter({ hasText: 'Lead naar klant' });
-    await expect(leadNaarKlant).toContainText('Onvoldoende data');
-    await expect(leadNaarKlant).not.toContainText('0,0%');
-    await expect(leadNaarKlant).not.toContainText('0.0%');
-  });
-
-  test('een doel zonder meetbare waarde krijgt de status onvoldoende data', async ({ page }) => {
-    await openKlant(page, 'havenkwartier');
-    const doel = page.locator('.goal').filter({ hasText: 'Gekwalificeerde leads' }).first();
-    await expect(doel).toContainText('Onvoldoende data');
-  });
-
-  test('de funnel toont onvoldoende data waar de meting ontbreekt', async ({ page }) => {
-    await openKlant(page, 'havenkwartier');
-    await page.locator('.leadfunnel summary').click();
-    const rij = page.locator('.leadfunnel tbody tr').filter({ hasText: 'Gekwalificeerde lead' }).first();
-    await expect(rij).toContainText('Onvoldoende data');
+    await expect(kpis).toContainText('Totaal aantal leads');
+    await expect(kpis).not.toContainText('Gekwalificeerde leads');
+    await expect(kpis).not.toContainText('Pipelinewaarde');
   });
 });
 

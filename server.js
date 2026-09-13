@@ -924,10 +924,10 @@ app.get('/api/databronnen', async (req, res) => {
  *
  * WAT ER NIET IN ZIT, EN WAAROM DAT ZO BLIJFT
  *
- * Het model kent velden die uit een CRM komen: gekwalificeerde leads,
- * afspraken, offertes, klanten, pijplijnwaarde. Die meet niemand hier. Ze
- * blijven leeg in plaats van geschat, want een verzonnen pijplijnwaarde ziet er
- * precies zo uit als een gemeten.
+ * Het model kent velden die geen enkel gekoppeld platform levert: formulier-
+ * starts, landingspaginaweergaven, engagement. Die meet niemand hier. Ze
+ * blijven leeg in plaats van geschat, want een verzonnen getal ziet er op het
+ * scherm precies zo uit als een gemeten.
  *
  * Advertentiekanalen leveren uitgaven, vertoningen, klikken en conversies; GA4
  * levert sessies en gebruikers over de hele site. Die laatste komen daarom op
@@ -1267,13 +1267,10 @@ const KANAAL_PER_PLATFORM = {'google-ads': 'google_ads', 'meta-ads': 'meta_ads'}
 /**
  * Velden die het model kent maar die hier niemand meet.
  *
- * Ze blijven leeg. Een geschatte pijplijnwaarde ziet er precies zo uit als een
- * gemeten, en het verschil is aan het scherm niet te zien.
+ * Ze blijven leeg. Een geschat getal ziet er precies zo uit als een gemeten,
+ * en het verschil is aan het scherm niet te zien.
  */
-const NIET_GEMETEN = [
-  'qualifiedLeads', 'appointments', 'quotes', 'customers', 'pipelineValue',
-  'formStarts', 'landingPageViews', 'engagement',
-];
+const NIET_GEMETEN = ['formStarts', 'landingPageViews', 'engagement'];
 
 function hoopOp(kaart, sleutel, waarden) {
   const bestaand = kaart.get(sleutel);

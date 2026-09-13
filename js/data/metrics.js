@@ -91,36 +91,6 @@ export const METRIEK_META = {
     label: 'Kosten per lead', kort: 'CPL', formaat: Formaat.EURO2, lagerIsBeter: true,
     uitleg: 'De advertentie-uitgaven gedeeld door het aantal leads.',
   },
-  qualifiedLeads: {
-    label: 'Gekwalificeerde leads', formaat: Formaat.GETAL,
-    uitleg: 'Leads die na beoordeling in het CRM als serieuze aanvraag zijn bestempeld.',
-  },
-  cpql: {
-    label: 'Kosten per gekwalificeerde lead', kort: 'CPQL', formaat: Formaat.EURO2, lagerIsBeter: true,
-    uitleg: 'Wat een bruikbare aanvraag werkelijk kost, na beoordeling in het CRM.',
-  },
-  appointments: {
-    label: 'Afspraken', formaat: Formaat.GETAL,
-    uitleg: 'Afspraken of offertes die uit de aanvragen zijn voortgekomen.',
-  },
-  quotes: { label: 'Offertes', formaat: Formaat.GETAL, uitleg: 'Uitgebrachte offertes.' },
-  customers: {
-    label: 'Klanten', formaat: Formaat.GETAL,
-    uitleg: 'Aanvragen die volgens het CRM klant zijn geworden.',
-  },
-  leadNaarKlant: {
-    label: 'Lead naar klant', formaat: Formaat.PROCENT,
-    uitleg: 'Het aandeel leads dat uiteindelijk klant werd.',
-  },
-  kwalificatieratio: {
-    label: 'Kwalificatieratio', formaat: Formaat.PROCENT,
-    uitleg: 'Het aandeel leads dat na beoordeling gekwalificeerd bleek.',
-  },
-  pipelineValue: {
-    label: 'Pipelinewaarde', formaat: Formaat.EURO,
-    uitleg: 'De verwachte waarde van de openstaande aanvragen volgens het CRM.',
-  },
-
   revenue: {
     label: 'Omzet', formaat: Formaat.EURO,
     uitleg: 'De omzet die in deze periode via de website is gerealiseerd.',
@@ -295,8 +265,8 @@ export function sommeer(rijen, veld) {
 
 /**
  * Afgeleide waarden bij een leadgeneratieklant.
- * Alle deelsommen gaan via veiligDelen, zodat een klant zonder CRM-koppeling
- * geen nul krijgt maar een ontbrekende waarde houdt.
+ * Alle deelsommen gaan via veiligDelen, zodat een klant zonder gekoppelde
+ * meting geen nul krijgt maar een ontbrekende waarde houdt.
  */
 export function leadgenAfgeleid(t) {
   return {
@@ -304,9 +274,6 @@ export function leadgenAfgeleid(t) {
     cpc: veiligDelen(t.spend, t.clicks),
     cpm: veiligDelen(t.spend, t.impressions == null ? null : t.impressions / 1000),
     cpl: veiligDelen(t.spend, t.leads),
-    cpql: veiligDelen(t.spend, t.qualifiedLeads),
-    kwalificatieratio: veiligPercentage(t.qualifiedLeads, t.leads),
-    leadNaarKlant: veiligPercentage(t.customers, t.leads),
     conversieratio: veiligPercentage(t.leads, t.sessions),
     // ROAS heeft bij leadgeneratie alleen betekenis wanneer er werkelijk omzet
     // wordt teruggekoppeld. Zonder die koppeling blijft de waarde ontbrekend

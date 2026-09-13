@@ -725,7 +725,7 @@ export function planResultaatcontrole(id, { datum, medewerkerId = null } = {}) {
   const item = maakAanPlanningsitem({
     titel: `Resultaatcontrole: ${signaal.aanbeveling ?? signaal.probleem}`,
     bron: ItemBron.MEETING,
-    soort: signaal.kanaal === 'ga4' || signaal.kanaal === 'crm' ? ActieSoort.TRACKINGCONTROLE : ActieSoort.CAMPAGNECONTROLE,
+    soort: signaal.kanaal === 'ga4' ? ActieSoort.TRACKINGCONTROLE : ActieSoort.CAMPAGNECONTROLE,
     klantId: signaal.klantId,
     medewerkerId: medewerkerId ?? signaal.verantwoordelijkeId ?? null,
     datum,
@@ -790,7 +790,7 @@ export function beoordeelResultaat(id, { uitkomst, notitie = null, verantwoordel
 
 /** Een redelijk werksoort op basis van de bron waar het signaal vandaan komt. */
 function soortVoorKanaal(kanaal) {
-  if (kanaal === 'ga4' || kanaal === 'crm') return ActieSoort.TRACKINGCONTROLE;
+  if (kanaal === 'ga4') return ActieSoort.TRACKINGCONTROLE;
   return ActieSoort.OPTIMALISATIE;
 }
 

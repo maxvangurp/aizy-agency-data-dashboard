@@ -12,7 +12,7 @@
  * exact overeenkomt met de kerncijfers uit de vorige fase, en de direct
  * voorafgaande 30 dagen exact met de toen vastgelegde vorige periode. Daardoor
  * blijven de cijfers die eerder in het dashboard stonden kloppen, en zijn
- * afgeleide waarden als CPL, CPQL, ROAS en CPA nu berekend in plaats van
+ * afgeleide waarden als CPL, ROAS en CPA nu berekend in plaats van
  * ingetypt. Buiten die twee vensters loopt de reeks door op de trend die uit
  * beide vensters volgt.
  *
@@ -22,9 +22,9 @@
  * daarom altijd hetzelfde antwoord, ook in tests.
  *
  * ONTBREKENDE METINGEN
- * Een metriek die niet gemeten wordt, is null en niet nul. Havenkwartier heeft
- * geen CRM-koppeling, dus gekwalificeerde leads, offertes, klanten en
- * pipelinewaarde zijn daar null. Kaap Noord heeft Microsoft Ads pas sinds
+ * Een metriek die niet gemeten wordt, is null en niet nul. Havenkwartier meet
+ * geen omzet per aanvraag, dus revenue is daar null. Kaap Noord heeft
+ * Microsoft Ads pas sinds
  * 24 mei 2026; vóór die datum bestaan er voor dat kanaal geen rijen, wat iets
  * anders is dan rijen met nullen.
  */
@@ -119,14 +119,12 @@ const CLIENT_CONFIG = {
     huidig: {
       spend: 11820, impressions: 84200, clicks: 2140, sessions: 4120, users: 3184,
       newUsers: 2610, engagedSessions: 2489, sessionSeconds: 609760,
-      landingPageViews: 1892, engagement: 1148, formStarts: 214, qualifiedLeads: 71,
-      appointments: 34, quotes: 28, customers: 19, pipelineValue: 61200, revenue: null,
+      landingPageViews: 1892, engagement: 1148, formStarts: 214, revenue: null,
     },
     vorig: {
       spend: 11215, impressions: 81600, clicks: 2112, sessions: 4386, users: 3402,
       newUsers: 2814, engagedSessions: 2724, sessionSeconds: 666672,
-      landingPageViews: 1904, engagement: 1212, formStarts: 236, qualifiedLeads: 84,
-      appointments: 39, quotes: 33, customers: 22, pipelineValue: 70400, revenue: null,
+      landingPageViews: 1904, engagement: 1212, formStarts: 236, revenue: null,
     },
     conversiesHuidig: {
       contactformulier: 42, afspraakGepland: 34, adviesaanvraag: 21, spoedaanvraag: 12,
@@ -148,14 +146,12 @@ const CLIENT_CONFIG = {
     huidig: {
       spend: 18800, impressions: 142600, clicks: 3820, sessions: 9140, users: 6842,
       newUsers: 5218, engagedSessions: 6398, sessionSeconds: 2412960,
-      landingPageViews: 3418, engagement: 2394, formStarts: 184, qualifiedLeads: 52,
-      appointments: 38, quotes: 38, customers: 11, pipelineValue: 418000, revenue: null,
+      landingPageViews: 3418, engagement: 2394, formStarts: 184, revenue: null,
     },
     vorig: {
       spend: 17300, impressions: 128400, clicks: 3410, sessions: 8340, users: 6210,
       newUsers: 4820, engagedSessions: 5688, sessionSeconds: 2235120,
-      landingPageViews: 3062, engagement: 2088, formStarts: 156, qualifiedLeads: 41,
-      appointments: 31, quotes: 31, customers: 8, pipelineValue: 342000, revenue: null,
+      landingPageViews: 3062, engagement: 2088, formStarts: 156, revenue: null,
     },
     conversiesHuidig: {
       offerteaanvraag: 38, adviesaanvraag: 24, demoAanvraag: 19,
@@ -177,14 +173,12 @@ const CLIENT_CONFIG = {
     huidig: {
       spend: 9400, impressions: 218400, clicks: 5240, sessions: 13840, users: 9420,
       newUsers: 7284, engagedSessions: 8442, sessionSeconds: 2712640,
-      landingPageViews: 4816, engagement: 2938, formStarts: 412, qualifiedLeads: null,
-      appointments: 42, quotes: null, customers: null, pipelineValue: null, revenue: null,
+      landingPageViews: 4816, engagement: 2938, formStarts: 412, revenue: null,
     },
     vorig: {
       spend: 9088, impressions: 196800, clicks: 4820, sessions: 12480, users: 8640,
       newUsers: 6712, engagedSessions: 7413, sessionSeconds: 2483520,
-      landingPageViews: 4412, engagement: 2618, formStarts: 368, qualifiedLeads: null,
-      appointments: 36, quotes: null, customers: null, pipelineValue: null, revenue: null,
+      landingPageViews: 4412, engagement: 2618, formStarts: 368, revenue: null,
     },
     conversiesHuidig: {
       waardebepaling: 64, bezichtiging: 148, contactformulier: 38, afspraakGepland: 42,
@@ -310,8 +304,7 @@ const METRIEKEN = {
   leadgen: [
     'spend', 'impressions', 'clicks', 'sessions', 'users', 'newUsers',
     'engagedSessions', 'sessionSeconds', 'landingPageViews', 'engagement',
-    'formStarts', 'qualifiedLeads', 'appointments', 'quotes', 'customers',
-    'pipelineValue', 'revenue',
+    'formStarts', 'revenue',
   ],
   ecommerce: [
     'spend', 'impressions', 'clicks', 'sessions', 'users', 'productViews',

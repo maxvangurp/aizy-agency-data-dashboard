@@ -54,7 +54,6 @@ export const INZICHT_CONTRACTEN = {
     verplicht: ['volume', 'efficientie', 'kwaliteit', 'funnel', 'kanaalbijdrage'],
     optioneel: ['budget', 'pipeline'],
     verboden: [
-      'klantconversies als nul tonen wanneer CRM-data ontbreekt',
       'de doorklikratio als funnelknelpunt aanwijzen',
       'een oorzaak als feit presenteren zonder ondersteunende data',
     ],
@@ -136,6 +135,7 @@ let teller = 0;
 function inzicht({
   categorie, titel, samenvatting, bewijs = [], herkomst = null, actie = null,
   betrouwbaarheid, impact = 0, volume = 0, metriek = null, kanalen = [],
+  staand = false,
 }) {
   teller += 1;
   return {
@@ -152,6 +152,7 @@ function inzicht({
     volume,
     metriek,
     kanalen,
+    staand,
   };
 }
 
@@ -179,9 +180,17 @@ function score(i) {
   return Math.abs(i.impact) * betrouwbaarheidsfactor * (0.35 + 0.65 * volumefactor) * actiefactor;
 }
 
-/** Kiest per categorie het sterkste inzicht en houdt de rest als aanvulling. */
+/**
+ * Kiest per categorie het sterkste inzicht en houdt de rest als aanvulling.
+ *
+ * Inzichten met `staand` doen daar niet aan mee. Dat zijn geen bevindingen over
+ * deze periode maar vaste eigenschappen van de meting -- ze veranderen niet
+ * mee, en zouden anders elke periode dezelfde kaart bezetten ten koste van wat
+ * er wél nieuw is. Ze blijven wel in `alle` staan en komen zo bij de
+ * meetbeperkingen terecht.
+ */
 export function rangschik(inzichten, { perCategorie = 1, maxAanvullend = 2 } = {}) {
-  const gesorteerd = [...inzichten].sort((a, b) => score(b) - score(a));
+  const gesorteerd = [...inzichten].filter((i) => !i.staand).sort((a, b) => score(b) - score(a));
   const gekozen = [];
   const geteld = {};
 
@@ -300,20 +309,26 @@ function budgetInzicht({ budget, dekking, vergelijkbaar }) {
 function meetbeperkingInzichten({ meldingen, model, totalen }) {
   const uit = [];
 
-  if (model === 'leadgen' && totalen.qualifiedLeads == null) {
+  /*
+   * Wat een aanvraag oplevert, weet geen enkel advertentieplatform. Zonder die
+   * terugkoppeling is de CPL een kostenpost zonder tegenwaarde: je kunt zien
+   * dat een lead goedkoper werd, niet of hij meer waard was. Dat hoort er
+   * expliciet bij te staan, want anders leest een dalende CPL als winst.
+   */
+  if (model === 'leadgen' && totalen?.revenue == null) {
     uit.push(inzicht({
       categorie: InzichtCategorie.MEETBEPERKING,
-      titel: 'Klantconversies zijn niet meetbaar',
-      samenvatting: 'De leads worden wel gemeten, maar er is geen CRM-data om te bepalen hoeveel leads gekwalificeerd zijn of klant zijn geworden.',
+      titel: 'De opbrengst per aanvraag is niet bekend',
+      staand: true,
+      samenvatting: 'De advertentieplatforms en Google Analytics 4 meten tot en met de aanvraag. Wat een aanvraag uiteindelijk waard is, komt uit geen van beide bronnen.',
       bewijs: [
-        bewijsregel('Gemeten leads', nf.format(Math.round(totalen.leads ?? 0))),
-        bewijsregel('Gekwalificeerde leads', 'Niet gekoppeld'),
-        bewijsregel('Klanten', 'Niet gekoppeld'),
+        bewijsregel('Wel gemeten', `${nf.format(Math.round(totalen?.leads ?? 0))} aanvragen in deze periode`),
+        bewijsregel('Niet gemeten', 'omzet per aanvraag'),
       ],
-      actie: 'Richt de CRM-koppeling in, of vraag om een maandelijkse export van opdrachten om de leadkwaliteit alsnog te kunnen beoordelen.',
+      actie: 'Beoordeel de kosten per aanvraag tegenover elkaar per kanaal, niet tegenover een opbrengst die hier niet gemeten wordt.',
       betrouwbaarheid: { niveau: Betrouwbaarheid.HOOG, redenen: [] },
-      impact: 55,
-      volume: totalen.leads ?? 0,
+      impact: 20,
+      volume: 100,
     }));
   }
 
@@ -371,37 +386,6 @@ function leadgenInzichten(ctx) {
       volume: totalen.leads ?? 0,
       metriek: 'cpl',
     }));
-  }
-
-  /* Kwaliteit: het verschil tussen leads en gekwalificeerde leads. */
-  if (totalen.qualifiedLeads != null && totalen.leads) {
-    const ratio = veiligPercentage(totalen.qualifiedLeads, totalen.leads);
-    const vorigeRatio = veiligPercentage(vorigeTotalen?.qualifiedLeads, vorigeTotalen?.leads);
-    const verschil = ratio != null && vorigeRatio != null ? ratio - vorigeRatio : null;
-
-    if (verschil != null && Math.abs(verschil) >= 2) {
-      const omhoog = verschil > 0;
-      uit.push(inzicht({
-        categorie: omhoog ? InzichtCategorie.ONTWIKKELING : InzichtCategorie.AANDACHTSPUNT,
-        titel: `${pf(ratio)} van de leads is gekwalificeerd, tegenover ${pf(vorigeRatio)} in de vorige periode`,
-        samenvatting: omhoog
-          ? `Er komen relatief meer bruikbare aanvragen binnen. Van ${nf.format(Math.round(totalen.leads))} leads werden er ${nf.format(Math.round(totalen.qualifiedLeads))} gekwalificeerd.`
-          : `Er komen relatief minder bruikbare aanvragen binnen. Van ${nf.format(Math.round(totalen.leads))} leads werden er ${nf.format(Math.round(totalen.qualifiedLeads))} gekwalificeerd.`,
-        bewijs: [
-          bewijsregel('Leads', nf.format(Math.round(totalen.leads))),
-          bewijsregel('Gekwalificeerd', nf.format(Math.round(totalen.qualifiedLeads))),
-          bewijsregel('Kosten per gekwalificeerde lead', totalen.cpql == null ? 'Niet te berekenen' : cf2.format(totalen.cpql)),
-          bewijsregel('Vorige periode', `${nf.format(Math.round(vorigeTotalen.qualifiedLeads))} van ${nf.format(Math.round(vorigeTotalen.leads))}`),
-        ],
-        actie: omhoog
-          ? 'Zet meer budget op de kanalen en zoektermen die deze kwaliteit leveren.'
-          : 'Beoordeel het formulier en de doelgroepinstellingen van de kanalen met de laagste kwalificatieratio.',
-        betrouwbaarheid: bepaalBetrouwbaarheid({ volume: totalen.qualifiedLeads, minimum: 25, vergelijkbaar, dekking }),
-        impact: Math.abs(verschil) * 2.5,
-        volume: totalen.qualifiedLeads,
-        metriek: 'kwalificatieratio',
-      }));
-    }
   }
 
   /* Funnel: de stap met de grootste actiegerichte uitval. */
@@ -737,11 +721,6 @@ export function bepaalPrioriteit(samenvatting) {
     redenen.push('Er is binnen deze selectie helemaal geen data.');
   }
 
-  if (modelVanClient(client) === 'leadgen' && totalen?.qualifiedLeads == null) {
-    punten += 15;
-    redenen.push('Zonder CRM-koppeling is niet te bepalen welke leads iets opleveren.');
-  }
-
   if (openSignalen > 0) {
     punten += Math.min(20, openSignalen * 8);
     redenen.push(`${openSignalen} ${openSignalen === 1 ? 'openstaand signaal' : 'openstaande signalen'} zonder opvolging.`);
@@ -766,8 +745,7 @@ function doelBehaaldLokaal(doel) {
 function doelMetriek(kpi) {
   return {
     omzet: 'revenue', aankopen: 'purchases', roas: 'roas', maandbudget: 'spend',
-    leads: 'leads', gekwalificeerdeLeads: 'qualifiedLeads', afspraken: 'appointments',
-    offertes: 'quotes', klanten: 'customers', cpl: 'cpl', cpql: 'cpql',
+    leads: 'leads', cpl: 'cpl',
     websitegebruikers: 'users', telefoongesprekken: 'conversies', emailacties: 'conversies',
   }[kpi] ?? kpi;
 }

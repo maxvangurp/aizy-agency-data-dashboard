@@ -207,7 +207,7 @@ const CATALOGUS = {
     naam: 'Conversies',
     doel: 'De conversies en hun waarde, met het gekozen conversietype als meetlat.',
     capabilities: ['Conversietype kiezen', 'De conversiewaarde per kanaal bekijken'],
-    suggestedQuestions: ['Wat betekent een gekwalificeerde lead?', 'Welk kanaal levert de meeste conversies?', 'Hoe kies ik het conversietype?'],
+    suggestedQuestions: ['Wat telt hier als een lead?', 'Welk kanaal levert de meeste conversies?', 'Hoe kies ik het conversietype?'],
     tips: ['Het conversietype bepaalt de meetlat; kies het bewust voordat je vergelijkt.'],
     navActions: ['open-campagnes'],
     insight: (c) => (c.summary?.leads != null || c.summary?.aankopen != null)

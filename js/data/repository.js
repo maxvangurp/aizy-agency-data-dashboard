@@ -273,10 +273,6 @@ function bronnenVan(client) {
   }));
 }
 
-function heeftCrm(client) {
-  return client.bronnen?.crm === KanaalStatus.GEKOPPELD;
-}
-
 /* ---------------------------------------------------------------
    Kern: totalen van één klant binnen de filtercontext
    --------------------------------------------------------------- */
@@ -329,8 +325,7 @@ function rekenKlantDoor(client, filters) {
 /** De metrieken waarvoor altijd een delta wordt berekend. */
 const DELTA_KEYS = {
   leadgen: ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'sessions', 'users', 'leads', 'cpl',
-    'qualifiedLeads', 'cpql', 'appointments', 'quotes', 'customers', 'leadNaarKlant',
-    'pipelineValue', 'conversies', 'secondaryConversions', 'revenue', 'roas'],
+    'conversies', 'secondaryConversions', 'revenue', 'roas'],
   ecommerce: ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'sessions', 'users', 'revenue',
     'roas', 'purchases', 'cpa', 'aov', 'conversieratio', 'productViews', 'addToCarts',
     'checkouts', 'winkelwagenratio', 'checkoutratio', 'aankoopratio', 'conversies'],
@@ -396,7 +391,7 @@ export function berekenDoelen(client, totalen, periode, { vorigeTotalen = null, 
 }
 
 function lagerIsBeterDoel(kpi) {
-  return ['cpl', 'cpql', 'cpa', 'cpc', 'cpm'].includes(kpi);
+  return ['cpl', 'cpa', 'cpc', 'cpm'].includes(kpi);
 }
 
 /* ---------------------------------------------------------------
@@ -630,7 +625,6 @@ export function getAgencyOverview(user, filters) {
       aantal: leadgen.length,
       leads: som(leadgen, (s) => s.totalen.leads) ?? 0,
       gemiddeldeCpl: gemiddelde(leadgen, (s) => s.totalen.cpl),
-      zonderKwalificatie: leadgen.filter((s) => s.totalen.qualifiedLeads == null).length,
     },
     overig: { aantal: overig.length },
 
@@ -670,9 +664,6 @@ function bouwPortefeuille(samenvattingen) {
     grootsteStijgers: metOntwikkeling.filter((x) => x.pct > 0).slice(0, 3),
     grootsteDalers: metOntwikkeling.filter((x) => x.pct < 0).reverse().slice(0, 3),
     metMeetprobleem: samenvattingen.filter((s) => s.client.trackingStatus === 'probleem'),
-    zonderCrm: samenvattingen.filter(
-      (s) => s.client.businessModel === BusinessModel.LEADGEN && s.totalen.qualifiedLeads == null
-    ),
     onvoldoendeData: samenvattingen.filter((s) => s.dekking.status === DekkingStatus.GEEN_DATA),
     onvolledigeDekking: samenvattingen.filter((s) => s.dekking.status === DekkingStatus.GEDEELTELIJK),
     bovenBudget: samenvattingen.filter((s) => s.budget.status === PacingStatus.BOVEN_BUDGET),
@@ -725,18 +716,6 @@ export function getPortfolioInzichten(user, filters) {
         clientId: slechtste.s.client.id,
       });
     }
-  }
-
-  const zonderCrm = samenvattingen.filter(
-    (s) => s.client.businessModel === BusinessModel.LEADGEN && s.totalen.qualifiedLeads == null
-  );
-  if (zonderCrm.length) {
-    inzichten.push({
-      soort: 'aandacht',
-      titel: 'Geen meetbare CRM-uitkomst',
-      tekst: `Voor ${zonderCrm.length === 1 ? '1 klant' : `${zonderCrm.length} klanten`} ontbreekt een CRM-koppeling: ${zonderCrm.map((s) => s.client.name).join(', ')}.`,
-      clientId: zonderCrm[0].client.id,
-    });
   }
 
   const boven = samenvattingen.filter((s) => s.budget.status === PacingStatus.BOVEN_BUDGET);
@@ -815,13 +794,13 @@ export function getClientDashboard(user, clientId, filters) {
   const reeksVelden = model === 'ecommerce'
     ? ['spend', 'revenue', 'purchases', 'clicks', 'impressions']
     : model === 'leadgen'
-      ? ['spend', 'leads', 'qualifiedLeads', 'clicks', 'impressions']
+      ? ['spend', 'leads', 'clicks', 'impressions']
       : ['spend', 'impressions', 'reach', 'engagements', 'videoStarts', 'videoCompletions'];
 
   const ruweReeks = dagelijkseReeks(basis.periodeRijen, reeksVelden, filters.periode);
   const reeks = verdichtReeks(ruweReeks, reeksVelden);
 
-  const meldingen = dekkingMeldingen(dekking, { crmGekoppeld: heeftCrm(client) });
+  const meldingen = dekkingMeldingen(dekking);
   const openSignalen = getAccessibleSignals(user, filters).filter((s) => s.klantId === clientId).length;
   const samenvatting = { ...basis, doelen, deltas, openSignalen };
   const status = klantStatus(samenvatting);
@@ -1050,7 +1029,6 @@ function bouwProfiel(client, basis, filters) {
         vertoningen: googleRij.impressions,
         klikken: googleRij.clicks,
         leads: googleRij.leads,
-        gekwalificeerdeLeads: googleRij.qualifiedLeads,
       }
       : null;
 
@@ -1062,7 +1040,7 @@ function bouwProfiel(client, basis, filters) {
           campagnes: schaalVerdeling(profiel.googleAds.campagnes, adsDoelen),
           advertentiegroepen: schaalVerdeling(profiel.googleAds.advertentiegroepen, {
             kosten: adsDoelen.kosten, klikken: adsDoelen.klikken,
-            leads: adsDoelen.leads, gekwalificeerdeLeads: adsDoelen.gekwalificeerdeLeads,
+            leads: adsDoelen.leads,
           }),
           zoekwoorden: schaalVerdeling(profiel.googleAds.zoekwoorden, adsDoelen),
         }

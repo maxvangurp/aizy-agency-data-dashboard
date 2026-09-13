@@ -154,17 +154,16 @@ export function renderConversies({ overview }) {
   </section>` : '');
 
   return `
-    ${blok('Leadgeneratie', 'Aanvragen en de kwalificatie daarvan. Zonder CRM-koppeling stopt de meting bij de lead; dat is geen nul maar een ontbrekende meting.',
+    ${blok('Leadgeneratie', 'Aanvragen en wat ze kosten. Een klik is nog geen aanvraag; alleen afgeronde formulieren en gesprekken tellen mee.',
       leadgen,
-      [LABELS.klant, 'Leads', 'Gekwalificeerd', 'Kosten per lead', 'Kosten per gekwalificeerde lead', 'Afspraken', 'Klanten'],
+      [LABELS.klant, 'Klikken', 'Leads', 'Conversieratio', 'Kosten per lead', 'Uitgaven'],
       (s) => [
         `<a class="link" href="#/agency/clients/${esc(s.client.id)}">${esc(s.client.name)}</a>`,
+        fmt.getal(s.totalen.clicks),
         fmt.getal(s.totalen.leads),
-        s.totalen.qualifiedLeads == null ? ontbrekendeCel('niet_gekoppeld') : fmt.getal(s.totalen.qualifiedLeads),
+        s.totalen.conversieratio == null ? ontbrekendeCel('onvoldoende_data') : fmt.procent(s.totalen.conversieratio),
         s.totalen.cpl == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro2(s.totalen.cpl),
-        s.totalen.cpql == null ? ontbrekendeCel('niet_gekoppeld') : fmt.euro2(s.totalen.cpql),
-        s.totalen.appointments == null ? ontbrekendeCel('niet_gekoppeld') : fmt.getal(s.totalen.appointments),
-        s.totalen.customers == null ? ontbrekendeCel('niet_gekoppeld') : fmt.getal(s.totalen.customers),
+        fmt.euro(s.totalen.spend),
       ])}
 
     ${blok('E-commerce', 'Aankopen en de stappen ervoor. Winkelwagen- en checkoutacties gaan aan dezelfde aankoop vooraf en worden daarom niet opgeteld.',
@@ -289,11 +288,6 @@ export function renderDatakwaliteit({ overview }) {
         <span class="kpi-value">${overview.onvolledigeDekking}</span>
         <span class="kpi-sub">klanten zonder data over de hele periode</span>
       </article>
-      <article class="card kpi" data-label="Zonder CRM">
-        <span class="kpi-label">Zonder CRM-koppeling</span>
-        <span class="kpi-value">${overview.leadgen.zonderKwalificatie}</span>
-        <span class="kpi-sub">leadkwaliteit niet meetbaar</span>
-      </article>
     </div>
 
     <section class="card">
@@ -390,7 +384,7 @@ export function renderIntegraties({ overview }) {
       <p class="muted">
         Deze demo draait volledig op vaste demodata met dagelijkse reeksen.
         Koppelingen met Google Ads, Meta Ads, Microsoft Ads, LinkedIn Ads,
-        Google Analytics 4, CRM en de agenda's van Google en Microsoft worden
+        Google Analytics 4 en de agenda's van Google en Microsoft worden
         ingericht zodra de Azure-backend beschikbaar is. Tot die tijd staat er
         geen enkele knop die een koppeling suggereert die er niet is.
       </p>

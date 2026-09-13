@@ -79,12 +79,7 @@ const DOEL_LABELS = {
   aankopen: 'Aankopen',
   maandbudget: 'Advertentiebudget',
   leads: 'Aanvragen',
-  gekwalificeerdeLeads: 'Gekwalificeerde aanvragen',
-  afspraken: 'Afspraken',
-  offertes: 'Offertes',
-  klanten: 'Nieuwe klanten',
   cpl: 'Kosten per aanvraag',
-  cpql: 'Kosten per gekwalificeerde aanvraag',
   websitegebruikers: 'Websitegebruikers',
   telefoongesprekken: 'Telefoongesprekken',
   emailacties: 'E-mailcontacten',
@@ -96,7 +91,7 @@ function doelLabel(kpi) {
 
 function doelFormat(kpi) {
   if (['omzet', 'maandbudget'].includes(kpi)) return fmt.euro;
-  if (['cpl', 'cpql'].includes(kpi)) return fmt.euro2;
+  if (kpi === 'cpl') return fmt.euro2;
   if (kpi === 'roas') return fmt.ratio;
   return fmt.getal;
 }
@@ -145,7 +140,6 @@ export function renderKlantAnalyse({ dashboard, tab }) {
     leads: () => leadsBlok(dashboard),
     funnel: () => funnelBlok(dashboard),
     kosten: () => kostenBlok(dashboard),
-    kwaliteit: () => kwaliteitBlok(dashboard),
     zoektermen: () => zoektermenBlok(dashboard),
     // E-commerce
     omzet: () => omzetBlok(dashboard),
@@ -179,7 +173,7 @@ function kpiRij(dashboard, keys) {
 
 function leadsBlok(d) {
   return `
-    ${kpiRij(d, ['leads', 'qualifiedLeads', 'cpl', 'sessions'])}
+    ${kpiRij(d, ['leads', 'cpl', 'clicks', 'sessions'])}
     <section class="card">
       <h2>Aanvragen per kanaal</h2>
       <div class="table-scroll">
@@ -223,53 +217,22 @@ function funnelBlok(d) {
 
 function kostenBlok(d) {
   return `
-    ${kpiRij(d, ['cpl', 'cpql', 'cpc', 'spend'])}
+    ${kpiRij(d, ['cpl', 'cpa', 'cpc', 'spend'])}
     <section class="card">
       <h2>Wat een aanvraag kost per kanaal</h2>
       <p class="muted">Het grootste kanaal is niet altijd het kanaal met de laagste kosten per aanvraag.</p>
       <div class="table-scroll">
         ${tabel(
-          ['Kanaal', metriekKolom('spend'), metriekKolom('leads'), metriekKolom('cpl'), metriekKolom('cpql')],
+          ['Kanaal', metriekKolom('spend'), metriekKolom('clicks'), metriekKolom('leads'), metriekKolom('cpl')],
           d.kanaalRijen.map((k) => [
-            esc(k.label), fmt.euro(k.spend), fmt.getal(k.leads),
+            esc(k.label), fmt.euro(k.spend), fmt.getal(k.clicks), fmt.getal(k.leads),
             k.cpl == null ? ontbrekendeCel('onvoldoende_data') : fmt.euro2(k.cpl),
-            k.cpql == null ? ontbrekendeCel('niet_gekoppeld') : fmt.euro2(k.cpql),
           ])
         )}
       </div>
     </section>`;
 }
 
-function kwaliteitBlok(d) {
-  if (d.totalen.qualifiedLeads == null) {
-    return `<section class="card">
-      ${koppelStatus({
-        bron: 'CRM',
-        status: KanaalStatus.NIET_GEKOPPELD,
-        uitleg: 'Zonder CRM-koppeling stopt de meting bij de aanvraag. We kunnen daardoor niet zien welke aanvragen tot een gesprek of opdracht leiden. Dat is geen nul, maar een ontbrekende meting.',
-      })}
-    </section>`;
-  }
-
-  return `
-    ${kpiRij(d, ['qualifiedLeads', 'appointments', 'quotes', 'customers'])}
-    <section class="card">
-      <h2>Van aanvraag naar klant</h2>
-      <p class="muted">Deze cijfers komen uit het CRM en niet uit de advertentieplatformen.</p>
-      <div class="table-scroll">
-        ${tabel(
-          ['Stap', 'Aantal'],
-          [
-            ['Aanvragen', fmt.getal(d.totalen.leads)],
-            ['Gekwalificeerd', fmt.getal(d.totalen.qualifiedLeads)],
-            ['Afspraken', d.totalen.appointments == null ? ontbrekendeCel('niet_gekoppeld') : fmt.getal(d.totalen.appointments)],
-            ['Offertes', d.totalen.quotes == null ? ontbrekendeCel('niet_gekoppeld') : fmt.getal(d.totalen.quotes)],
-            ['Nieuwe klanten', d.totalen.customers == null ? ontbrekendeCel('niet_gekoppeld') : fmt.getal(d.totalen.customers)],
-          ]
-        )}
-      </div>
-    </section>`;
-}
 
 /**
  * Waar mensen op zochten, en waarop geboden werd.

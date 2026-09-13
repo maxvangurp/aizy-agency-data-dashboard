@@ -30,11 +30,34 @@ const KLANT = {
   echt: true,
 };
 
-/** Dertig dagen met vaste cijfers, zodat de totalen narekenbaar zijn. */
+/*
+ * Dertig dagen met vaste cijfers, zodat de totalen narekenbaar zijn.
+ *
+ * De reeks hangt aan vandaag en niet aan een vaste datum: de standaardperiode
+ * schuift elke dag mee, en een vast venster zou het aantal overlappende dagen
+ * -- en daarmee het verwachte totaal -- elke dag veranderen.
+ *
+ * De reeks eindigt bewust twee dagen vóór vandaag. Daardoor mist de
+ * standaardperiode van dertig dagen er precies twee, en dat is wat de pagina
+ * hoort te melden in plaats van stilzwijgend een lager totaal te tonen.
+ */
+const REEKS_DAGEN = 30;
+const GAT_DAGEN = 2;
+const VERWACHTE_LEADS = (REEKS_DAGEN - GAT_DAGEN) * 4;
+
+function startDatum() {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - (REEKS_DAGEN + GAT_DAGEN - 1));
+  return d;
+}
+
 function reeks() {
   const rijen = [];
-  for (let i = 0; i < 30; i += 1) {
-    const d = new Date(Date.UTC(2026, 7, 13 + i));
+  const start = startDatum();
+  for (let i = 0; i < REEKS_DAGEN; i += 1) {
+    const d = new Date(start);
+    d.setUTCDate(d.getUTCDate() + i);
     const datum = d.toISOString().slice(0, 10);
     rijen.push({
       date: datum, channel: 'google_ads',
@@ -72,8 +95,8 @@ async function liveLogin(page, email = ACCOUNTS.admin) {
           kanalen: ['google_ads', 'ga4'], rijen: reeks(),
         },
       },
-      sinds: '2026-08-13',
-      nietGemeten: ['qualifiedLeads', 'appointments', 'quotes', 'customers', 'pipelineValue'],
+      sinds: startDatum().toISOString().slice(0, 10),
+      nietGemeten: ['formStarts', 'landingPageViews', 'engagement'],
     }),
   }));
   await page.addInitScript(() => localStorage.setItem('aizy.dataMode', 'live'));
@@ -96,10 +119,10 @@ test.describe('Uitgebreid dashboard op echte cijfers', () => {
     await ga(page, '#/agency/clients/proefklant', { wacht: 1200 });
 
     const inhoud = page.locator('.page-root');
-    // De standaardperiode (14 aug t/m 12 sep) dekt 29 van de 30 dagen uit de
-    // reeks: 29 × 4 = 116 leads. Dat de laatste dag ontbreekt is geen fout maar
-    // wat er gemeten is, en de pagina zegt het er ook bij.
-    await expect(inhoud).toContainText('116');
+    // De standaardperiode van dertig dagen dekt er 28 uit de reeks: 28 × 4
+    // leads. Dat de laatste twee dagen ontbreken is geen fout maar wat er
+    // gemeten is, en de pagina zegt het er ook bij.
+    await expect(inhoud).toContainText(String(VERWACHTE_LEADS));
     await expect(inhoud).toContainText('ontbreekt data');
     await expect(inhoud).not.toContainText('helemaal geen data');
   });

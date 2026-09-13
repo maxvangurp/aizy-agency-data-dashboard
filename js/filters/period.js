@@ -77,8 +77,8 @@ export const DEMO_TODAY = bepaalVandaag();
 
 /**
  * De laatste dag waarvan alle bronnen volledig zijn binnengekomen.
- * Advertentie- en CRM-data lopen in werkelijkheid een dag achter; dat wordt
- * gemeld in plaats van verzwegen.
+ * Advertentie- en analyticsdata lopen in werkelijkheid een dag achter; dat
+ * wordt gemeld in plaats van verzwegen.
  */
 export const DATA_VOLLEDIG_TOT = (() => {
   const d = new Date(`${DEMO_TODAY}T00:00:00.000Z`);
